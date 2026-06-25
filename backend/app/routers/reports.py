@@ -1,0 +1,266 @@
+"""Fleet reports. Lightweight aggregations suitable for dashboards and CSVs."""
+from datetime import date, datetime, timedelta, timezone
+from typing import Optional
+import math
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
+from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import get_db
+from app.deps.auth import get_current_user, get_org_id, require_role
+from app.models.drivers import Driver
+from app.models.driver_app import DriverExpense
+from app.models.enums import DriverStatus, TruckStatus, UserRole
+from app.models.maintenance import FuelLog, MaintenanceRecord
+from app.models.trucks import Truck, TruckLocationHistory
+from app.services.ai_reports import (
+    LANGUAGE_NAMES,
+    ReportLanguage,
+    ReportType,
+    generate_report,
+)
+
+router = APIRouter(prefix="/api/reports", tags=["Reports"])
+
+
+class FleetSummary(BaseModel):
+    total_trucks: int
+    active_drivers: int
+    total_maintenance_cost: float
+    total_fuel_cost: float
+    total_fuel_liters: float
+    distance_km: float
+    window_start: datetime
+    window_end: datetime
+
+
+class TruckDistance(BaseModel):
+    truck_id: str
+    truck_name: str
+    plate_number: str
+    distance_km: float
+    point_count: int
+
+
+class DriverExpenseRank(BaseModel):
+    driver_id: str
+    driver_name: str
+    total: float
+    entry_count: int
+    by_category: dict[str, float]
+
+
+def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    R = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lon2 - lon1)
+    a = math.sin(d_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+
+async def _compute_distances(
+    db: AsyncSession, start: datetime, end: datetime, org_id: uuid.UUID
+) -> dict[str, tuple[float, int]]:
+    """Sum haversine distance per truck across the location-history window (this org)."""
+    stmt = (
+        select(TruckLocationHistory)
+        .join(Truck, Truck.id == TruckLocationHistory.truck_id)
+        .where(
+            TruckLocationHistory.recorded_at >= start,
+            TruckLocationHistory.recorded_at <= end,
+            Truck.org_id == org_id,
+        )
+        .order_by(TruckLocationHistory.truck_id, TruckLocationHistory.recorded_at)
+    )
+    by_truck: dict[str, tuple[float, int]] = {}
+    prev_truck: Optional[str] = None
+    prev_lat: Optional[float] = None
+    prev_lon: Optional[float] = None
+    total_km = 0.0
+    count = 0
+
+    for row in (await db.execute(stmt)).scalars():
+        tid = str(row.truck_id)
+        if tid != prev_truck:
+            if prev_truck is not None:
+                by_truck[prev_truck] = (total_km, count)
+            prev_truck = tid
+            prev_lat, prev_lon = float(row.latitude), float(row.longitude)
+            total_km = 0.0
+            count = 1
+            continue
+        total_km += _haversine_km(prev_lat, prev_lon, float(row.latitude), float(row.longitude))
+        prev_lat, prev_lon = float(row.latitude), float(row.longitude)
+        count += 1
+
+    if prev_truck is not None:
+        by_truck[prev_truck] = (total_km, count)
+    return by_truck
+
+
+@router.get("/fleet-summary", response_model=FleetSummary)
+async def fleet_summary(
+    days: int = Query(default=30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+):
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=days)
+
+    total_trucks = (await db.execute(select(func.count(Truck.id)).where(Truck.org_id == org))).scalar() or 0
+    active_drivers = (
+        await db.execute(
+            select(func.count(Driver.id)).where(Driver.org_id == org, Driver.status == DriverStatus.active)
+        )
+    ).scalar() or 0
+
+    maint_cost = (
+        await db.execute(
+            select(func.coalesce(func.sum(MaintenanceRecord.cost), 0))
+            .join(Truck, Truck.id == MaintenanceRecord.truck_id)
+            .where(MaintenanceRecord.performed_at >= start.date(), Truck.org_id == org)
+        )
+    ).scalar() or 0
+    fuel_cost = (
+        await db.execute(
+            select(func.coalesce(func.sum(FuelLog.total_cost), 0))
+            .join(Truck, Truck.id == FuelLog.truck_id)
+            .where(FuelLog.filled_at >= start, Truck.org_id == org)
+        )
+    ).scalar() or 0
+    fuel_liters = (
+        await db.execute(
+            select(func.coalesce(func.sum(FuelLog.liters), 0))
+            .join(Truck, Truck.id == FuelLog.truck_id)
+            .where(FuelLog.filled_at >= start, Truck.org_id == org)
+        )
+    ).scalar() or 0
+
+    distances = await _compute_distances(db, start, end, org)
+    total_km = sum(km for km, _ in distances.values())
+
+    return FleetSummary(
+        total_trucks=int(total_trucks),
+        active_drivers=int(active_drivers),
+        total_maintenance_cost=float(maint_cost),
+        total_fuel_cost=float(fuel_cost),
+        total_fuel_liters=float(fuel_liters),
+        distance_km=round(total_km, 2),
+        window_start=start,
+        window_end=end,
+    )
+
+
+@router.get("/truck-distances", response_model=list[TruckDistance])
+async def truck_distances(
+    days: int = Query(default=30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+):
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=days)
+
+    trucks = (await db.execute(select(Truck).where(Truck.org_id == org))).scalars().all()
+    distances = await _compute_distances(db, start, end, org)
+
+    out: list[TruckDistance] = []
+    for t in trucks:
+        km, count = distances.get(str(t.id), (0.0, 0))
+        out.append(
+            TruckDistance(
+                truck_id=str(t.id),
+                truck_name=t.name,
+                plate_number=t.plate_number,
+                distance_km=round(km, 2),
+                point_count=count,
+            )
+        )
+    out.sort(key=lambda x: x.distance_km, reverse=True)
+    return out
+
+
+@router.get("/driver-expenses", response_model=list[DriverExpenseRank])
+async def driver_expenses(
+    days: int = Query(default=30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _user=Depends(require_role(UserRole.admin, UserRole.manager, UserRole.operator)),
+):
+    """Per-driver expense totals over the window, ranked high → low.
+
+    Answers "which driver spends more vs. less". Fuel is reported separately.
+    """
+    end = datetime.now(timezone.utc)
+    start = (end - timedelta(days=days)).date()
+
+    rows = (
+        await db.execute(
+            select(
+                DriverExpense.driver_id,
+                Driver.name,
+                DriverExpense.category,
+                func.coalesce(func.sum(DriverExpense.amount), 0),
+                func.count(DriverExpense.id),
+            )
+            .join(Driver, Driver.id == DriverExpense.driver_id)
+            .where(DriverExpense.spent_at >= start, Driver.org_id == org)
+            .group_by(DriverExpense.driver_id, Driver.name, DriverExpense.category)
+        )
+    ).all()
+
+    agg: dict[str, DriverExpenseRank] = {}
+    for driver_id, name, category, total, count in rows:
+        did = str(driver_id)
+        rank = agg.get(did)
+        if rank is None:
+            rank = DriverExpenseRank(
+                driver_id=did, driver_name=name, total=0.0, entry_count=0, by_category={}
+            )
+            agg[did] = rank
+        cat = category.value if hasattr(category, "value") else str(category)
+        rank.by_category[cat] = round(float(total), 2)
+        rank.total = round(rank.total + float(total), 2)
+        rank.entry_count += int(count)
+
+    out = sorted(agg.values(), key=lambda r: r.total, reverse=True)
+    return out
+
+
+_VALID_TYPES = {"fuel", "maintenance", "trucks", "drivers", "full"}
+
+
+@router.get("/generate")
+async def generate_ai_report(
+    report_type: str = Query(..., pattern="^(fuel|maintenance|trucks|drivers|full)$"),
+    language: str = Query(..., pattern="^(en|ru|uz)$"),
+    days: int = Query(default=30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_role(UserRole.admin)),
+) -> Response:
+    if report_type not in _VALID_TYPES or language not in LANGUAGE_NAMES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid parameters")
+    try:
+        report = await generate_report(
+            db,
+            report_type=report_type,  # type: ignore[arg-type]
+            language=language,  # type: ignore[arg-type]
+            days=days,
+            org_id=user.org_id,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+    except Exception:  # network / upstream AI errors — don't leak upstream detail to the client
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI report generation failed. Please try again later.",
+        )
+    return Response(
+        content=report.content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{report.filename}"'},
+    )

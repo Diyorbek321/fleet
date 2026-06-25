@@ -1,0 +1,88 @@
+name: Deploy
+
+# Builds and pushes the backend + frontend container images to GitHub Container
+# Registry (GHCR) on every push to main — AFTER CI passes.
+#
+# This is OFF by default. To enable it, set a repository variable
+#   ENABLE_DEPLOY = true
+# (Settings → Secrets and variables → Actions → Variables). Wire the
+# "deploy" step at the bottom to your host (Railway/Fly/Render/VPS).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Re-run the test suite as a gate so we never publish a broken image.
+  ci:
+    if: ${{ vars.ENABLE_DEPLOY == 'true' }}
+    uses: ./.github/workflows/ci.yml
+
+  images:
+    needs: ci
+    if: ${{ vars.ENABLE_DEPLOY == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+            dockerfile: ./backend/Dockerfile
+          - name: frontend
+            context: ./frontend
+            dockerfile: ./frontend/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}-${{ matrix.name }}:latest
+            ghcr.io/${{ github.repository }}-${{ matrix.name }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: images
+    if: ${{ vars.ENABLE_DEPLOY == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        # Render (via render.yaml Blueprint) auto-deploys on every push to main —
+        # nothing to trigger here unless you opt into a deploy hook below. The
+        # GHCR images above are for Railway / VPS hosts that pull a prebuilt
+        # image instead of building from source.
+        #
+        # To trigger Render explicitly (e.g. autoDeploy is off), add a repository
+        # secret RENDER_DEPLOY_HOOK_URL (Render service → Settings → Deploy Hook).
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          echo "Images published to GHCR:"
+          echo "  ghcr.io/${{ github.repository }}-backend:${{ github.sha }}"
+          echo "  ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}"
+          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "Triggering Render deploy hook…"
+            curl -fsS "$RENDER_DEPLOY_HOOK_URL" && echo "  -> Render deploy triggered."
+          else
+            echo "No RENDER_DEPLOY_HOOK_URL set — relying on Render autoDeploy (render.yaml)."
+          fi
+          echo "Backend runs 'alembic upgrade head' on release (see backend/Dockerfile CMD)."

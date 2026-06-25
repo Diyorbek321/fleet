@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:  # allow deploy.yml to reuse this as a gate
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      # Run the migration smoke test against real Postgres — the migrations use
+      # Postgres-native operations (enum types, FK/ALTER, now()) that SQLite
+      # cannot execute, and prod is Postgres.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: fleet
+          POSTGRES_PASSWORD: fleet
+          POSTGRES_DB: fleet
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U fleet -d fleet"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Run migrations (smoke test on Postgres)
+        run: alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://fleet:fleet@localhost:5432/fleet
+          JWT_SECRET_KEY: ci-secret-key-at-least-32-chars-long
+          CORS_ORIGINS: http://localhost:8080
+          GPS_API_KEYS: ci
+      - name: Run pytest with coverage
+        run: pytest --cov=app --cov-report=term
+        env:
+          ENV: test
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm run test:run
+      - name: Build
+        run: npm run build
+
+  mobile:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test

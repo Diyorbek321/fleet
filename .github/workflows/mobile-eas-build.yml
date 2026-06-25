@@ -1,0 +1,127 @@
+name: Mobile EAS Build
+
+# Builds the FleetWatch Driver app on Expo Application Services (EAS).
+#
+# EAS builds run on Expo's cloud (they consume your account's build quota), so
+# this does NOT run on every push — only on demand or when a release tag is cut.
+#
+# Prerequisites (one-time setup):
+#   1. Create an Expo access token: https://expo.dev/accounts/[account]/settings/access-tokens
+#      and add it as a repository secret named EXPO_TOKEN.
+#   2. Link the project to EAS once locally so app.json gets an `extra.eas.projectId`
+#      (and `owner`): `cd mobile && npx eas init`. Commit the resulting changes.
+#
+# Triggers:
+#   - Manually via the Actions tab (choose platform + profile).
+#   - Automatically when a tag like `mobile-v1.2.0` is pushed (preview/apk by default).
+#
+# The job waits for the build to finish, then downloads the resulting
+# .apk / .aab / .ipa and attaches it to the run under "Artifacts" (30-day retention).
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build
+        type: choice
+        options: [android, ios, all]
+        default: android
+      profile:
+        description: EAS build profile (see mobile/eas.json)
+        type: choice
+        options: [preview, production]
+        default: preview
+  push:
+    tags:
+      - "mobile-v*"
+
+# Don't run two EAS builds for the same ref at once — they'd both consume quota.
+concurrency:
+  group: eas-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # EAS cloud builds (plus queue wait on the free tier) can take a while; give
+    # the job room but don't let a stuck build run for the full 6h default.
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - run: npm ci
+
+      # Gate the build on the same checks CI runs, so we never burn EAS quota on
+      # code that doesn't typecheck or pass tests.
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+
+      - name: Set up EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Verify EXPO_TOKEN is set
+        run: |
+          if [ -z "${EXPO_TOKEN}" ]; then
+            echo "::error::EXPO_TOKEN secret is not set. Add it under Settings → Secrets → Actions."
+            exit 1
+          fi
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+      # Wait for the build to finish and emit machine-readable JSON so we can
+      # grab the resulting binary's download URL. --json implies --non-interactive.
+      - name: EAS build
+        id: eas
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build \
+            --platform "${{ github.event.inputs.platform || 'android' }}" \
+            --profile "${{ github.event.inputs.profile || 'preview' }}" \
+            --non-interactive \
+            --wait \
+            --json | tee build-output.json
+
+      # Pull the .apk / .aab / .ipa down from EAS (one per platform built) so it
+      # can be attached to this workflow run as a downloadable artifact.
+      - name: Download build binaries
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          urls=$(jq -r '.[].artifacts.applicationArchiveUrl // empty' build-output.json)
+          if [ -z "$urls" ]; then
+            echo "::error::No applicationArchiveUrl found in EAS build output — nothing to upload."
+            exit 1
+          fi
+          i=0
+          for url in $urls; do
+            clean="${url%%\?*}"        # strip any query string
+            ext="${clean##*.}"          # apk | aab | ipa
+            out="artifacts/fleetwatch-driver-${{ github.event.inputs.profile || 'preview' }}-${i}.${ext}"
+            echo "Downloading $url -> $out"
+            curl -fSL -o "$out" "$url"
+            i=$((i + 1))
+          done
+          ls -la artifacts
+
+      - name: Upload build binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: fleetwatch-driver-${{ github.event.inputs.profile || 'preview' }}
+          path: mobile/artifacts/*
+          if-no-files-found: error
+          retention-days: 30

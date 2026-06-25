@@ -1,0 +1,13 @@
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+*.log
+.DS_Store
+Dockerfile
+.dockerignore
+bun.lockb

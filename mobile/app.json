@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Fleet Watch Driver",
+    "slug": "fleet-watch-driver",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0f172a"
+    },
+    "android": {
+      "package": "com.fleetwatch.driver",
+      "versionCode": 1,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fleetwatch.driver",
+      "infoPlist": {
+        "UIBackgroundModes": ["location"]
+      }
+    },
+    "plugins": [
+      "expo-localization",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Fleet Watch shares your location with your dispatcher while you are on shift.",
+          "locationAlwaysAndWhenInUsePermission": "Fleet Watch keeps sharing your location with your dispatcher in the background while you are on shift.",
+          "locationAlwaysPermission": "Fleet Watch keeps sharing your location with your dispatcher in the background while you are on shift.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "_apiUrl_note": "LOCAL DEV ONLY. Shipped builds (development/preview/production) get their HTTPS backend host from EXPO_PUBLIC_API_URL in eas.json — this value is the fallback for `npm start`. Android emulator reaches the host via 10.0.2.2; for a real phone on the same Wi-Fi use http://<your-LAN-IP>:8000. NEVER put a production URL here.",
+      "apiUrl": "http://10.0.2.2:8000"
+    }
+  }
+}

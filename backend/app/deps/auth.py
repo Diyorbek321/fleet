@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+import uuid
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from app.core.database import get_db
+from app.core.security import decode_token
+from app.models.users import User
+from app.models.enums import UserRole
+
+bearer = HTTPBearer(auto_error=False)
+
+async def get_current_user(
+    creds: HTTPAuthorizationCredentials | None = Depends(bearer),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    if creds is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    token = creds.credentials
+    try:
+        payload = decode_token(token)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    user_id_raw = payload.get("userId")
+    if not user_id_raw:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+
+    try:
+        user_id = uuid.UUID(user_id_raw)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+
+    res = await db.execute(select(User).where(User.id == user_id))
+    user = res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    return user
+
+def require_role(*roles: UserRole):
+    async def _dep(user: User = Depends(get_current_user)) -> User:
+        if user.role not in roles:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+        return user
+    return _dep
+
+
+async def get_org_id(user: User = Depends(get_current_user)) -> uuid.UUID:
+    """The signed-in user's organization id.
+
+    Every tenant-scoped query filters on this. Read from the DB-loaded user
+    record (the source of truth), never trusted from a request body, so a user
+    can only ever touch their own organization's data.
+    """
+    return user.org_id
+
+
+async def get_current_driver(user: User = Depends(get_current_user)) -> "Driver":
+    """Resolve the Driver record for the authenticated user.
+
+    Used by all ``/api/me`` endpoints so the mobile app is strictly scoped to
+    the signed-in driver's own data. Requires the user to be linked to a Driver.
+    """
+    if user.driver_id is None or user.driver is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account is not linked to a driver profile",
+        )
+    return user.driver

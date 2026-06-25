@@ -1,0 +1,28 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenvs
+venv/
+.venv/
+env/
+
+# Local databases / coverage / secrets
+*.db
+.coverage
+.env
+.env.*
+!.env.example
+
+# Editor / VCS
+.idea/
+.vscode/
+.git/
+.gitignore
+
+# Docs / build artifacts not needed at runtime
+*.md

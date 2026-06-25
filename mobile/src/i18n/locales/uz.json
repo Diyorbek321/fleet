@@ -1,0 +1,174 @@
+{
+  "app": {
+    "name": "Fleet Watch Haydovchi"
+  },
+  "language": {
+    "title": "Til",
+    "en": "English",
+    "uz": "O‘zbekcha",
+    "ru": "Русский"
+  },
+  "auth": {
+    "heading": "Haydovchi sifatida kirish",
+    "subtitle": "Davom etish uchun kiring",
+    "signIn": "Kirish",
+    "signingIn": "Kirilmoqda…",
+    "email": "Email",
+    "password": "Parol",
+    "emailPlaceholder": "siz@example.com",
+    "passwordPlaceholder": "••••••••",
+    "loginFailed": "Kirish amalga oshmadi",
+    "invalidCredentials": "Email yoki parol noto‘g‘ri",
+    "backendUnreachable": "Serverga ulanib bo‘lmadi. Qayta urinib ko‘ring."
+  },
+  "tabs": {
+    "home": "Bosh sahifa",
+    "tracking": "Kuzatuv",
+    "queue": "Navbat",
+    "fuel": "Yoqilg‘i",
+    "maintenance": "Texnik xizmat",
+    "profile": "Profil",
+    "expenses": "Xarajatlar",
+    "trips": "Reyslar"
+  },
+  "trips": {
+    "title": "Mening reyslarim",
+    "subtitle": "Sizga biriktirilgan yuklar",
+    "empty": "Sizga hali reys biriktirilmagan",
+    "advanceTo": "{{status}} deb belgilash",
+    "status": {
+      "draft": "Qoralama",
+      "planned": "Rejalashtirilgan",
+      "loading": "Yuklanmoqda",
+      "en_route": "Yo‘lda",
+      "at_border": "Chegarada",
+      "delivered": "Yetkazilgan",
+      "cancelled": "Bekor qilingan"
+    }
+  },
+  "home": {
+    "welcome": "Xush kelibsiz",
+    "assignedTruck": "Biriktirilgan mashina",
+    "noTruck": "Mashina biriktirilmagan",
+    "fuelLevel": "Yoqilg‘i darajasi",
+    "mileage": "Probeg",
+    "startShift": "Smenani boshlash",
+    "endShift": "Smenani tugatish",
+    "shiftActive": "Smena faol",
+    "shiftSince": "{{time}} dan beri",
+    "startMileage": "Boshlang‘ich probeg",
+    "endMileage": "Yakuniy probeg"
+  },
+  "tracking": {
+    "title": "Jonli kuzatuv",
+    "on": "Kuzatuv yoniq",
+    "off": "Kuzatuv o‘chiq",
+    "start": "Kuzatuvni boshlash",
+    "stop": "Kuzatuvni to‘xtatish",
+    "permissionNeeded": "Joylashuvni ulashish uchun ruxsat kerak",
+    "foregroundOnly": "Fon rejimidagi joylashuv o‘chiq, shuning uchun kuzatuv faqat ilova ochiq turganda ishlaydi. Doimiy kuzatuv uchun sozlamalarda «Doim ruxsat berish»ni yoqing.",
+    "status": "Holat",
+    "lastSent": "Oxirgi yuborilgan: {{time}}"
+  },
+  "fuel": {
+    "title": "Yoqilg‘i yozuvlari",
+    "addLog": "Yoqilg‘i qo‘shish",
+    "liters": "Litr",
+    "costPerLiter": "Litr narxi",
+    "total": "Jami",
+    "station": "Yoqilg‘i shoxobchasi",
+    "odometer": "Probeg",
+    "receipt": "Chek surati",
+    "save": "Saqlash",
+    "saved": "Yoqilg‘i yozuvi saqlandi",
+    "empty": "Hozircha yozuvlar yo‘q"
+  },
+  "maintenance": {
+    "title": "Texnik xizmat",
+    "history": "Xizmat tarixi",
+    "reportIssue": "Nosozlik haqida xabar berish",
+    "issueTitle": "Sarlavha",
+    "issueDescription": "Tavsif",
+    "photo": "Surat",
+    "submit": "Yuborish",
+    "submitted": "Nosozlik haqida xabar berildi",
+    "empty": "Texnik xizmat yozuvlari yo‘q",
+    "status": {
+      "open": "Ochiq",
+      "acknowledged": "Qabul qilindi",
+      "resolved": "Hal qilindi"
+    }
+  },
+  "safety": {
+    "title": "Xavfsizlik bahosi",
+    "score": "Ball",
+    "speeding": "Tezlikdan oshish",
+    "harshBraking": "Keskin tormozlash",
+    "harshAccel": "Keskin tezlanish",
+    "idleTime": "Bekor turish (daq)",
+    "noData": "Hozircha ma’lumot yo‘q"
+  },
+  "profile": {
+    "title": "Profil",
+    "name": "Ism",
+    "phone": "Telefon",
+    "license": "Guvohnoma",
+    "licenseExpiry": "Guvohnoma muddati",
+    "logout": "Chiqish"
+  },
+  "queue": {
+    "title": "Chegara navbati",
+    "checkpoint": "O‘tkazish punkti",
+    "country": "Mamlakat",
+    "queueTime": "Navbat vaqti",
+    "noBooking": "Mashinangiz uchun bron topilmadi",
+    "startWatch": "Navbatimni kuzatish",
+    "stopWatch": "Kuzatuvni to‘xtatish",
+    "watching": "Kuzatilmoqda",
+    "refresh": "Yangilash",
+    "bookNow": "CarGoRuqsat’da bron qilish",
+    "handoffNote": "Bronni CarGoRuqsat’da ЭЦП (raqamli imzo) va SMS-kod bilan yakunlaysiz.",
+    "status": {
+      "in_queue": "Navbatda",
+      "late": "Kechikmoqda",
+      "crossed": "Punktdan o‘tdi",
+      "check_failed": "Tekshiruv o‘tmadi",
+      "revoked": "Ruxsat bekor qilindi",
+      "none": "Bron yo‘q",
+      "unknown": "Noma’lum"
+    }
+  },
+  "common": {
+    "loading": "Yuklanmoqda…",
+    "retry": "Qayta urinish",
+    "cancel": "Bekor qilish",
+    "save": "Saqlash",
+    "error": "Xatolik yuz berdi",
+    "km": "km",
+    "litersShort": "L",
+    "delete": "O‘chirish"
+  },
+  "expenses": {
+    "title": "Xarajatlar",
+    "addExpense": "Xarajat qo‘shish",
+    "category": "Turkum",
+    "amount": "Summa",
+    "note": "Izoh",
+    "save": "Saqlash",
+    "history": "Xarajatlar tarixi",
+    "empty": "Hozircha xarajatlar yo‘q",
+    "thisMonth": "Shu oy",
+    "deleteTitle": "Xarajat o‘chirilsinmi?",
+    "deleteBody": "Bu xarajat butunlay o‘chiriladi.",
+    "cat": {
+      "food": "Ovqat",
+      "toll": "Yo‘l haqi",
+      "parking": "Parkovka",
+      "fine": "Jarima",
+      "repair": "Ta'mirlash",
+      "lodging": "Tunash",
+      "customs": "Bojxona",
+      "other": "Boshqa"
+    }
+  }
+}

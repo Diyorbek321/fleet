@@ -1,0 +1,174 @@
+{
+  "app": {
+    "name": "Fleet Watch Driver"
+  },
+  "language": {
+    "title": "Language",
+    "en": "English",
+    "uz": "O‘zbekcha",
+    "ru": "Русский"
+  },
+  "auth": {
+    "heading": "Driver sign in",
+    "subtitle": "Sign in to continue",
+    "signIn": "Sign in",
+    "signingIn": "Signing in…",
+    "email": "Email",
+    "password": "Password",
+    "emailPlaceholder": "you@example.com",
+    "passwordPlaceholder": "••••••••",
+    "loginFailed": "Login failed",
+    "invalidCredentials": "Invalid email or password",
+    "backendUnreachable": "Cannot reach the server. Try again."
+  },
+  "tabs": {
+    "home": "Home",
+    "tracking": "Tracking",
+    "queue": "Queue",
+    "fuel": "Fuel",
+    "maintenance": "Maintenance",
+    "profile": "Profile",
+    "expenses": "Expenses",
+    "trips": "Trips"
+  },
+  "trips": {
+    "title": "My trips",
+    "subtitle": "Your assigned loads",
+    "empty": "No trips assigned to you yet",
+    "advanceTo": "Mark as {{status}}",
+    "status": {
+      "draft": "Draft",
+      "planned": "Planned",
+      "loading": "Loading",
+      "en_route": "En route",
+      "at_border": "At border",
+      "delivered": "Delivered",
+      "cancelled": "Cancelled"
+    }
+  },
+  "home": {
+    "welcome": "Welcome back",
+    "assignedTruck": "Assigned truck",
+    "noTruck": "No truck assigned",
+    "fuelLevel": "Fuel level",
+    "mileage": "Mileage",
+    "startShift": "Start shift",
+    "endShift": "End shift",
+    "shiftActive": "Shift active",
+    "shiftSince": "Since {{time}}",
+    "startMileage": "Start odometer",
+    "endMileage": "End odometer"
+  },
+  "tracking": {
+    "title": "Live tracking",
+    "on": "Tracking on",
+    "off": "Tracking off",
+    "start": "Start tracking",
+    "stop": "Stop tracking",
+    "permissionNeeded": "Location permission is required to share your position",
+    "foregroundOnly": "Background location is off, so tracking only works while the app is open. Enable \"Allow all the time\" in Settings for always-on tracking.",
+    "status": "Status",
+    "lastSent": "Last sent {{time}}"
+  },
+  "fuel": {
+    "title": "Fuel logs",
+    "addLog": "Add fuel log",
+    "liters": "Liters",
+    "costPerLiter": "Cost per liter",
+    "total": "Total",
+    "station": "Fuel station",
+    "odometer": "Odometer",
+    "receipt": "Receipt photo",
+    "save": "Save",
+    "saved": "Fuel log saved",
+    "empty": "No fuel logs yet"
+  },
+  "maintenance": {
+    "title": "Maintenance",
+    "history": "Service history",
+    "reportIssue": "Report an issue",
+    "issueTitle": "Title",
+    "issueDescription": "Description",
+    "photo": "Photo",
+    "submit": "Submit",
+    "submitted": "Issue reported",
+    "empty": "No maintenance records",
+    "status": {
+      "open": "Open",
+      "acknowledged": "Acknowledged",
+      "resolved": "Resolved"
+    }
+  },
+  "safety": {
+    "title": "Safety score",
+    "score": "Score",
+    "speeding": "Speeding events",
+    "harshBraking": "Harsh braking",
+    "harshAccel": "Harsh acceleration",
+    "idleTime": "Idle time (min)",
+    "noData": "No safety data yet"
+  },
+  "profile": {
+    "title": "Profile",
+    "name": "Name",
+    "phone": "Phone",
+    "license": "License",
+    "licenseExpiry": "License expiry",
+    "logout": "Log out"
+  },
+  "queue": {
+    "title": "Border queue",
+    "checkpoint": "Checkpoint",
+    "country": "Country",
+    "queueTime": "Queue time",
+    "noBooking": "No booking found for your truck",
+    "startWatch": "Track my queue",
+    "stopWatch": "Stop tracking",
+    "watching": "Watching",
+    "refresh": "Refresh",
+    "bookNow": "Book on CarGoRuqsat",
+    "handoffNote": "You finish booking with your digital signature (ЭЦП) and SMS code on CarGoRuqsat.",
+    "status": {
+      "in_queue": "In queue",
+      "late": "Late",
+      "crossed": "Crossed checkpoint",
+      "check_failed": "Check failed",
+      "revoked": "Pass revoked",
+      "none": "No booking",
+      "unknown": "Unknown"
+    }
+  },
+  "common": {
+    "loading": "Loading…",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "error": "Something went wrong",
+    "km": "km",
+    "litersShort": "L",
+    "delete": "Delete"
+  },
+  "expenses": {
+    "title": "Expenses",
+    "addExpense": "Add expense",
+    "category": "Category",
+    "amount": "Amount",
+    "note": "Note",
+    "save": "Save",
+    "history": "Expense history",
+    "empty": "No expenses yet",
+    "thisMonth": "This month",
+    "deleteTitle": "Delete expense?",
+    "deleteBody": "This expense will be permanently removed.",
+    "cat": {
+      "food": "Food",
+      "toll": "Toll",
+      "parking": "Parking",
+      "fine": "Fine",
+      "repair": "Repair",
+      "lodging": "Lodging",
+      "customs": "Customs",
+      "other": "Other"
+    }
+  }
+}

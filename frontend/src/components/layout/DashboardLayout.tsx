@@ -1,0 +1,49 @@
+import React, { useState } from 'react';
+import { Outlet } from 'react-router-dom';
+import { Sidebar } from './Sidebar';
+import { TopNavbar } from './TopNavbar';
+import { cn } from '@/lib/utils';
+
+export function DashboardLayout() {
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  return (
+    <>
+      <div className="min-h-screen bg-background">
+        {/* Sidebar - hidden on mobile */}
+        <div className="hidden lg:block">
+          <Sidebar
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+          />
+        </div>
+
+        {/* Mobile sidebar overlay */}
+        {mobileMenuOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <div className="fixed inset-y-0 left-0 w-64" onClick={(e) => e.stopPropagation()}>
+              <Sidebar collapsed={false} onToggle={() => setMobileMenuOpen(false)} />
+            </div>
+          </div>
+        )}
+
+        {/* Main content */}
+        <div
+          className={cn(
+            'min-h-screen transition-all duration-300',
+            sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-64'
+          )}
+        >
+          <TopNavbar onMenuClick={() => setMobileMenuOpen(true)} />
+          <main className="p-4 lg:p-6">
+            <Outlet />
+          </main>
+        </div>
+      </div>
+    </>
+  );
+}
