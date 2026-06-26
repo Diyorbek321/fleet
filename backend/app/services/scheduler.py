@@ -24,7 +24,9 @@ from app.models.drivers import Driver, SafetyScore
 from app.models.enums import ServiceStatus
 from app.models.maintenance import ServiceInterval
 from app.models.trucks import Truck
+from app.services.cgr import get_cgr_client
 from app.services.maintenance import refresh_service_statuses
+from app.services.queue import poll_active_watches
 from app.services.reminders import check_document_expiries
 
 try:  # pragma: no cover - exercised only when redis is installed/enabled
@@ -167,6 +169,23 @@ async def recalc_safety_scores() -> None:
         logger.exception("safety_recalc_failed")
 
 
+async def poll_queue_watches() -> None:
+    """Refresh every active CarGoRuqsat border-queue watch against the public registry.
+
+    Reuses :func:`poll_active_watches` (the same evaluate+notify logic the manager
+    panel's refresh uses) so drivers get notified of status changes without anyone
+    opening the app. Errors are swallowed/logged so a flaky external site never
+    crashes the scheduler.
+    """
+    try:
+        async with SessionLocal() as db:
+            client = get_cgr_client()
+            changed = await poll_active_watches(db, client)
+            logger.info("queue_poll_done", changed=changed)
+    except Exception:  # noqa: BLE001 — never let a job crash the scheduler
+        logger.exception("queue_poll_failed")
+
+
 _scheduler: AsyncIOScheduler | None = None
 
 
@@ -201,6 +220,9 @@ def start_scheduler() -> AsyncIOScheduler | None:
     async def _expiry_job() -> None:
         await _run_locked("check_document_expiries", check_document_expiries)
 
+    async def _queue_poll_job() -> None:
+        await _run_locked("poll_queue_watches", poll_queue_watches)
+
     scheduler.add_job(
         _check_job,
         trigger="interval",
@@ -224,6 +246,15 @@ def start_scheduler() -> AsyncIOScheduler | None:
         trigger="interval",
         minutes=max(interval, 60),  # expiries change slowly; hourly is plenty
         id="check_document_expiries",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _queue_poll_job,
+        trigger="interval",
+        minutes=max(interval, 5),  # border-queue status shifts on the order of minutes
+        id="poll_queue_watches",
         max_instances=1,
         coalesce=True,
         replace_existing=True,

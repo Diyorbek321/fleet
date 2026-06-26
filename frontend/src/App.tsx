@@ -29,6 +29,7 @@ const DriversPage = lazy(() => import("@/pages/DriversPage"));
 const GeofencesPage = lazy(() => import("@/pages/GeofencesPage"));
 const TripsPage = lazy(() => import("@/pages/TripsPage"));
 const LeakagePage = lazy(() => import("@/pages/LeakagePage"));
+const BorderQueuePage = lazy(() => import("@/pages/BorderQueuePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -57,6 +58,7 @@ const App = () => (
                       <Route path="/trips" element={<TripsPage />} />
                       <Route path="/leakage" element={<LeakagePage />} />
                       <Route path="/map" element={<MapViewPage />} />
+                      <Route path="/queue" element={<BorderQueuePage />} />
                       <Route path="/geofences" element={<GeofencesPage />} />
                       <Route path="/maintenance" element={<MaintenancePage />} />
                       <Route path="/devices" element={<DevicesPage />} />

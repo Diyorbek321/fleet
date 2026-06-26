@@ -71,3 +71,31 @@ async def notify_queue_change(
         },
     )
     return len(tokens)
+
+
+async def poll_active_watches(db: AsyncSession, client: CgrClient) -> int:
+    """Refresh every active queue-watch (across all orgs) and notify on change.
+
+    Designed to be driven from the background scheduler. Each watch is evaluated
+    in isolation so one failing external lookup never aborts the whole batch; we
+    commit once at the end. Returns the number of watches whose status changed.
+    """
+    watches = (
+        await db.execute(select(QueueWatch).where(QueueWatch.active.is_(True)))
+    ).scalars().all()
+
+    changed = 0
+    for watch in watches:
+        try:
+            record, notify = await evaluate_watch(watch, client)
+            if notify:
+                await notify_queue_change(db, watch, record)
+                changed += 1
+        except Exception:  # noqa: BLE001 — one bad lookup must not abort the batch
+            logger.exception(
+                "queue_watch_poll_failed",
+                extra={"watch_id": str(watch.id), "plate": watch.plate},
+            )
+
+    await db.commit()
+    return changed

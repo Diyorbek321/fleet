@@ -15,7 +15,8 @@ import {
   Users,
   MapPin,
   Package,
-  TrendingDown
+  TrendingDown,
+  ListChecks
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +35,7 @@ const navItems = [
   { icon: Truck, labelKey: 'nav.trucks', path: '/trucks' },
   { icon: Users, labelKey: 'nav.drivers', path: '/drivers' },
   { icon: Map, labelKey: 'nav.map', path: '/map' },
+  { icon: ListChecks, labelKey: 'nav.queue', path: '/queue' },
   { icon: MapPin, labelKey: 'nav.geofences', path: '/geofences' },
   { icon: Wrench, labelKey: 'nav.maintenance', path: '/maintenance' },
   { icon: Radio, labelKey: 'nav.devices', path: '/devices' },

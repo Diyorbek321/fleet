@@ -29,6 +29,7 @@ from app.routers.trips import router as trips_router
 from app.routers.analytics import router as analytics_router
 from app.routers.driver_data import router as driver_data_router
 from app.routers.reminders import router as reminders_router
+from app.routers.queue import router as queue_router
 
 
 INSECURE_JWT_TOKENS = {"", "CHANGE_ME", "CHANGE_ME_SUPER_SECRET", "dev", "devsecret"}
@@ -141,3 +142,4 @@ app.include_router(trips_router)
 app.include_router(analytics_router)
 app.include_router(driver_data_router)
 app.include_router(reminders_router)
+app.include_router(queue_router)
