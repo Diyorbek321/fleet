@@ -1,0 +1,19 @@
+# Reverse proxy + automatic HTTPS for the Fleet Watch Pro stack.
+# Caddy obtains and renews Let's Encrypt certificates automatically for both
+# domains (the droplet must be reachable on ports 80/443 and the DNS A records
+# must point at it). WebSocket upgrades are proxied transparently.
+
+# Frontend SPA
+{$APP_DOMAIN} {
+	encode gzip zstd
+	# Harden transport; the SPA's own CSP/headers come from its nginx layer.
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	reverse_proxy web:8080
+}
+
+# API (REST + WebSocket)
+{$API_DOMAIN} {
+	encode gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	reverse_proxy api:8000
+}

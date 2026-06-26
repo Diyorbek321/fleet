@@ -1,0 +1,105 @@
+# Production stack for a single DigitalOcean Droplet (or any Docker host).
+#
+#   Caddy (auto-HTTPS)  →  web (SPA)  +  api (FastAPI)  →  Postgres + Redis
+#
+# Everything runs on one box; Postgres/Redis are NOT exposed to the internet
+# (no published ports), only reachable on the internal compose network. Caddy
+# is the only public entrypoint and provisions Let's Encrypt certificates
+# automatically for both domains.
+#
+# Deploy:
+#   cp .env.prod.example .env.prod   # then fill it in
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+#
+# The backend applies Alembic migrations on start (see backend/Dockerfile CMD).
+# See DEPLOY-DROPLET.md for the full walkthrough.
+
+name: fleetwatch
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fleet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:-fleet}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fleet} -d ${POSTGRES_DB:-fleet}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      ENV: prod
+      DEBUG: "false"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?set JWT_SECRET_KEY in .env.prod}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fleet}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fleet}
+      REDIS_URL: redis://redis:6379/0
+      CORS_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN in .env.prod}
+      GPS_API_KEYS: ${GPS_API_KEYS:-}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        # Vite bakes these into the bundle at build time.
+        VITE_API_URL: https://${API_DOMAIN:?set API_DOMAIN in .env.prod}
+        VITE_WS_URL: wss://${API_DOMAIN}
+    restart: unless-stopped
+    environment:
+      # Substituted into the nginx CSP connect-src at container start.
+      API_ORIGIN: https://${API_DOMAIN}
+      WS_ORIGIN: wss://${API_DOMAIN}
+      PORT: "8080"
+    expose:
+      - "8080"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      - api
+      - web
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  caddyconfig:
