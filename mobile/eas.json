@@ -9,8 +9,7 @@
       "distribution": "internal",
       "channel": "development",
       "env": {
-        "_apiUrl_note": "TODO: replace with your real staging backend host. Must be HTTPS for a shipped build.",
-        "EXPO_PUBLIC_API_URL": "https://staging-api.fleetwatch.uz"
+        "EXPO_PUBLIC_API_URL": "https://fleetapi.eduly.uz"
       }
     },
     "preview": {
@@ -20,8 +19,7 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "_apiUrl_note": "TODO: replace with your real staging backend host. Must be HTTPS for a shipped APK.",
-        "EXPO_PUBLIC_API_URL": "https://staging-api.fleetwatch.uz"
+        "EXPO_PUBLIC_API_URL": "https://fleetapi.eduly.uz"
       }
     },
     "production": {
@@ -30,8 +28,7 @@
       },
       "channel": "production",
       "env": {
-        "_apiUrl_note": "TODO: replace with your real production backend host. Must be HTTPS.",
-        "EXPO_PUBLIC_API_URL": "https://api.fleetwatch.uz"
+        "EXPO_PUBLIC_API_URL": "https://fleetapi.eduly.uz"
       }
     }
   },

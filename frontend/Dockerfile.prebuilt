@@ -1,0 +1,19 @@
+# Serve a pre-built ./dist with nginx — no in-image Vite build.
+# dist is built on the host (npm run build with VITE_API_URL/VITE_WS_URL set)
+# to sidestep esbuild's in-Docker ETXTBSY on some kernels. Mirrors the runtime
+# stage of Dockerfile.
+FROM nginx:alpine
+
+ENV PORT=8080
+ENV API_ORIGIN="http://localhost:8000" \
+    WS_ORIGIN="ws://localhost:8000"
+
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+COPY dist /usr/share/nginx/html
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider "http://127.0.0.1:${PORT:-8080}/" || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]
