@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, ArrowRight } from 'lucide-react';
@@ -69,6 +70,7 @@ function fmtMoney(amount: number, currency: string): string {
 
 export default function TripsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { trucks } = useTrucks();
   const queryClient = useQueryClient();
 
@@ -187,7 +189,11 @@ export default function TripsPage() {
             {trips.map((trip) => {
               const next = STATUS_FLOW[trip.status];
               return (
-                <TableRow key={trip.id}>
+                <TableRow
+                  key={trip.id}
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/trips/${trip.id}`)}
+                >
                   <TableCell className="font-mono text-xs font-medium">{trip.reference}</TableCell>
                   <TableCell className="text-sm">
                     {(trip.originName ?? '—')} → {(trip.destinationName ?? '—')}
@@ -202,14 +208,17 @@ export default function TripsPage() {
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
                   </TableCell>
-                  <TableCell className="flex gap-1">
+                  <TableCell className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                     {next && (
                       <Button
                         variant="ghost"
                         size="sm"
                         className="gap-1"
                         disabled={advanceMutation.isPending}
-                        onClick={() => advanceMutation.mutate({ id: trip.id, to: next })}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          advanceMutation.mutate({ id: trip.id, to: next });
+                        }}
                         title={`${statusLabel(trip.status)} → ${statusLabel(next)}`}
                       >
                         <ArrowRight className="h-4 w-4" />
@@ -220,7 +229,8 @@ export default function TripsPage() {
                       variant="ghost"
                       size="icon"
                       className="text-destructive hover:text-destructive"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         if (window.confirm(t('trips.confirmDelete'))) removeMutation.mutate(trip.id);
                       }}
                     >

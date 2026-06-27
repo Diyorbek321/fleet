@@ -9,6 +9,7 @@ import { palette, spacing, typography } from '../theme/theme';
 import { haptics } from '../lib/haptics';
 import { Screen } from '../components/Screen';
 import { Button, Card, EmptyState, Loading, Pill } from '../components/ui';
+import { TripDocuments } from '../components/TripDocuments';
 
 const STATUS_COLOR: Record<TripStatus, { color: string; bg: string }> = {
   draft: { color: palette.faint, bg: palette.surfaceAlt },
@@ -26,6 +27,7 @@ export function TripsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [docsTripId, setDocsTripId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -120,6 +122,13 @@ export function TripsScreen() {
                   icon="arrow-forward"
                 />
               ) : null}
+              <Button
+                label={t('trips.documents')}
+                onPress={() => setDocsTripId((id) => (id === trip.id ? null : trip.id))}
+                variant="ghost"
+                icon={docsTripId === trip.id ? 'chevron-up' : 'document-attach-outline'}
+              />
+              {docsTripId === trip.id ? <TripDocuments tripId={trip.id} /> : null}
             </Card>
           );
         })

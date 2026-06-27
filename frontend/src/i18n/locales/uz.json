@@ -226,6 +226,16 @@
       "cancelled": "Bekor qilingan"
     }
   },
+  "tripDetail": {
+    "title": "Reys hujjatlari",
+    "documents": "Hujjatlar",
+    "noDocuments": "Bu reys uchun hali hujjatlar yo‘q — haydovchi ularni mobil ilovadan yuklaydi.",
+    "category": "Turkum",
+    "uploadedBy": "Yuklagan",
+    "delete": "O‘chirish",
+    "confirmDelete": "Ushbu hujjat o‘chirilsinmi?",
+    "back": "Reyslarga qaytish"
+  },
   "leakage": {
     "title": "Yo‘qotishlar",
     "subtitle": "Pul qayerda yo‘qoladi — yoqilg‘i, to‘xtashlar, bekor turish",

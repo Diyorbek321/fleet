@@ -134,6 +134,26 @@ class TripSegmentOut(BaseModel):
         from_attributes = True
 
 
+class TripDocumentOut(BaseModel):
+    """A driver-uploaded document for a trip.
+
+    ``url`` is a short-lived presigned link built by the router at response time;
+    it is not stored on the model.
+    """
+    id: uuid.UUID
+    trip_id: uuid.UUID
+    category: Optional[str] = None
+    caption: Optional[str] = None
+    content_type: Optional[str] = None
+    size_bytes: Optional[int] = None
+    url: str
+    uploaded_at: datetime
+    driver_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class TripPnL(BaseModel):
     """Profit-and-loss for a single trip — the owner's money question."""
     trip_id: uuid.UUID

@@ -57,6 +57,12 @@ services:
       CORS_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN in .env.prod}
       GPS_API_KEYS: ${GPS_API_KEYS:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # Trip document storage: local disk on a persistent volume, served via
+      # signed /api/files URLs. API_PUBLIC_URL makes those links absolute.
+      UPLOAD_DIR: /data/uploads
+      API_PUBLIC_URL: https://${API_DOMAIN}
+    volumes:
+      - uploads:/data/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -102,4 +108,5 @@ volumes:
   pgdata:
   redisdata:
   caddydata:
+  uploads:
   caddyconfig:

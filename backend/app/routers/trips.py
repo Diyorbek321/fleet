@@ -10,21 +10,24 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.deps.auth import get_current_user, get_org_id, require_role
 from app.models.drivers import Driver
 from app.models.enums import TripEventType, TripStatus, UserRole
-from app.models.trips import Trip, TripEvent, TripSegment
+from app.models.trips import Trip, TripDocument, TripEvent, TripSegment
 from app.models.trucks import Truck
 from app.schemas.trips import (
     TripAdvance,
     TripCreate,
     TripDetailsOut,
+    TripDocumentOut,
     TripOut,
     TripPnL,
     TripSegmentOut,
     TripUpdate,
 )
+from app.services.storage import delete_object, is_configured, presigned_get_url
 from app.services.trip_segments import segment_trip
 from app.services.trips import compute_trip_pnl, generate_reference
 
@@ -235,6 +238,77 @@ async def recompute_trip_segments(
     """Recompute a trip's segments from its truck's GPS history and store them."""
     trip = await _get_owned_trip(db, trip_id, org)
     return await segment_trip(db, trip)
+
+
+@router.get("/{trip_id}/documents", response_model=list[TripDocumentOut])
+async def list_trip_documents(
+    trip_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _user=Depends(_MANAGE),
+):
+    """All documents uploaded for this trip, newest first (presigned URLs).
+
+    Strictly per-trip and org-scoped via ``_get_owned_trip``.
+    """
+    trip = await _get_owned_trip(db, trip_id, org)
+    if not is_configured():
+        raise HTTPException(status_code=503, detail="Document storage is not configured")
+
+    res = await db.execute(
+        select(TripDocument)
+        .where(TripDocument.trip_id == trip.id)
+        .order_by(TripDocument.uploaded_at.desc())
+    )
+    docs = res.scalars().all()
+
+    # Resolve driver names in one query for the dispatcher view.
+    driver_ids = {d.driver_id for d in docs if d.driver_id is not None}
+    driver_names: dict[uuid.UUID, str] = {}
+    if driver_ids:
+        rows = (await db.execute(select(Driver.id, Driver.name).where(Driver.id.in_(driver_ids)))).all()
+        driver_names = {row[0]: row[1] for row in rows}
+
+    return [
+        TripDocumentOut(
+            id=d.id,
+            trip_id=d.trip_id,
+            category=d.category,
+            caption=d.caption,
+            content_type=d.content_type,
+            size_bytes=d.size_bytes,
+            url=presigned_get_url(d.storage_key),
+            uploaded_at=d.uploaded_at,
+            driver_name=driver_names.get(d.driver_id) if d.driver_id else None,
+        )
+        for d in docs
+    ]
+
+
+@router.delete("/{trip_id}/documents/{doc_id}")
+async def delete_trip_document(
+    trip_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _user=Depends(require_role(UserRole.admin, UserRole.manager)),
+):
+    """Delete a trip document — removes it from object storage then the DB row."""
+    trip = await _get_owned_trip(db, trip_id, org)
+    res = await db.execute(
+        select(TripDocument).where(
+            TripDocument.id == doc_id, TripDocument.trip_id == trip.id
+        )
+    )
+    doc = res.scalar_one_or_none()
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if is_configured():
+        delete_object(doc.storage_key)
+    await db.delete(doc)
+    await db.commit()
+    return {"message": "Deleted"}
 
 
 @router.delete("/{trip_id}")

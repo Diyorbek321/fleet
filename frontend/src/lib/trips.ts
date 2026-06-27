@@ -60,6 +60,44 @@ export interface TripDetails extends Trip {
   driverName: string | null;
 }
 
+export interface TripDocument {
+  id: string;
+  tripId: string;
+  category: string;
+  caption: string | null;
+  contentType: string;
+  sizeBytes: number;
+  url: string;
+  uploadedAt: string;
+  driverName: string | null;
+}
+
+interface BackendTripDocument {
+  id: string;
+  trip_id: string;
+  category: string;
+  caption: string | null;
+  content_type: string;
+  size_bytes: number;
+  url: string;
+  uploaded_at: string;
+  driver_name: string | null;
+}
+
+function adaptDocument(d: BackendTripDocument): TripDocument {
+  return {
+    id: d.id,
+    tripId: d.trip_id,
+    category: d.category,
+    caption: d.caption,
+    contentType: d.content_type,
+    sizeBytes: d.size_bytes,
+    url: d.url,
+    uploadedAt: d.uploaded_at,
+    driverName: d.driver_name,
+  };
+}
+
 export interface TripPnL {
   tripId: string;
   reference: string;
@@ -248,4 +286,13 @@ export const tripsApi = {
   remove: async (id: string): Promise<void> => {
     await api<{ message: string }>(`/api/trips/${id}`, { method: 'DELETE' });
   },
+};
+
+export const listTripDocuments = async (tripId: string): Promise<TripDocument[]> => {
+  const data = await api<BackendTripDocument[]>(`/api/trips/${tripId}/documents`);
+  return data.map(adaptDocument);
+};
+
+export const deleteTripDocument = async (tripId: string, docId: string): Promise<void> => {
+  await api<void>(`/api/trips/${tripId}/documents/${docId}`, { method: 'DELETE' });
 };

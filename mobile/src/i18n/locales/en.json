@@ -36,6 +36,7 @@
     "subtitle": "Your assigned loads",
     "empty": "No trips assigned to you yet",
     "advanceTo": "Mark as {{status}}",
+    "documents": "Documents",
     "status": {
       "draft": "Draft",
       "planned": "Planned",
@@ -44,6 +45,21 @@
       "at_border": "At border",
       "delivered": "Delivered",
       "cancelled": "Cancelled"
+    }
+  },
+  "tripDocs": {
+    "category": "Category",
+    "camera": "Camera",
+    "gallery": "Gallery",
+    "empty": "No documents yet",
+    "uploaded": "Document uploaded",
+    "permTitle": "Permission needed",
+    "permBody": "Please allow access so you can attach a photo.",
+    "cat": {
+      "cmr": "CMR",
+      "invoice": "Invoice",
+      "customs": "Customs",
+      "other": "Other"
     }
   },
   "home": {

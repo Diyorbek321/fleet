@@ -10,10 +10,11 @@ from datetime import datetime, date, timezone
 from typing import Optional
 import uuid
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.ws import ws_manager
 from app.deps.auth import get_current_driver, get_current_user
@@ -23,10 +24,10 @@ from app.models.maintenance import FuelLog, MaintenanceRecord
 from app.models.trucks import Truck
 from app.models.users import User
 from app.models.enums import ShiftStatus, MaintenanceRequestStatus, TripStatus, TripEventType
-from app.models.trips import Trip, TripEvent
+from app.models.trips import Trip, TripEvent, TripDocument
 from app.schemas.drivers import DriverOut, SafetyScoreOut
 from app.schemas.maintenance import FuelLogCreate, FuelLogOut, MaintenanceRecordOut
-from app.schemas.trips import TripAdvance, TripOut
+from app.schemas.trips import TripAdvance, TripDocumentOut, TripOut
 from app.schemas.me import (
     AssignedTruckOut,
     ExpenseCreate,
@@ -46,6 +47,7 @@ from app.schemas.me import (
 )
 from app.services.cgr import BookingRecord, CgrClient, build_booking_handoff_url, get_cgr_client
 from app.services.gps import upsert_latest_location
+from app.services.storage import is_configured, presigned_get_url, put_object
 from app.services.queue import evaluate_watch, notify_queue_change
 
 router = APIRouter(prefix="/api/me", tags=["Driver App"])
@@ -564,3 +566,124 @@ async def advance_my_trip(
     await db.commit()
     await db.refresh(trip)
     return trip
+
+
+# ── Trip documents (driver uploads photos, strictly per-trip) ──────────
+
+# Cap a single upload at 10MB; phone photos are well under this.
+_MAX_DOC_BYTES = 10 * 1024 * 1024
+_DOC_EXT_BY_TYPE = {
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+    "image/gif": "gif",
+}
+
+
+def _doc_out(doc: TripDocument, *, driver_name: Optional[str] = None) -> TripDocumentOut:
+    """Serialize a document with a freshly minted presigned read URL."""
+    return TripDocumentOut(
+        id=doc.id,
+        trip_id=doc.trip_id,
+        category=doc.category,
+        caption=doc.caption,
+        content_type=doc.content_type,
+        size_bytes=doc.size_bytes,
+        url=presigned_get_url(doc.storage_key),
+        uploaded_at=doc.uploaded_at,
+        driver_name=driver_name,
+    )
+
+
+async def _own_trip_or_404(db: AsyncSession, trip_id: uuid.UUID, driver: Driver) -> Trip:
+    """Fetch a trip and assert it is assigned to the signed-in driver."""
+    res = await db.execute(select(Trip).where(Trip.id == trip_id))
+    trip = res.scalar_one_or_none()
+    if trip is None or trip.driver_id != driver.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+    return trip
+
+
+@router.post(
+    "/trips/{trip_id}/documents",
+    response_model=TripDocumentOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_my_trip_document(
+    trip_id: uuid.UUID,
+    file: UploadFile = File(...),
+    category: Optional[str] = Form(None),
+    caption: Optional[str] = Form(None),
+    driver: Driver = Depends(get_current_driver),
+    db: AsyncSession = Depends(get_db),
+):
+    """Upload a document photo for one of my own trips.
+
+    Strictly per-trip: the file is keyed under the trip and linked to its
+    ``trip_id``/``org_id``, never shared across trips.
+    """
+    if not is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document storage is not configured",
+        )
+
+    trip = await _own_trip_or_404(db, trip_id, driver)
+
+    content_type = (file.content_type or "").lower()
+    if not content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Only image uploads are allowed",
+        )
+
+    data = await file.read()
+    if len(data) > _MAX_DOC_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="File too large (max 10MB)",
+        )
+
+    ext = _DOC_EXT_BY_TYPE.get(content_type, "bin")
+    key = f"orgs/{trip.org_id}/trips/{trip.id}/{uuid.uuid4()}.{ext}"
+    put_object(key, data, content_type)
+
+    doc = TripDocument(
+        org_id=trip.org_id,
+        trip_id=trip.id,
+        driver_id=driver.id,
+        storage_key=key,
+        content_type=content_type,
+        size_bytes=len(data),
+        category=category,
+        caption=caption,
+    )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return _doc_out(doc, driver_name=driver.name)
+
+
+@router.get("/trips/{trip_id}/documents", response_model=list[TripDocumentOut])
+async def list_my_trip_documents(
+    trip_id: uuid.UUID,
+    driver: Driver = Depends(get_current_driver),
+    db: AsyncSession = Depends(get_db),
+):
+    """My own trip's documents, newest first (presigned URLs)."""
+    await _own_trip_or_404(db, trip_id, driver)
+    if not is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Document storage is not configured",
+        )
+    res = await db.execute(
+        select(TripDocument)
+        .where(TripDocument.trip_id == trip_id)
+        .order_by(desc(TripDocument.uploaded_at))
+    )
+    docs = res.scalars().all()
+    return [_doc_out(d, driver_name=driver.name) for d in docs]

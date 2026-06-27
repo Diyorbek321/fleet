@@ -113,6 +113,47 @@ export interface LocationPing {
   heading?: number | null;
 }
 
+/** Suggested document categories shown in the driver UI (backend accepts any). */
+export type TripDocumentCategory = 'cmr' | 'invoice' | 'customs' | 'other';
+
+/** A photo document uploaded against a specific trip. `url` is ready for <Image>. */
+export interface TripDocument {
+  id: string;
+  trip_id: string;
+  category: string | null;
+  caption: string | null;
+  content_type: string;
+  size_bytes: number;
+  url: string;
+  uploaded_at: string;
+  driver_name: string | null;
+}
+
+/** The shape of an image picked via expo-image-picker that we upload. */
+export interface TripDocumentAsset {
+  uri: string;
+  mimeType?: string;
+  fileName?: string;
+}
+
+/** Infer an image MIME type from the picker's mimeType, falling back to the URI extension. */
+function inferImageType(uri: string, mimeType?: string): string {
+  if (mimeType) return mimeType;
+  const ext = uri.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'png':
+      return 'image/png';
+    case 'heic':
+      return 'image/heic';
+    case 'heif':
+      return 'image/heif';
+    case 'webp':
+      return 'image/webp';
+    default:
+      return 'image/jpeg';
+  }
+}
+
 /** Typed client for the driver self-scoped endpoints. */
 export const meApi = {
   profile: () => apiFetch<DriverProfile>('/api/me/profile'),
@@ -148,4 +189,27 @@ export const meApi = {
 
   pingLocation: (data: LocationPing) =>
     apiFetch('/api/me/location', { method: 'POST', body: JSON.stringify(data) }),
+
+  /** Newest-first photo documents the driver has uploaded for one of their trips. */
+  listTripDocuments: (tripId: string) =>
+    apiFetch<TripDocument[]>(`/api/me/trips/${tripId}/documents`),
+
+  /** Upload one image as a trip document via multipart/form-data. */
+  uploadTripDocument: (
+    tripId: string,
+    asset: TripDocumentAsset,
+    opts?: { category?: string; caption?: string },
+  ) => {
+    const form = new FormData();
+    const name = asset.fileName ?? 'photo.jpg';
+    const type = inferImageType(asset.uri, asset.mimeType);
+    // RN's multipart file shape ({ uri, name, type }) isn't a web Blob — localized cast.
+    form.append('file', { uri: asset.uri, name, type } as unknown as Blob);
+    if (opts?.category) form.append('category', opts.category);
+    if (opts?.caption) form.append('caption', opts.caption);
+    return apiFetch<TripDocument>(`/api/me/trips/${tripId}/documents`, {
+      method: 'POST',
+      body: form,
+    });
+  },
 };

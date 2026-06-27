@@ -74,6 +74,7 @@ class Trip(Base):
 
     events: Mapped[list["TripEvent"]] = relationship(back_populates="trip", cascade="all, delete-orphan", order_by="TripEvent.recorded_at")
     segments: Mapped[list["TripSegment"]] = relationship(back_populates="trip", cascade="all, delete-orphan", order_by="TripSegment.seq")
+    documents: Mapped[list["TripDocument"]] = relationship(back_populates="trip", cascade="all, delete-orphan", order_by="TripDocument.uploaded_at")
 
 
 class TripEvent(Base):
@@ -127,3 +128,36 @@ class TripSegment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
     trip: Mapped["Trip"] = relationship(back_populates="segments")
+
+
+class TripDocument(Base):
+    """A document photo uploaded by a driver for one specific trip.
+
+    Strictly per-trip: every row is linked to exactly one ``trip_id`` and is
+    never shared across trips. The file itself lives in object storage (DO
+    Spaces); only the ``storage_key`` is kept here and reads go through
+    short-lived presigned URLs built at response time.
+    """
+
+    __tablename__ = "trip_documents"
+    __table_args__ = (Index("ix_trip_documents_trip", "trip_id", "uploaded_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    trip_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    driver_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True
+    )
+
+    storage_key: Mapped[str] = mapped_column(String(500), nullable=False)
+    content_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    category: Mapped[str | None] = mapped_column(String(40), nullable=True)  # CMR/invoice/customs/other
+    caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    trip: Mapped["Trip"] = relationship(back_populates="documents")

@@ -36,6 +36,7 @@
     "subtitle": "Sizga biriktirilgan yuklar",
     "empty": "Sizga hali reys biriktirilmagan",
     "advanceTo": "{{status}} deb belgilash",
+    "documents": "Hujjatlar",
     "status": {
       "draft": "Qoralama",
       "planned": "Rejalashtirilgan",
@@ -44,6 +45,21 @@
       "at_border": "Chegarada",
       "delivered": "Yetkazilgan",
       "cancelled": "Bekor qilingan"
+    }
+  },
+  "tripDocs": {
+    "category": "Turkum",
+    "camera": "Kamera",
+    "gallery": "Galereya",
+    "empty": "Hozircha hujjat yo‘q",
+    "uploaded": "Hujjat yuklandi",
+    "permTitle": "Ruxsat kerak",
+    "permBody": "Foto biriktirish uchun ruxsat bering.",
+    "cat": {
+      "cmr": "CMR",
+      "invoice": "Hisob-faktura",
+      "customs": "Bojxona",
+      "other": "Boshqa"
     }
   },
   "home": {

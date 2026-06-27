@@ -226,6 +226,16 @@
       "cancelled": "Cancelled"
     }
   },
+  "tripDetail": {
+    "title": "Trip documents",
+    "documents": "Documents",
+    "noDocuments": "No documents for this trip yet — the driver uploads them from the mobile app.",
+    "category": "Category",
+    "uploadedBy": "Uploaded by",
+    "delete": "Delete",
+    "confirmDelete": "Delete this document?",
+    "back": "Back to trips"
+  },
   "leakage": {
     "title": "Leakage",
     "subtitle": "Where the money disappears — fuel, stops, idle",

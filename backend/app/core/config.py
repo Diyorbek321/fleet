@@ -54,6 +54,23 @@ class Settings(BaseSettings):
     ai_base_url: str = Field(default="https://api.openai.com/v1", alias="AI_BASE_URL")
     ai_model: str = Field(default="gpt-4o-mini", alias="AI_MODEL")
 
+    # ---- Object storage (DigitalOcean Spaces, S3-compatible) ----
+    # All default to empty so the app boots without storage configured; document
+    # uploads return 503 until these are set. ``spaces_endpoint`` is optional —
+    # when empty it is derived from the region.
+    spaces_key: str = Field(default="", alias="SPACES_KEY")
+    spaces_secret: str = Field(default="", alias="SPACES_SECRET")
+    spaces_region: str = Field(default="fra1", alias="SPACES_REGION")
+    spaces_bucket: str = Field(default="", alias="SPACES_BUCKET")
+    spaces_endpoint: str = Field(default="", alias="SPACES_ENDPOINT")
+
+    # ---- Local-disk document storage (active backend) ----
+    # Trip documents are stored on a persistent volume and served via signed
+    # API URLs. ``api_public_url`` is the API's externally reachable base
+    # (e.g. https://fleetapi.eduly.uz) so signed file URLs work cross-origin.
+    upload_dir: str = Field(default="/data/uploads", alias="UPLOAD_DIR")
+    api_public_url: str = Field(default="", alias="API_PUBLIC_URL")
+
     # Background scheduler — disabled automatically under tests (env == "test").
     scheduler_enabled: bool = Field(default=True, alias="SCHEDULER_ENABLED")
     scheduler_interval_minutes: int = Field(default=15, alias="SCHEDULER_INTERVAL_MINUTES")
@@ -61,6 +78,16 @@ class Settings(BaseSettings):
     @property
     def is_prod(self) -> bool:
         return self.env.lower() in {"prod", "production"}
+
+    @property
+    def spaces_configured(self) -> bool:
+        """True when the minimum credentials for object storage are present."""
+        return bool(self.spaces_key and self.spaces_secret and self.spaces_bucket)
+
+    @property
+    def spaces_endpoint_url(self) -> str:
+        """The Spaces endpoint, derived from the region when not set explicitly."""
+        return self.spaces_endpoint or f"https://{self.spaces_region}.digitaloceanspaces.com"
 
     @property
     def redis_enabled(self) -> bool:
