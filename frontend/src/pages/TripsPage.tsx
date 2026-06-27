@@ -32,9 +32,12 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { tripsApi, type Trip, type TripStatus } from '@/lib/trips';
+import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
 import { useTrucks } from '@/contexts/TruckContext';
 import { toast } from '@/hooks/use-toast';
+
+const UNASSIGNED = '__none__';
 
 const TRIPS_KEY = ['trips'] as const;
 
@@ -77,6 +80,7 @@ export default function TripsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({
     truckId: '',
+    driverId: '',
     shipper: '',
     consignee: '',
     originName: '',
@@ -94,6 +98,11 @@ export default function TripsPage() {
     refetchInterval: 30_000,
   });
 
+  const { data: drivers = [] } = useQuery({
+    queryKey: ['drivers'],
+    queryFn: () => driversApi.list(),
+  });
+
   const invalidate = () => queryClient.invalidateQueries({ queryKey: TRIPS_KEY });
 
   const createMutation = useMutation({
@@ -102,6 +111,7 @@ export default function TripsPage() {
       setCreateOpen(false);
       setForm({
         truckId: '',
+        driverId: '',
         shipper: '',
         consignee: '',
         originName: '',
@@ -254,6 +264,7 @@ export default function TripsPage() {
               e.preventDefault();
               createMutation.mutate({
                 truckId: form.truckId || undefined,
+                driverId: form.driverId || undefined,
                 shipper: form.shipper.trim() || undefined,
                 consignee: form.consignee.trim() || undefined,
                 originName: form.originName.trim() || undefined,
@@ -290,20 +301,41 @@ export default function TripsPage() {
                 />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>{t('trips.truck')}</Label>
-              <Select value={form.truckId} onValueChange={(v) => setForm({ ...form, truckId: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="—" />
-                </SelectTrigger>
-                <SelectContent>
-                  {trucks.map((tr) => (
-                    <SelectItem key={tr.id} value={tr.id}>
-                      {tr.name} ({tr.plateNumber})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>{t('trips.truck')}</Label>
+                <Select value={form.truckId} onValueChange={(v) => setForm({ ...form, truckId: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {trucks.map((tr) => (
+                      <SelectItem key={tr.id} value={tr.id}>
+                        {tr.name} ({tr.plateNumber})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t('trips.driver')}</Label>
+                <Select
+                  value={form.driverId || UNASSIGNED}
+                  onValueChange={(v) => setForm({ ...form, driverId: v === UNASSIGNED ? '' : v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED}>{t('trips.driverUnassigned')}</SelectItem>
+                    {drivers.map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-2">
               <Label>{t('trips.cargo')}</Label>

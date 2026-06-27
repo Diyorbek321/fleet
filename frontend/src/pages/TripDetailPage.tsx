@@ -17,14 +17,24 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   tripsApi,
   listTripDocuments,
   deleteTripDocument,
   type TripStatus,
   type TripDocument,
 } from '@/lib/trips';
+import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
+
+const UNASSIGNED = '__none__';
 
 const STATUS_VARIANT: Record<TripStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
   draft: 'outline',
@@ -60,6 +70,22 @@ export default function TripDetailPage() {
     queryKey: ['trip', id, 'documents'],
     queryFn: () => listTripDocuments(id),
     enabled: Boolean(id),
+  });
+
+  const driversQuery = useQuery({
+    queryKey: ['drivers'],
+    queryFn: () => driversApi.list(),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (driverId: string | null) => tripsApi.update(id, { driverId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['trip', id] });
+      queryClient.invalidateQueries({ queryKey: ['trips'] });
+      toast({ title: t('trips.driverAssigned') });
+    },
+    onError: (err) =>
+      toast({ title: t('trips.saveFailed'), description: describeError(err, ''), variant: 'destructive' }),
   });
 
   const deleteMutation = useMutation({
@@ -110,13 +136,27 @@ export default function TripDetailPage() {
               <ArrowRight className="h-4 w-4 text-muted-foreground" />
               <span>{trip.destinationName ?? '—'}</span>
             </div>
-            <div className="grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2">
-              {trip.driverName && (
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span>{trip.driverName}</span>
-                </div>
-              )}
+            <div className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <Select
+                  value={trip.driverId ?? UNASSIGNED}
+                  onValueChange={(v) => assignMutation.mutate(v === UNASSIGNED ? null : v)}
+                  disabled={assignMutation.isPending}
+                >
+                  <SelectTrigger className="h-8 w-full">
+                    <SelectValue placeholder={t('trips.assignDriver')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={UNASSIGNED}>{t('trips.driverUnassigned')}</SelectItem>
+                    {(driversQuery.data ?? []).map((d) => (
+                      <SelectItem key={d.id} value={d.id}>
+                        {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               {(trip.truckName || trip.truckPlate) && (
                 <div className="flex items-center gap-2 text-muted-foreground">
                   {trip.truckName ?? ''}

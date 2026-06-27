@@ -141,7 +141,19 @@ async def update_trip(
     _user=Depends(_MANAGE),
 ):
     trip = await _get_owned_trip(db, trip_id, org, with_events=True)
-    for k, v in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+
+    # A trip may only reference a truck/driver from the same organization.
+    if payload.get("truck_id") is not None:
+        owned = (await db.execute(select(Truck.id).where(Truck.id == payload["truck_id"], Truck.org_id == org))).scalar_one_or_none()
+        if not owned:
+            raise HTTPException(status_code=404, detail="Truck not found")
+    if payload.get("driver_id") is not None:
+        owned = (await db.execute(select(Driver.id).where(Driver.id == payload["driver_id"], Driver.org_id == org))).scalar_one_or_none()
+        if not owned:
+            raise HTTPException(status_code=404, detail="Driver not found")
+
+    for k, v in payload.items():
         setattr(trip, k, v)
     trip.updated_at = datetime.now(timezone.utc)
     await db.commit()

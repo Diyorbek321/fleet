@@ -200,7 +200,7 @@ function adaptDetails(t: BackendTripDetails): TripDetails {
 
 export interface TripCreateInput {
   truckId?: string;
-  driverId?: string;
+  driverId?: string | null;
   shipper?: string;
   consignee?: string;
   originName?: string;
@@ -217,7 +217,7 @@ export interface TripCreateInput {
 function toBody(input: TripCreateInput): Record<string, unknown> {
   const body: Record<string, unknown> = {};
   if (input.truckId) body.truck_id = input.truckId;
-  if (input.driverId) body.driver_id = input.driverId;
+  if (input.driverId !== undefined) body.driver_id = input.driverId;
   if (input.shipper) body.shipper = input.shipper;
   if (input.consignee) body.consignee = input.consignee;
   if (input.originName) body.origin_name = input.originName;
@@ -244,6 +244,10 @@ export const tripsApi = {
   },
   create: async (input: TripCreateInput): Promise<TripDetails> => {
     const data = await api<BackendTripDetails>('/api/trips', { method: 'POST', body: toBody(input) });
+    return adaptDetails(data);
+  },
+  update: async (id: string, input: TripCreateInput): Promise<TripDetails> => {
+    const data = await api<BackendTripDetails>(`/api/trips/${id}`, { method: 'PUT', body: toBody(input) });
     return adaptDetails(data);
   },
   advance: async (
