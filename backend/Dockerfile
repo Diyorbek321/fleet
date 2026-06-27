@@ -21,9 +21,11 @@ RUN pip install -r requirements.txt
 # App code + migrations.
 COPY . .
 
-# Run as a non-root user.
+# Run as a non-root user. Pre-create the uploads dir owned by appuser so a fresh
+# named volume mounted at /data/uploads inherits writable ownership.
 RUN useradd --create-home --uid 10001 appuser \
-    && chown -R appuser:appuser /app
+    && mkdir -p /data/uploads \
+    && chown -R appuser:appuser /app /data
 USER appuser
 
 EXPOSE 8000
