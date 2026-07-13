@@ -20,7 +20,7 @@ from app.core.logging import logger
 from app.models.enums import TripStatus
 from app.models.notifications import TripSubscription
 from app.models.trips import Trip
-from app.models.trucks import Truck, TruckLocation
+from app.models.trucks import TruckLocation
 from app.services.telegram import format_daily_update, send_message
 
 
