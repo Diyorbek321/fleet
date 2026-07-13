@@ -292,6 +292,72 @@ export const tripsApi = {
   },
 };
 
+// ── Cargo-owner Telegram subscriptions ───────────────────────────────────
+
+export interface TripSubscription {
+  id: string;
+  tripId: string;
+  contactName: string | null;
+  contactPhone: string | null;
+  dailyEnabled: boolean;
+  eventEnabled: boolean;
+  activated: boolean;
+  activatedAt: string | null;
+  deepLink: string;
+}
+
+interface BackendTripSubscription {
+  id: string;
+  trip_id: string;
+  contact_name: string | null;
+  contact_phone: string | null;
+  daily_enabled: boolean;
+  event_enabled: boolean;
+  activated: boolean;
+  activated_at: string | null;
+  deep_link: string;
+}
+
+function adaptSubscription(s: BackendTripSubscription): TripSubscription {
+  return {
+    id: s.id,
+    tripId: s.trip_id,
+    contactName: s.contact_name,
+    contactPhone: s.contact_phone,
+    dailyEnabled: s.daily_enabled,
+    eventEnabled: s.event_enabled,
+    activated: s.activated,
+    activatedAt: s.activated_at,
+    deepLink: s.deep_link,
+  };
+}
+
+export const tripSubscriptionsApi = {
+  list: async (tripId: string): Promise<TripSubscription[]> => {
+    const data = await api<BackendTripSubscription[]>(
+      `/api/trip-subscriptions?trip_id=${encodeURIComponent(tripId)}`,
+    );
+    return data.map(adaptSubscription);
+  },
+  create: async (
+    tripId: string,
+    contact: { contactName?: string | null; contactPhone?: string | null } = {},
+  ): Promise<TripSubscription> => {
+    const data = await api<BackendTripSubscription>('/api/trip-subscriptions', {
+      method: 'POST',
+      body: {
+        trip_id: tripId,
+        contact_name: contact.contactName ?? null,
+        contact_phone: contact.contactPhone ?? null,
+      },
+    });
+    return adaptSubscription(data);
+  },
+  remove: async (id: string): Promise<void> => {
+    await api<void>(`/api/trip-subscriptions/${id}`, { method: 'DELETE' });
+  },
+};
+
 export const listTripDocuments = async (tripId: string): Promise<TripDocument[]> => {
   const data = await api<BackendTripDocument[]>(`/api/trips/${tripId}/documents`);
   return data.map(adaptDocument);

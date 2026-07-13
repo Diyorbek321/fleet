@@ -62,6 +62,104 @@
       "other": "Other"
     }
   },
+  "tripReport": {
+    "title": "Trip expense report",
+    "toggle": "Report",
+    "save": "Save",
+    "saved": "Saved",
+    "submit": "Submit",
+    "submitted": "Submitted",
+    "statusDraft": "Draft",
+    "statusSubmitted": "Submitted",
+    "header": {
+      "title": "Overview",
+      "plate": "Plate number",
+      "driverName": "Driver",
+      "date": "Date",
+      "odometerOut": "Odometer (out)",
+      "odometerIn": "Odometer (in)",
+      "fuelAtGarage": "Fuel at garage exit",
+      "route": "Route",
+      "exchangeNote": "Exchange rate"
+    },
+    "money": {
+      "title": "Money issued for the trip",
+      "usd": "USD",
+      "rub": "RUB",
+      "kzt": "KZT",
+      "uzs": "UZS",
+      "toKztGiven": "$ → KZT (given)",
+      "toKztReceived": "$ → KZT (received)",
+      "toRubGiven": "$ → RUB (given)",
+      "toRubReceived": "$ → RUB (received)"
+    },
+    "fuel": {
+      "title": "Fuel table",
+      "row": "Row",
+      "liters": "Liters",
+      "amount": "Amount",
+      "addRow": "Add row",
+      "kz": "KZ",
+      "rf": "RF",
+      "doha": "DOHA",
+      "e1card": "E1CARD",
+      "total": "Total"
+    },
+    "border": {
+      "title": "Border crossing",
+      "departure": "Departed",
+      "arrival": "Arrived",
+      "electronicPass": "Electronic pass",
+      "electronicQueue": "Electronic queue"
+    },
+    "countries": {
+      "title": "Expenses",
+      "kz": "Kazakhstan",
+      "ru": "Russia",
+      "uz": "Uzbekistan",
+      "subtotal": "Subtotal",
+      "category": {
+        "platon": "Platon",
+        "food": "Food",
+        "trafficPolice": "Traffic police",
+        "adblue": "Adblue",
+        "fine": "Fines",
+        "spareParts": "Spare parts",
+        "repair": "Repair",
+        "refund": "Refund",
+        "parking": "Parking",
+        "phone": "Phone",
+        "transport": "Transport",
+        "shower": "Shower",
+        "groceries": "Groceries",
+        "parkingPaperwork": "Parking paperwork",
+        "taxi": "Taxi",
+        "carwash": "Carwash"
+      }
+    },
+    "footer": {
+      "title": "Summary",
+      "insuranceRf": "Insurance (RF)",
+      "insuranceKz": "Insurance (KZ)",
+      "dollarReturn": "Dollar returned",
+      "comment": "Comment"
+    },
+    "balances": {
+      "title": "Currency balances"
+    },
+    "offline": {
+      "loadFailed": "Couldn't load this report from the server. Showing a blank form — if you already had one saved on this device it will appear automatically.",
+      "savedLocallyTitle": "Saved on this device",
+      "savedLocallyMessage": "We couldn't reach the server, but nothing was lost — your entries are saved on this phone and will be sent automatically the next time you open this report or tap Save again.",
+      "submitPendingMessage": "We couldn't reach the server, but nothing was lost — your entries are saved on this phone and will be submitted automatically the next time you open this report or tap Submit again.",
+      "pendingSaveBanner": "Not yet synced — saved on this device, will send automatically",
+      "pendingSubmitBanner": "Not yet submitted — saved on this device, will submit automatically",
+      "restoredBanner": "Restored a report you were filling in before"
+    },
+    "validation": {
+      "invalidNumber": "Enter a plain number (no letters or thousands separators)"
+    }
+  },
   "home": {
     "welcome": "Welcome back",
     "assignedTruck": "Assigned truck",

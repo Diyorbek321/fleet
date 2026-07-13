@@ -10,7 +10,7 @@ from datetime import datetime, date, timezone
 from typing import Optional
 import uuid
 
-from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Form, HTTPException, UploadFile, status
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,11 +23,12 @@ from app.models.driver_app import Shift, MaintenanceRequest, PushToken, QueueWat
 from app.models.maintenance import FuelLog, MaintenanceRecord
 from app.models.trucks import Truck
 from app.models.users import User
-from app.models.enums import ShiftStatus, MaintenanceRequestStatus, TripStatus, TripEventType
+from app.models.enums import ShiftStatus, MaintenanceRequestStatus, TripStatus, TripEventType, TripReportStatus
 from app.models.trips import Trip, TripEvent, TripDocument
 from app.schemas.drivers import DriverOut, SafetyScoreOut
 from app.schemas.maintenance import FuelLogCreate, FuelLogOut, MaintenanceRecordOut
 from app.schemas.trips import TripAdvance, TripDocumentOut, TripOut
+from app.schemas.trip_reports import TripExpenseReportIn, TripExpenseReportOut
 from app.schemas.me import (
     AssignedTruckOut,
     ExpenseCreate,
@@ -49,6 +50,8 @@ from app.services.cgr import BookingRecord, CgrClient, build_booking_handoff_url
 from app.services.gps import upsert_latest_location
 from app.services.storage import is_configured, presigned_get_url, put_object
 from app.services.queue import evaluate_watch, notify_queue_change
+from app.services.trip_notifications import notify_trip_status_change_background
+from app.services.trip_reports import build_report_out, get_report, upsert_report
 
 router = APIRouter(prefix="/api/me", tags=["Driver App"])
 
@@ -521,6 +524,7 @@ async def my_trips(
 @router.post("/trips/{trip_id}/advance", response_model=TripOut)
 async def advance_my_trip(
     trip_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     data: TripAdvance = Body(...),
     driver: Driver = Depends(get_current_driver),
     db: AsyncSession = Depends(get_db),
@@ -564,7 +568,19 @@ async def advance_my_trip(
         )
     )
     await db.commit()
-    await db.refresh(trip)
+
+    # Notify cargo-owner subscribers over Telegram in the background — the
+    # driver app must get its response immediately, not wait on Telegram.
+    if from_status != data.to_status:
+        background_tasks.add_task(
+            notify_trip_status_change_background,
+            trip.id,
+            data.to_status,
+            data.latitude,
+            data.longitude,
+            data.note,
+        )
+
     return trip
 
 
@@ -687,3 +703,50 @@ async def list_my_trip_documents(
     )
     docs = res.scalars().all()
     return [_doc_out(d, driver_name=driver.name) for d in docs]
+
+
+# ── Trip expense report ("yo'l varaqasi") — driver-filled, self-scoped ──
+
+@router.get("/trips/{trip_id}/report", response_model=Optional[TripExpenseReportOut])
+async def my_trip_report(
+    trip_id: uuid.UUID,
+    driver: Driver = Depends(get_current_driver),
+    db: AsyncSession = Depends(get_db),
+):
+    """My current draft/submitted report for this trip, or null if not started."""
+    await _own_trip_or_404(db, trip_id, driver)
+    report = await get_report(db, trip_id)
+    return build_report_out(report) if report else None
+
+
+@router.put("/trips/{trip_id}/report", response_model=TripExpenseReportOut)
+async def save_my_trip_report(
+    trip_id: uuid.UUID,
+    data: TripExpenseReportIn = Body(...),
+    driver: Driver = Depends(get_current_driver),
+    db: AsyncSession = Depends(get_db),
+):
+    """Save the whole report in one call — creates it on first save."""
+    trip = await _own_trip_or_404(db, trip_id, driver)
+    report = await upsert_report(db, trip.id, trip.org_id, data)
+    return build_report_out(report)
+
+
+@router.post("/trips/{trip_id}/report/submit", response_model=TripExpenseReportOut)
+async def submit_my_trip_report(
+    trip_id: uuid.UUID,
+    driver: Driver = Depends(get_current_driver),
+    db: AsyncSession = Depends(get_db),
+):
+    """Mark the report submitted. Stays editable afterwards — this only flags
+
+    the dispatcher that the driver considers it complete.
+    """
+    await _own_trip_or_404(db, trip_id, driver)
+    report = await get_report(db, trip_id)
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not started")
+    report.status = TripReportStatus.submitted
+    report.submitted_at = datetime.now(timezone.utc)
+    await db.commit()
+    return build_report_out(report)

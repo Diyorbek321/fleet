@@ -18,7 +18,8 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "POST_NOTIFICATIONS"
       ]
     },
     "ios": {
@@ -40,7 +41,8 @@
           "isAndroidForegroundServiceEnabled": true
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-notifications"
     ],
     "extra": {
       "_apiUrl_note": "LOCAL DEV ONLY. Shipped builds (development/preview/production) get their HTTPS backend host from EXPO_PUBLIC_API_URL in eas.json — this value is the fallback for `npm start`. Android emulator reaches the host via 10.0.2.2; for a real phone on the same Wi-Fi use http://<your-LAN-IP>:8000. NEVER put a production URL here.",

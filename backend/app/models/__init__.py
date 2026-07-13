@@ -6,3 +6,5 @@ from app.models.users import User  # noqa
 from app.models.driver_app import Shift, MaintenanceRequest, PushToken, QueueWatch, DriverExpense  # noqa
 from app.models.geofences import Geofence, GeofenceEvent  # noqa
 from app.models.trips import Trip, TripEvent, TripSegment, TripDocument  # noqa
+from app.models.notifications import TripSubscription  # noqa
+from app.models.trip_reports import TripExpenseReport, TripFuelRow, TripCountryExpenseLine  # noqa

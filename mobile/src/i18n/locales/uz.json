@@ -62,6 +62,104 @@
       "other": "Boshqa"
     }
   },
+  "tripReport": {
+    "title": "Yo‘l varaqasi",
+    "toggle": "Hisobot",
+    "save": "Saqlash",
+    "saved": "Saqlandi",
+    "submit": "Yuborish",
+    "submitted": "Yuborildi",
+    "statusDraft": "Qoralama",
+    "statusSubmitted": "Yuborilgan",
+    "header": {
+      "title": "Umumiy ma’lumot",
+      "plate": "Gos. raqami",
+      "driverName": "Haydovchi",
+      "date": "Sana",
+      "odometerOut": "Probeg (chiqishda)",
+      "odometerIn": "Probeg (kelishda)",
+      "fuelAtGarage": "GSM (garajdan chiqishda)",
+      "route": "Yo‘nalish",
+      "exchangeNote": "Kurs valyuta"
+    },
+    "money": {
+      "title": "Yo‘lga pul (garajdan)",
+      "usd": "Dollar",
+      "rub": "Rubl",
+      "kzt": "Tenge",
+      "uzs": "So‘m",
+      "toKztGiven": "$ → tenge (berilgan)",
+      "toKztReceived": "$ → tenge (olingan)",
+      "toRubGiven": "$ → rubl (berilgan)",
+      "toRubReceived": "$ → rubl (olingan)"
+    },
+    "fuel": {
+      "title": "GSM jadvali",
+      "row": "Qator",
+      "liters": "Litr",
+      "amount": "Summa",
+      "addRow": "Qator qo‘shish",
+      "kz": "KZ",
+      "rf": "RF",
+      "doha": "DOHA",
+      "e1card": "E1CARD",
+      "total": "Jami"
+    },
+    "border": {
+      "title": "Chegaradan o‘tish (tolchak)",
+      "departure": "Chiqdi",
+      "arrival": "Keldi",
+      "electronicPass": "Elektronka",
+      "electronicQueue": "El. navbat"
+    },
+    "countries": {
+      "title": "Xarajatlar",
+      "kz": "Qozog‘iston",
+      "ru": "Rossiya",
+      "uz": "O‘zbekiston",
+      "subtotal": "Jami",
+      "category": {
+        "platon": "Platon",
+        "food": "Ovqatlanish",
+        "trafficPolice": "GAI",
+        "adblue": "Adblue",
+        "fine": "Jarima",
+        "spareParts": "Zapchast",
+        "repair": "Ta’mirlash",
+        "refund": "Qaytarilgan",
+        "parking": "To‘xtash joyi",
+        "phone": "Telefon",
+        "transport": "Transport",
+        "shower": "Dush",
+        "groceries": "Oziq-ovqat",
+        "parkingPaperwork": "To‘xtash rasmiylashtirish",
+        "taxi": "Taksi",
+        "carwash": "Moyka"
+      }
+    },
+    "footer": {
+      "title": "Yakun",
+      "insuranceRf": "Sug‘urta RF",
+      "insuranceKz": "Sug‘urta KZ",
+      "dollarReturn": "Qaytarilgan dollar",
+      "comment": "Izoh"
+    },
+    "balances": {
+      "title": "Valyuta balansi"
+    },
+    "offline": {
+      "loadFailed": "Hisobotni serverdan yuklab bo‘lmadi. Bo‘sh forma ko‘rsatilmoqda — agar bu telefonda saqlangan ma'lumot bo‘lsa, u avtomatik tarzda paydo bo‘ladi.",
+      "savedLocallyTitle": "Telefonda saqlandi",
+      "savedLocallyMessage": "Serverga ulanib bo‘lmadi, lekin hech narsa yo‘qolmadi — ma'lumotlaringiz shu telefonda saqlandi va bu hisobotni keyingi safar ochganingizda yoki «Saqlash» tugmasini bosganingizda avtomatik yuboriladi.",
+      "submitPendingMessage": "Serverga ulanib bo‘lmadi, lekin hech narsa yo‘qolmadi — ma'lumotlaringiz shu telefonda saqlandi va bu hisobotni keyingi safar ochganingizda yoki «Yuborish» tugmasini bosganingizda avtomatik yuboriladi.",
+      "pendingSaveBanner": "Sinxronlanmagan — telefonda saqlandi, avtomatik yuboriladi",
+      "pendingSubmitBanner": "Yuborilmagan — telefonda saqlandi, avtomatik yuboriladi",
+      "restoredBanner": "Oldin to‘ldirilayotgan hisobot tiklandi"
+    },
+    "validation": {
+      "invalidNumber": "Faqat raqam kiriting (harflar yoki ming ajratkichlarisiz)"
+    }
+  },
   "home": {
     "welcome": "Xush kelibsiz",
     "assignedTruck": "Biriktirilgan mashina",

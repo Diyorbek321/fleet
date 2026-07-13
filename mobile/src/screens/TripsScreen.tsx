@@ -10,6 +10,7 @@ import { haptics } from '../lib/haptics';
 import { Screen } from '../components/Screen';
 import { Button, Card, EmptyState, Loading, Pill } from '../components/ui';
 import { TripDocuments } from '../components/TripDocuments';
+import { TripReportForm } from '../components/TripReportForm';
 
 const STATUS_COLOR: Record<TripStatus, { color: string; bg: string }> = {
   draft: { color: palette.faint, bg: palette.surfaceAlt },
@@ -28,6 +29,7 @@ export function TripsScreen() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [docsTripId, setDocsTripId] = useState<string | null>(null);
+  const [reportTripId, setReportTripId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -129,6 +131,13 @@ export function TripsScreen() {
                 icon={docsTripId === trip.id ? 'chevron-up' : 'document-attach-outline'}
               />
               {docsTripId === trip.id ? <TripDocuments tripId={trip.id} /> : null}
+              <Button
+                label={t('tripReport.toggle')}
+                onPress={() => setReportTripId((id) => (id === trip.id ? null : trip.id))}
+                variant="ghost"
+                icon={reportTripId === trip.id ? 'chevron-up' : 'receipt-outline'}
+              />
+              {reportTripId === trip.id ? <TripReportForm tripId={trip.id} /> : null}
             </Card>
           );
         })

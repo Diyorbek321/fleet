@@ -25,6 +25,7 @@ from app.models.enums import ServiceStatus
 from app.models.maintenance import ServiceInterval
 from app.models.trucks import Truck
 from app.services.cgr import get_cgr_client
+from app.services.daily_updates import send_daily_trip_updates
 from app.services.maintenance import refresh_service_statuses
 from app.services.queue import poll_active_watches
 from app.services.reminders import check_document_expiries
@@ -223,6 +224,11 @@ def start_scheduler() -> AsyncIOScheduler | None:
     async def _queue_poll_job() -> None:
         await _run_locked("poll_queue_watches", poll_queue_watches)
 
+    async def _daily_updates_job() -> None:
+        # The job itself self-gates on the configured hour of day, so it's
+        # safe (and cheap) to invoke on every scheduler tick.
+        await _run_locked("send_daily_trip_updates", send_daily_trip_updates)
+
     scheduler.add_job(
         _check_job,
         trigger="interval",
@@ -255,6 +261,18 @@ def start_scheduler() -> AsyncIOScheduler | None:
         trigger="interval",
         minutes=max(interval, 5),  # border-queue status shifts on the order of minutes
         id="poll_queue_watches",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    # Runs frequently but only actually sends when the current UTC hour
+    # matches ``TELEGRAM_DAILY_HOUR_UTC``. Sub-hour interval gives ~15 min
+    # margin around the target hour on restarts / clock drift.
+    scheduler.add_job(
+        _daily_updates_job,
+        trigger="interval",
+        minutes=max(interval, 15),
+        id="send_daily_trip_updates",
         max_instances=1,
         coalesce=True,
         replace_existing=True,

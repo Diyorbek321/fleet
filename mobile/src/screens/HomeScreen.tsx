@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Switch, Text, View } from 'react-native';
+import { AppState, Alert, StyleSheet, Switch, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Location from 'expo-location';
 
@@ -25,6 +25,12 @@ import {
   SectionHeader,
   StatTile,
 } from '../components/ui';
+
+// How often we re-check the OS tracking state while the app is open. The
+// background task can silently stop itself (e.g. a dead session — see
+// location-task.ts) without the app ever being notified, so the toggle must
+// be re-synced rather than trusted from a single mount-time read.
+const SHARING_RESYNC_INTERVAL_MS = 60_000;
 
 export function HomeScreen() {
   const { t } = useTranslation();
@@ -54,15 +60,35 @@ export function HomeScreen() {
     }
   }, [t]);
 
+  const syncSharingState = useCallback(() => {
+    isTrackingActive().then(setSharing).catch(() => {});
+  }, []);
+
   useEffect(() => {
     load();
     // Reflect any already-running background tracking (e.g. after the app was
     // reopened mid-shift) in the toggle.
-    isTrackingActive().then(setSharing).catch(() => {});
+    syncSharingState();
     return () => {
       subRef.current?.remove();
     };
-  }, [load]);
+  }, [load, syncSharingState]);
+
+  // Re-sync whenever the app returns to the foreground — the most likely
+  // moment for tracking to have died while backgrounded — and on a periodic
+  // interval as a backstop for while the app stays open/foregrounded.
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        syncSharingState();
+      }
+    });
+    const interval = setInterval(syncSharingState, SHARING_RESYNC_INTERVAL_MS);
+    return () => {
+      subscription.remove();
+      clearInterval(interval);
+    };
+  }, [syncSharingState]);
 
   const toShift = useCallback(
     async (fn: () => Promise<Shift>) => {

@@ -90,3 +90,41 @@ class ExpenseCategory(str, enum.Enum):
     lodging = "lodging"
     customs = "customs"
     other = "other"
+
+
+class TripReportStatus(str, enum.Enum):
+    """Lifecycle of a driver-filled trip expense report ("yo'l varaqasi")."""
+    draft = "draft"
+    submitted = "submitted"
+
+
+class TripReportCountry(str, enum.Enum):
+    """Which country's expense table a line item belongs to."""
+    kz = "kz"
+    ru = "ru"
+    uz = "uz"
+
+
+class TripReportExpenseCategory(str, enum.Enum):
+    """Shared superset of expense categories across the KZ/RF/UZ tables.
+
+    Not every category applies to every country — KZ/RF share one set,
+    UZ has a partly different set — but the UI decides which categories to
+    show per country, so one flat enum is enough here.
+    """
+    platon = "platon"
+    food = "food"
+    traffic_police = "traffic_police"  # ГАИ
+    adblue = "adblue"
+    fine = "fine"  # Штрафы
+    spare_parts = "spare_parts"  # Запчасть
+    repair = "repair"  # Ремонт
+    refund = "refund"  # Возврат
+    parking = "parking"  # Стоянка
+    phone = "phone"  # Телефон
+    transport = "transport"  # Транспорт
+    shower = "shower"  # Душ
+    groceries = "groceries"  # Продукты (UZ)
+    parking_paperwork = "parking_paperwork"  # Оформления стоянка (UZ)
+    taxi = "taxi"  # Такси (UZ)
+    carwash = "carwash"  # Мойка (UZ)

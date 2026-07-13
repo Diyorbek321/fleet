@@ -7,12 +7,20 @@ const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8000';
 
 export const LOCATIONS_KEY = ['truck-locations'] as const;
 
+// GPS pings arrive per-truck every few seconds; every truck's ping used to
+// call setQueryData individually, which re-renders the whole app (TruckContext
+// wraps every route). Buffer incoming updates and flush them onto one shared
+// object at most this often, so a 50-truck fleet costs one re-render per
+// window instead of dozens of individual ones.
+const FLUSH_INTERVAL_MS = 2000;
+
 export function useLiveLocations() {
   const queryClient = useQueryClient();
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffRef = useRef(1000);
+  const pendingRef = useRef<Record<string, LiveLocation> | null>(null);
 
   const { data: locations = {} } = useQuery({
     queryKey: LOCATIONS_KEY,
@@ -44,8 +52,8 @@ export function useLiveLocations() {
         }
         if (msg.type !== 'truck_location_update') return;
 
-        queryClient.setQueryData<Record<string, LiveLocation>>(LOCATIONS_KEY, (prev = {}) => ({
-          ...prev,
+        pendingRef.current = {
+          ...pendingRef.current,
           [msg.truck_id]: {
             truckId: msg.truck_id,
             latitude: msg.lat,
@@ -54,7 +62,7 @@ export function useLiveLocations() {
             heading: msg.heading,
             recordedAt: msg.recorded_at ? new Date(msg.recorded_at) : new Date(),
           },
-        }));
+        };
       };
 
       ws.onclose = () => {
@@ -79,6 +87,19 @@ export function useLiveLocations() {
       wsRef.current?.close();
       wsRef.current = null;
     };
+  }, [queryClient]);
+
+  useEffect(() => {
+    const flush = setInterval(() => {
+      if (!pendingRef.current) return;
+      const updates = pendingRef.current;
+      pendingRef.current = null;
+      queryClient.setQueryData<Record<string, LiveLocation>>(LOCATIONS_KEY, (prev = {}) => ({
+        ...prev,
+        ...updates,
+      }));
+    }, FLUSH_INTERVAL_MS);
+    return () => clearInterval(flush);
   }, [queryClient]);
 
   return { locations, isConnected };

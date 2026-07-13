@@ -32,7 +32,10 @@ class Settings(BaseSettings):
     jwt_secret_key: str = Field(alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=30, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
-    refresh_token_expire_days: int = Field(default=7, alias="REFRESH_TOKEN_EXPIRE_DAYS")
+    # 90 days keeps drivers signed in on their phones through long stretches
+    # of light use — the mobile app also transparently rotates this token on
+    # every /api/auth/refresh, so an active driver effectively never expires.
+    refresh_token_expire_days: int = Field(default=90, alias="REFRESH_TOKEN_EXPIRE_DAYS")
 
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")
 
@@ -75,6 +78,26 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = Field(default=True, alias="SCHEDULER_ENABLED")
     scheduler_interval_minutes: int = Field(default=15, alias="SCHEDULER_INTERVAL_MINUTES")
 
+    # ---- Telegram notifications (customer-facing) ----
+    # Empty ``telegram_bot_token`` means the feature is disabled: the webhook
+    # returns 404, subscription-link generation still works so dispatchers can
+    # be onboarded, and the scheduler job is a no-op. Enable by creating a bot
+    # via @BotFather and setting TELEGRAM_BOT_TOKEN + TELEGRAM_BOT_USERNAME.
+    telegram_bot_token: str = Field(default="", alias="TELEGRAM_BOT_TOKEN")
+    telegram_bot_username: str = Field(default="", alias="TELEGRAM_BOT_USERNAME")
+    # Shared secret Telegram passes back in the ``X-Telegram-Bot-Api-Secret-Token``
+    # header on webhook calls. Set the same value when registering the webhook
+    # via setWebhook. Empty = skip verification (fine for dev / long-polling).
+    telegram_webhook_secret: str = Field(default="", alias="TELEGRAM_WEBHOOK_SECRET")
+    # Hour of the day (0-23, UTC) when the daily "where is my cargo" batch fires.
+    # Uzbekistan is UTC+5, so 3 UTC = 08:00 local — a sensible default.
+    telegram_daily_hour_utc: int = Field(default=3, alias="TELEGRAM_DAILY_HOUR_UTC")
+    # Externally reachable base URL of this API (e.g. https://fleetapi.eduly.uz),
+    # used to register the Telegram webhook (setWebhook) on startup. Empty =
+    # skip registration with a startup warning; the bot can still be wired up
+    # manually via the Telegram Bot API.
+    public_api_url: str = Field(default="", alias="PUBLIC_API_URL")
+
     @property
     def is_prod(self) -> bool:
         return self.env.lower() in {"prod", "production"}
@@ -88,6 +111,17 @@ class Settings(BaseSettings):
     def spaces_endpoint_url(self) -> str:
         """The Spaces endpoint, derived from the region when not set explicitly."""
         return self.spaces_endpoint or f"https://{self.spaces_region}.digitaloceanspaces.com"
+
+    @property
+    def telegram_configured(self) -> bool:
+        """True when a bot token is set — feature-gate for the notification stack."""
+        return bool(self.telegram_bot_token.strip())
+
+    @property
+    def telegram_daily_hour(self) -> int:
+        """Clamp the configured daily-batch hour to a valid 0-23 range."""
+        h = self.telegram_daily_hour_utc
+        return h if 0 <= h <= 23 else 3
 
     @property
     def redis_enabled(self) -> bool:

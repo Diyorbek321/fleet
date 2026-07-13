@@ -29,6 +29,7 @@ const DriversPage = lazy(() => import("@/pages/DriversPage"));
 const GeofencesPage = lazy(() => import("@/pages/GeofencesPage"));
 const TripsPage = lazy(() => import("@/pages/TripsPage"));
 const TripDetailPage = lazy(() => import("@/pages/TripDetailPage"));
+const TripReportPrintPage = lazy(() => import("@/pages/TripReportPrintPage"));
 const LeakagePage = lazy(() => import("@/pages/LeakagePage"));
 const BorderQueuePage = lazy(() => import("@/pages/BorderQueuePage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -50,6 +51,7 @@ const App = () => (
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route element={<ProtectedRoute />}>
+                    <Route path="/trips/:id/report/print" element={<TripReportPrintPage />} />
                     <Route element={<DashboardLayout />}>
                       <Route path="/dashboard" element={<DashboardPage />} />
                       <Route path="/trucks" element={<TrucksPage />} />

@@ -240,6 +240,121 @@
     "confirmDelete": "Удалить этот документ?",
     "back": "Назад к рейсам"
   },
+  "tripReport": {
+    "title": "Путевой лист",
+    "empty": "Водитель ещё не начал заполнять отчёт",
+    "error": "Не удалось загрузить отчёт. Попробуйте ещё раз.",
+    "print": "Печать",
+    "status": {
+      "draft": "Черновик",
+      "submitted": "Отправлен"
+    },
+    "header": {
+      "title": "Общая информация",
+      "plate": "Гос. номер",
+      "driverName": "Водитель",
+      "date": "Дата",
+      "odometerOut": "Пробег (выехал)",
+      "odometerIn": "Пробег (прибыл)",
+      "fuelAtGarage": "ГСМ (выезд с гаража)",
+      "route": "Маршрут",
+      "exchangeNote": "Курс валюта"
+    },
+    "money": {
+      "title": "Деньги на дорогу (из гаража)",
+      "usd": "Доллар",
+      "rub": "Рубль",
+      "kzt": "Тенге",
+      "uzs": "Сум",
+      "toKzt": "$ поменяли на тенге",
+      "toRub": "$ поменяли на рубли",
+      "given": "Отдано",
+      "received": "Получено"
+    },
+    "fuel": {
+      "title": "Таблица ГСМ",
+      "row": "Строка",
+      "liters": "Литр",
+      "amount": "Сумма",
+      "kz": "KZ",
+      "rf": "РФ",
+      "doha": "ДОХА",
+      "e1card": "E1CARD",
+      "total": "Итого"
+    },
+    "border": {
+      "title": "Проход границы (толчак)",
+      "departure": "Выехал",
+      "arrival": "Прибыл",
+      "electronicPass": "Электронка",
+      "electronicQueue": "Эл. очередь"
+    },
+    "countries": {
+      "title": "Расходы",
+      "kz": "Казахстан",
+      "ru": "Россия",
+      "uz": "Узбекистан",
+      "subtotal": "Итого",
+      "category": {
+        "platon": "Платон",
+        "food": "Питание",
+        "trafficPolice": "ГАИ",
+        "adblue": "Adblue",
+        "fine": "Штрафы",
+        "spareParts": "Запчасть",
+        "repair": "Ремонт",
+        "refund": "Возврат",
+        "parking": "Стоянка",
+        "phone": "Телефон",
+        "transport": "Транспорт",
+        "shower": "Душ",
+        "groceries": "Продукты",
+        "parkingPaperwork": "Оформление стоянки",
+        "taxi": "Такси",
+        "carwash": "Мойка"
+      }
+    },
+    "footer": {
+      "title": "Итоги",
+      "insuranceRf": "Страховка РФ",
+      "insuranceKz": "Страховка КЗ",
+      "dollarReturn": "Возврат доллар",
+      "comment": "Комментарии водителя"
+    },
+    "balances": {
+      "title": "Баланс по валютам",
+      "hint": "Выдано/обменяно минус потрачено (считается автоматически)"
+    }
+  },
+  "tripSubscriptions": {
+    "title": "Уведомления владельца груза",
+    "nameLabel": "Имя (необязательно)",
+    "namePlaceholder": "Имя владельца груза",
+    "phoneLabel": "Телефон (необязательно)",
+    "phonePlaceholder": "+998 90 123 45 67",
+    "createButton": "Создать ссылку",
+    "empty": "Пока нет подписок. Нажмите кнопку выше, чтобы создать магическую ссылку, и отправьте её владельцу груза через Telegram — как только он откроет ссылку, он будет получать ежедневные обновления о местоположении и статусе груза, пока не напишет /stop или пока вы не удалите подписку.",
+    "unnamedContact": "Безымянный подписчик",
+    "activeBadge": "Активна",
+    "pendingBadge": "Ожидается открытие ссылки",
+    "dailyDisabledBadge": "Ежедневная сводка отключена",
+    "connectedAt": "Подключён:",
+    "copyAriaLabel": "Скопировать ссылку",
+    "shareAriaLabel": "Поделиться в Telegram",
+    "deleteAriaLabel": "Удалить подписку",
+    "shareText": "Ссылка отслеживания груза: {{link}}\nНажмите на ссылку, чтобы получать уведомления о статусе груза.",
+    "copyFailedTitle": "Не удалось скопировать",
+    "copySuccessTitle": "Ссылка скопирована",
+    "createSuccessTitle": "Ссылка готова",
+    "createSuccessDescription": "Вы можете поделиться ею с владельцем груза.",
+    "createErrorTitle": "Не удалось создать ссылку",
+    "deleteSuccessTitle": "Подписка удалена",
+    "deleteErrorTitle": "Не удалось удалить",
+    "confirmDeleteTitle": "Удалить подписку",
+    "confirmDeleteDescription": "Удалить эту подписку? Это действие нельзя отменить.",
+    "confirmDeleteCancel": "Отмена",
+    "confirmDeleteConfirm": "Удалить"
+  },
   "leakage": {
     "title": "Потери",
     "subtitle": "Где исчезают деньги — топливо, остановки, простой",

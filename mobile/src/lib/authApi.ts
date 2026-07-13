@@ -1,11 +1,17 @@
 import { apiFetch } from './api';
 import { clearTokens, getRefreshToken, setRefreshToken, setToken } from './auth';
 import { stopBackgroundTracking } from './location-task';
+import { refreshAccessToken } from './tokenRefresh';
 
 interface TokenOut {
   access_token: string;
   refresh_token: string;
 }
+
+/** Re-exported so existing callers of `authApi.refreshAccessToken` keep
+ *  working — the implementation now lives in `./tokenRefresh` to break the
+ *  `api.ts` <-> `authApi.ts` circular dependency. */
+export { refreshAccessToken };
 
 /** Authenticate against the backend and persist the tokens. */
 export async function signIn(email: string, password: string): Promise<void> {

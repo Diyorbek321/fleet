@@ -240,6 +240,121 @@
     "confirmDelete": "Ushbu hujjat o‘chirilsinmi?",
     "back": "Reyslarga qaytish"
   },
+  "tripReport": {
+    "title": "Yo‘l varaqasi",
+    "empty": "Haydovchi hisobotni hali boshlamagan",
+    "error": "Hisobotni yuklab bo'lmadi. Qayta urinib ko'ring.",
+    "print": "Chop etish",
+    "status": {
+      "draft": "Qoralama",
+      "submitted": "Yuborilgan"
+    },
+    "header": {
+      "title": "Umumiy ma’lumot",
+      "plate": "Gos. raqami",
+      "driverName": "Haydovchi",
+      "date": "Sana",
+      "odometerOut": "Probeg (chiqishda)",
+      "odometerIn": "Probeg (kelishda)",
+      "fuelAtGarage": "GSM (garajdan chiqishda)",
+      "route": "Yo‘nalish",
+      "exchangeNote": "Kurs valyuta"
+    },
+    "money": {
+      "title": "Yo‘lga pul (garajdan)",
+      "usd": "Dollar",
+      "rub": "Rubl",
+      "kzt": "Tenge",
+      "uzs": "So‘m",
+      "toKzt": "$ tengega almashtirildi",
+      "toRub": "$ rublga almashtirildi",
+      "given": "Berilgan",
+      "received": "Olingan"
+    },
+    "fuel": {
+      "title": "GSM jadvali",
+      "row": "Qator",
+      "liters": "Litr",
+      "amount": "Summa",
+      "kz": "KZ",
+      "rf": "RF",
+      "doha": "DOHA",
+      "e1card": "E1CARD",
+      "total": "Jami"
+    },
+    "border": {
+      "title": "Chegaradan o‘tish (tolchak)",
+      "departure": "Chiqdi",
+      "arrival": "Keldi",
+      "electronicPass": "Elektronka",
+      "electronicQueue": "El. navbat"
+    },
+    "countries": {
+      "title": "Xarajatlar",
+      "kz": "Qozog‘iston",
+      "ru": "Rossiya",
+      "uz": "O‘zbekiston",
+      "subtotal": "Jami",
+      "category": {
+        "platon": "Platon",
+        "food": "Ovqatlanish",
+        "trafficPolice": "GAI",
+        "adblue": "Adblue",
+        "fine": "Jarima",
+        "spareParts": "Zapchast",
+        "repair": "Ta’mirlash",
+        "refund": "Qaytarilgan",
+        "parking": "To‘xtash joyi",
+        "phone": "Telefon",
+        "transport": "Transport",
+        "shower": "Dush",
+        "groceries": "Oziq-ovqat",
+        "parkingPaperwork": "To‘xtash rasmiylashtirish",
+        "taxi": "Taksi",
+        "carwash": "Moyka"
+      }
+    },
+    "footer": {
+      "title": "Yakun",
+      "insuranceRf": "Sug‘urta RF",
+      "insuranceKz": "Sug‘urta KZ",
+      "dollarReturn": "Qaytarilgan dollar",
+      "comment": "Haydovchi izohi"
+    },
+    "balances": {
+      "title": "Valyuta balansi",
+      "hint": "Berilgan/almashtirilgan pul minus sarflangan (avtomatik hisoblanadi)"
+    }
+  },
+  "tripSubscriptions": {
+    "title": "Yuk egasi bildirishnomalari",
+    "nameLabel": "Ism (ixtiyoriy)",
+    "namePlaceholder": "Yuk egasi ismi",
+    "phoneLabel": "Telefon (ixtiyoriy)",
+    "phonePlaceholder": "+998 90 123 45 67",
+    "createButton": "Havola yaratish",
+    "empty": "Hozircha obuna yo'q. Yuqoridagi tugmani bosib magic havola yarating va yuk egasiga Telegram orqali yuboring — u havolani bosishi bilan har kuni yukning joylashuvi va status o'zgarishlaridan xabardor bo'lib turadi.",
+    "unnamedContact": "Ismsiz kuzatuvchi",
+    "activeBadge": "Faol",
+    "pendingBadge": "Havola yuborilishi kutilmoqda",
+    "dailyDisabledBadge": "Kunlik o'chirilgan",
+    "connectedAt": "Ulanildi:",
+    "copyAriaLabel": "Havolani nusxa olish",
+    "shareAriaLabel": "Telegramda ulashish",
+    "deleteAriaLabel": "Obunani o'chirish",
+    "shareText": "Yuk kuzatuv havolasi: {{link}}\nHavolani bosing va yuk holati haqida xabarlar oling.",
+    "copyFailedTitle": "Nusxa olishning imkoni bo'lmadi",
+    "copySuccessTitle": "Havola nusxa olindi",
+    "createSuccessTitle": "Havola tayyor",
+    "createSuccessDescription": "Yuk egasiga ulashishingiz mumkin.",
+    "createErrorTitle": "Havola yaratilmadi",
+    "deleteSuccessTitle": "Obuna o'chirildi",
+    "deleteErrorTitle": "O'chirishning imkoni bo'lmadi",
+    "confirmDeleteTitle": "Obunani o'chirish",
+    "confirmDeleteDescription": "Ushbu obunani o'chirilsinmi? Bu amalni ortga qaytarib bo'lmaydi.",
+    "confirmDeleteCancel": "Bekor qilish",
+    "confirmDeleteConfirm": "O'chirish"
+  },
   "leakage": {
     "title": "Yo‘qotishlar",
     "subtitle": "Pul qayerda yo‘qoladi — yoqilg‘i, to‘xtashlar, bekor turish",

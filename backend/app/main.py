@@ -14,6 +14,7 @@ from app.core.logging import configure_logging, logger
 from app.core.rate_limit import limiter
 from app.services.refresh_tokens import refresh_store
 from app.services.scheduler import shutdown_scheduler, start_scheduler
+from app.services.telegram import register_webhook
 
 from app.routers.auth import router as auth_router
 from app.routers.trucks import router as trucks_router
@@ -31,6 +32,7 @@ from app.routers.driver_data import router as driver_data_router
 from app.routers.reminders import router as reminders_router
 from app.routers.queue import router as queue_router
 from app.routers.files import router as files_router
+from app.routers.telegram import webhook_router as telegram_webhook_router, api_router as telegram_api_router
 
 
 INSECURE_JWT_TOKENS = {"", "CHANGE_ME", "CHANGE_ME_SUPER_SECRET", "dev", "devsecret"}
@@ -60,6 +62,14 @@ def _check_secrets() -> None:
     # fail loud rather than silently shipping an unreachable API.
     if settings.is_prod and not settings.cors_origins_list():
         raise RuntimeError("CORS_ORIGINS must be set in production (comma-separated allowed origins).")
+    # A configured bot without a webhook secret would accept unsigned updates
+    # from anyone who guesses the webhook URL — same severity as a missing
+    # JWT secret, so it's enforced the same way.
+    if settings.telegram_configured and not settings.telegram_webhook_secret.strip():
+        raise RuntimeError(
+            "TELEGRAM_WEBHOOK_SECRET is required when TELEGRAM_BOT_TOKEN is set. "
+            "Generate one with: python -c 'import secrets; print(secrets.token_urlsafe(32))'"
+        )
 
 
 def _init_sentry() -> None:
@@ -89,6 +99,7 @@ async def lifespan(_app: FastAPI):
     _check_secrets()
     _init_sentry()
     await refresh_store.init()
+    await register_webhook()
     start_scheduler()
     logger.info("app_startup", env=settings.env, cors=settings.cors_origins_list())
     yield
@@ -145,3 +156,5 @@ app.include_router(driver_data_router)
 app.include_router(reminders_router)
 app.include_router(queue_router)
 app.include_router(files_router)
+app.include_router(telegram_webhook_router)
+app.include_router(telegram_api_router)

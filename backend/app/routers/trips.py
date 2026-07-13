@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -27,7 +27,10 @@ from app.schemas.trips import (
     TripSegmentOut,
     TripUpdate,
 )
+from app.schemas.trip_reports import TripExpenseReportOut
 from app.services.storage import delete_object, is_configured, presigned_get_url
+from app.services.trip_notifications import notify_trip_status_change_background
+from app.services.trip_reports import build_report_out, get_report
 from app.services.trip_segments import segment_trip
 from app.services.trips import compute_trip_pnl, generate_reference
 
@@ -50,15 +53,26 @@ async def _get_owned_trip(db: AsyncSession, trip_id: uuid.UUID, org: uuid.UUID, 
 
 
 async def _detail(db: AsyncSession, trip: Trip) -> TripDetailsOut:
+    """Build the trip detail response.
+
+    ``trip`` must already have ``events`` loaded (eagerly or via a relationship
+    append that populated the in-memory collection) — this never re-fetches
+    the trip itself since ``expire_on_commit=False`` keeps it valid post-commit.
+    """
     truck_name = truck_plate = driver_name = None
-    if trip.truck_id:
-        t = (await db.execute(select(Truck).where(Truck.id == trip.truck_id))).scalar_one_or_none()
-        if t:
-            truck_name, truck_plate = t.name, t.plate_number
-    if trip.driver_id:
-        d = (await db.execute(select(Driver).where(Driver.id == trip.driver_id))).scalar_one_or_none()
-        if d:
-            driver_name = d.name
+    if trip.truck_id or trip.driver_id:
+        # One joined query instead of two separate round trips.
+        row = (
+            await db.execute(
+                select(Truck.name, Truck.plate_number, Driver.name)
+                .select_from(Trip)
+                .outerjoin(Truck, Truck.id == Trip.truck_id)
+                .outerjoin(Driver, Driver.id == Trip.driver_id)
+                .where(Trip.id == trip.id)
+            )
+        ).first()
+        if row:
+            truck_name, truck_plate, driver_name = row
     base = TripOut.model_validate(trip).model_dump()
     return TripDetailsOut(
         **base,
@@ -74,6 +88,8 @@ async def list_trips(
     status: Optional[TripStatus] = None,
     truck_id: Optional[uuid.UUID] = None,
     driver_id: Optional[uuid.UUID] = None,
+    limit: int = Query(default=200, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     org: uuid.UUID = Depends(get_org_id),
 ):
@@ -84,7 +100,7 @@ async def list_trips(
         stmt = stmt.where(Trip.truck_id == truck_id)
     if driver_id:
         stmt = stmt.where(Trip.driver_id == driver_id)
-    res = await db.execute(stmt.order_by(Trip.created_at.desc()))
+    res = await db.execute(stmt.order_by(Trip.created_at.desc()).limit(limit).offset(offset))
     return res.scalars().all()
 
 
@@ -114,12 +130,13 @@ async def create_trip(
 
     trip = Trip(org_id=org, reference=reference, **payload)
     db.add(trip)
-    await db.flush()
-    db.add(TripEvent(trip_id=trip.id, event=TripEventType.created, to_status=trip.status))
+    # Relationship append (rather than a bare TripEvent(trip_id=...)) keeps
+    # trip.events in sync in memory, so no post-commit reload is needed —
+    # expire_on_commit=False means `trip` stays valid as-is after commit.
+    trip.events.append(TripEvent(event=TripEventType.created, to_status=trip.status))
     await db.commit()
 
-    res = await db.execute(select(Trip).options(selectinload(Trip.events)).where(Trip.id == trip.id))
-    return await _detail(db, res.scalar_one())
+    return await _detail(db, trip)
 
 
 @router.get("/{trip_id}", response_model=TripDetailsOut)
@@ -157,21 +174,20 @@ async def update_trip(
         setattr(trip, k, v)
     trip.updated_at = datetime.now(timezone.utc)
     await db.commit()
-    await db.refresh(trip)
-    res = await db.execute(select(Trip).options(selectinload(Trip.events)).where(Trip.id == trip.id))
-    return await _detail(db, res.scalar_one())
+    return await _detail(db, trip)
 
 
 @router.post("/{trip_id}/advance", response_model=TripDetailsOut)
 async def advance_trip(
     trip_id: uuid.UUID,
     data: TripAdvance,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     org: uuid.UUID = Depends(get_org_id),
     _user=Depends(_MANAGE),
 ):
     """Transition a trip to a new status and append a timeline event."""
-    trip = await _get_owned_trip(db, trip_id, org)
+    trip = await _get_owned_trip(db, trip_id, org, with_events=True)
 
     from_status = trip.status
     now = datetime.now(timezone.utc)
@@ -190,9 +206,8 @@ async def advance_trip(
     elif data.to_status == TripStatus.delivered:
         event_type = TripEventType.pod
 
-    db.add(
+    trip.events.append(
         TripEvent(
-            trip_id=trip.id,
             event=event_type,
             from_status=from_status,
             to_status=data.to_status,
@@ -203,8 +218,21 @@ async def advance_trip(
         )
     )
     await db.commit()
-    res = await db.execute(select(Trip).options(selectinload(Trip.events)).where(Trip.id == trip.id))
-    return await _detail(db, res.scalar_one())
+
+    # Fan out to cargo-owner subscribers (Telegram) in the background — the
+    # dispatcher's "advance" click must return immediately, not block on
+    # Telegram's API (which can take seconds per subscriber).
+    if from_status != data.to_status:
+        background_tasks.add_task(
+            notify_trip_status_change_background,
+            trip.id,
+            data.to_status,
+            data.latitude,
+            data.longitude,
+            data.note,
+        )
+
+    return await _detail(db, trip)
 
 
 @router.get("/{trip_id}/pnl", response_model=TripPnL)
@@ -215,6 +243,21 @@ async def trip_pnl(
 ):
     trip = await _get_owned_trip(db, trip_id, org)
     return TripPnL(**await compute_trip_pnl(db, trip))
+
+
+@router.get("/{trip_id}/report", response_model=Optional[TripExpenseReportOut])
+async def get_trip_report(
+    trip_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+):
+    """The driver-filled expense report for this trip, or null if not started yet.
+
+    Read-only here — the driver fills it via ``/api/me/trips/{id}/report``.
+    """
+    trip = await _get_owned_trip(db, trip_id, org)
+    report = await get_report(db, trip.id)
+    return build_report_out(report) if report else None
 
 
 @router.get("/{trip_id}/segments", response_model=list[TripSegmentOut])

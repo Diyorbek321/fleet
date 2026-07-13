@@ -33,6 +33,8 @@ import {
 import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
+import { TripSubscriptionsCard } from '@/components/trips/TripSubscriptionsCard';
+import { TripExpenseReportCard } from '@/components/trips/TripExpenseReportCard';
 
 const UNASSIGNED = '__none__';
 
@@ -168,6 +170,9 @@ export default function TripDetailPage() {
         </Card>
       )}
 
+      {/* Cargo-owner notifications */}
+      {id && <TripSubscriptionsCard tripId={id} />}
+
       {/* Documents */}
       <Card className="border-border/50 bg-card">
         <CardHeader>
@@ -211,6 +216,9 @@ export default function TripDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Driver expense report */}
+      {id && <TripExpenseReportCard tripId={id} />}
 
       {/* Lightbox */}
       <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}>

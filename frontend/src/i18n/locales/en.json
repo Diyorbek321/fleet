@@ -240,6 +240,121 @@
     "confirmDelete": "Delete this document?",
     "back": "Back to trips"
   },
+  "tripReport": {
+    "title": "Trip expense report",
+    "empty": "The driver hasn't started this report yet",
+    "error": "Couldn't load the report. Please try again.",
+    "print": "Print",
+    "status": {
+      "draft": "Draft",
+      "submitted": "Submitted"
+    },
+    "header": {
+      "title": "Overview",
+      "plate": "Plate number",
+      "driverName": "Driver",
+      "date": "Date",
+      "odometerOut": "Odometer (out)",
+      "odometerIn": "Odometer (in)",
+      "fuelAtGarage": "Fuel at garage exit",
+      "route": "Route",
+      "exchangeNote": "Exchange rate"
+    },
+    "money": {
+      "title": "Money issued for the trip",
+      "usd": "USD",
+      "rub": "RUB",
+      "kzt": "KZT",
+      "uzs": "UZS",
+      "toKzt": "$ exchanged to KZT",
+      "toRub": "$ exchanged to RUB",
+      "given": "Given",
+      "received": "Received"
+    },
+    "fuel": {
+      "title": "Fuel table",
+      "row": "Row",
+      "liters": "Liters",
+      "amount": "Amount",
+      "kz": "KZ",
+      "rf": "RF",
+      "doha": "DOHA",
+      "e1card": "E1CARD",
+      "total": "Total"
+    },
+    "border": {
+      "title": "Border crossing",
+      "departure": "Departed",
+      "arrival": "Arrived",
+      "electronicPass": "Electronic pass",
+      "electronicQueue": "Electronic queue"
+    },
+    "countries": {
+      "title": "Expenses",
+      "kz": "Kazakhstan",
+      "ru": "Russia",
+      "uz": "Uzbekistan",
+      "subtotal": "Subtotal",
+      "category": {
+        "platon": "Platon",
+        "food": "Food",
+        "trafficPolice": "Traffic police",
+        "adblue": "Adblue",
+        "fine": "Fines",
+        "spareParts": "Spare parts",
+        "repair": "Repair",
+        "refund": "Refund",
+        "parking": "Parking",
+        "phone": "Phone",
+        "transport": "Transport",
+        "shower": "Shower",
+        "groceries": "Groceries",
+        "parkingPaperwork": "Parking paperwork",
+        "taxi": "Taxi",
+        "carwash": "Carwash"
+      }
+    },
+    "footer": {
+      "title": "Summary",
+      "insuranceRf": "Insurance (RF)",
+      "insuranceKz": "Insurance (KZ)",
+      "dollarReturn": "Dollar returned",
+      "comment": "Driver's comment"
+    },
+    "balances": {
+      "title": "Currency balances",
+      "hint": "Issued/exchanged minus spent, calculated automatically"
+    }
+  },
+  "tripSubscriptions": {
+    "title": "Cargo owner notifications",
+    "nameLabel": "Name (optional)",
+    "namePlaceholder": "Cargo owner's name",
+    "phoneLabel": "Phone (optional)",
+    "phonePlaceholder": "+998 90 123 45 67",
+    "createButton": "Create link",
+    "empty": "No subscriptions yet. Click the button above to generate a magic link and send it to the cargo owner via Telegram — once they open the link, they'll receive daily location and status updates until they say /stop or you delete the subscription.",
+    "unnamedContact": "Unnamed subscriber",
+    "activeBadge": "Active",
+    "pendingBadge": "Waiting for link to be opened",
+    "dailyDisabledBadge": "Daily digest disabled",
+    "connectedAt": "Connected:",
+    "copyAriaLabel": "Copy link",
+    "shareAriaLabel": "Share on Telegram",
+    "deleteAriaLabel": "Delete subscription",
+    "shareText": "Cargo tracking link: {{link}}\nClick the link to get updates about the cargo status.",
+    "copyFailedTitle": "Couldn't copy",
+    "copySuccessTitle": "Link copied",
+    "createSuccessTitle": "Link ready",
+    "createSuccessDescription": "You can share it with the cargo owner.",
+    "createErrorTitle": "Couldn't create link",
+    "deleteSuccessTitle": "Subscription deleted",
+    "deleteErrorTitle": "Couldn't delete",
+    "confirmDeleteTitle": "Delete subscription",
+    "confirmDeleteDescription": "Delete this subscription? This action cannot be undone.",
+    "confirmDeleteCancel": "Cancel",
+    "confirmDeleteConfirm": "Delete"
+  },
   "leakage": {
     "title": "Leakage",
     "subtitle": "Where the money disappears — fuel, stops, idle",

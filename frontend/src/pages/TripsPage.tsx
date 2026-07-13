@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -151,8 +151,10 @@ export default function TripsPage() {
 
   const statusLabel = (s: TripStatus) => t(`trips.status.${s}`);
 
+  const truckById = useMemo(() => new Map(trucks.map((tr) => [tr.id, tr])), [trucks]);
+
   const truckLabel = (trip: Trip) => {
-    const tr = trucks.find((x) => x.id === trip.truckId);
+    const tr = truckById.get(trip.truckId);
     return tr ? `${tr.name} (${tr.plateNumber})` : '—';
   };
 
