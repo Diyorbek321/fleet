@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function TrucksPage() {
-  const { trucks, isLoading, setSelectedTruck, toggleTruckEnabled } = useTrucks();
+  const { trucks, isLoading, setSelectedTruck, toggleTruckEnabled, removeTruck } = useTrucks();
   const navigate = useNavigate();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +78,12 @@ export default function TrucksPage() {
   const handleAddNew = () => {
     setEditingTruck(null);
     setIsModalOpen(true);
+  };
+
+  const handleDelete = (truck: Truck) => {
+    if (window.confirm(`Delete ${truck.name} (${truck.plateNumber})? This cannot be undone.`)) {
+      removeTruck(truck.id);
+    }
   };
 
   if (isLoading) {
@@ -236,7 +242,10 @@ export default function TrucksPage() {
                             {truck.isEnabled ? 'Disable' : 'Enable'}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={(e) => { e.stopPropagation(); handleDelete(truck); }}
+                          >
                             <Trash2 className="mr-2 h-4 w-4" />
                             Delete
                           </DropdownMenuItem>

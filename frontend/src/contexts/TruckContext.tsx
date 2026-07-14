@@ -17,6 +17,7 @@ interface TruckContextType {
   setSelectedTruck: (truck: Truck | null) => void;
   addTruck: (truck: NewTruckInput) => Promise<void>;
   updateTruck: (id: string, data: Partial<Truck>) => Promise<void>;
+  removeTruck: (id: string) => Promise<void>;
   toggleTruckEnabled: (id: string) => Promise<void>;
   refreshTrucks: () => Promise<void>;
 }
@@ -96,6 +97,21 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
     },
   });
 
+  const removeMutation = useMutation({
+    mutationFn: trucksApi.remove,
+    onSuccess: () => {
+      invalidate();
+      toast({ title: 'Truck deleted', description: 'The truck has been removed from your fleet.' });
+    },
+    onError: (err) => {
+      toast({
+        title: 'Failed to delete truck',
+        description: errorMessage(err, 'Try again.'),
+        variant: 'destructive',
+      });
+    },
+  });
+
   const addTruck = useCallback(
     async (input: NewTruckInput) => {
       await createMutation.mutateAsync({
@@ -120,6 +136,13 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
       toast({ title: 'Truck updated', description: 'Changes saved.' });
     },
     [updateMutation],
+  );
+
+  const removeTruck = useCallback(
+    async (id: string) => {
+      await removeMutation.mutateAsync(id);
+    },
+    [removeMutation],
   );
 
   const toggleTruckEnabled = useCallback(
@@ -151,10 +174,21 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
       setSelectedTruck,
       addTruck,
       updateTruck,
+      removeTruck,
       toggleTruckEnabled,
       refreshTrucks,
     }),
-    [trucks, stats, isLoading, selectedTruck, addTruck, updateTruck, toggleTruckEnabled, refreshTrucks],
+    [
+      trucks,
+      stats,
+      isLoading,
+      selectedTruck,
+      addTruck,
+      updateTruck,
+      removeTruck,
+      toggleTruckEnabled,
+      refreshTrucks,
+    ],
   );
 
   return <TruckContext.Provider value={value}>{children}</TruckContext.Provider>;
