@@ -51,7 +51,7 @@ In the `fleetwatch-api` service shell (Render → Shell):
 ```bash
 SEED_SUPERADMIN_EMAIL=you@yourcompany.uz \
 SEED_SUPERADMIN_PASSWORD='<strong-password>' \
-python seed.py
+python seed.py --superadmin-only
 ```
 
 That creates the platform operator's login inside an organization named

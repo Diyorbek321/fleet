@@ -1,9 +1,15 @@
 """Seed a default admin user (and optional demo trucks), plus the platform superadmin.
 
 Usage:
-    python seed.py                 # creates admin + 3 demo trucks
-    python seed.py --admin-only    # admin user only, no trucks
-    python seed.py --reset         # delete existing admin first (won't touch other users)
+    python seed.py                    # creates admin + 3 demo trucks  (DEV ONLY)
+    python seed.py --admin-only       # admin user only, no trucks     (DEV ONLY)
+    python seed.py --superadmin-only  # platform superadmin only       ← use this on production
+    python seed.py --reset            # delete existing admin first (won't touch other users)
+
+**Never run the bare form against production.** It creates
+``admin@example.com / password123`` as a full admin inside the first real
+customer organization and drops demo trucks into their fleet. On a live box
+always pass ``--superadmin-only``.
 
 Env vars (all optional):
     SEED_ADMIN_EMAIL          default: admin@example.com
@@ -152,10 +158,27 @@ async def seed_trucks(org_id) -> None:
 async def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--admin-only", action="store_true", help="skip demo trucks")
+    parser.add_argument(
+        "--superadmin-only",
+        action="store_true",
+        help="create ONLY the platform superadmin — no demo admin, no demo trucks (use this on production)",
+    )
     parser.add_argument("--reset", action="store_true", help="delete existing admin before recreating")
     args = parser.parse_args()
 
     print("Seeding database…")
+
+    # --superadmin-only exists because the demo admin is a genuine hazard on a
+    # live box: without it, `python seed.py` silently creates
+    # admin@example.com / password123 as a full admin inside the first real
+    # customer organization, plus demo trucks in their fleet. That is exactly
+    # what happened once on production. Bootstrapping the platform operator
+    # must not drag demo fixtures along with it.
+    if args.superadmin_only:
+        await seed_superadmin()
+        print("Done.")
+        return
+
     admin = await seed_admin(reset=args.reset)
     await seed_superadmin()
     if not args.admin_only:

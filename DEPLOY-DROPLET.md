@@ -85,7 +85,7 @@ therefore the only way into a fresh deployment — create it first:
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec \
   -e SEED_SUPERADMIN_EMAIL=you@yourcompany.uz \
   -e SEED_SUPERADMIN_PASSWORD='<strong-password>' \
-  api python seed.py
+  api python seed.py --superadmin-only
 ```
 
 This creates the account inside an organization named `Platform`, which holds no

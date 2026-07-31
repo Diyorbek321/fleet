@@ -93,7 +93,7 @@ operator**, not by self-serve sign-up. `POST /api/auth/register` returns
 ```bash
 SEED_SUPERADMIN_EMAIL=you@yourcompany.uz \
 SEED_SUPERADMIN_PASSWORD='<strong-password>' \
-python seed.py
+python seed.py --superadmin-only
 ```
 
 This puts the superadmin in an organization named `Platform` that holds no fleet
