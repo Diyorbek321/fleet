@@ -80,20 +80,43 @@ npm run gen:api
 
 ---
 
-## First account (multi-tenant sign-up)
+## First account (multi-tenant onboarding)
 
 The platform is multi-tenant — each fleet customer is an isolated `organization`.
+FleetWatch is sold company by company, so companies are **provisioned by the platform
+operator**, not by self-serve sign-up. `POST /api/auth/register` returns
+`403 {"detail":"Public registration is disabled"}` unless you set
+`ALLOW_PUBLIC_REGISTRATION=true` (demo/staging only).
+
+**1. Create the platform superadmin** (once, from `backend/`):
 
 ```bash
-# Create a new org + its admin (public sign-up):
-curl -X POST http://localhost:8000/api/auth/register \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"owner@acme.uz","password":"password123","org_name":"Acme Logistics"}'
+SEED_SUPERADMIN_EMAIL=you@yourcompany.uz \
+SEED_SUPERADMIN_PASSWORD='<strong-password>' \
+python seed.py
 ```
 
-The first user of a new org is always the **admin**. The admin adds managers/operators
-via `POST /api/auth/users`, and driver mobile logins via `POST /api/drivers/{id}/create-login`.
-Every query is scoped to the signed-in user's org — one customer can never see another's data.
+This puts the superadmin in an organization named `Platform` that holds no fleet
+data. The seeder is idempotent — an existing account is left untouched.
+
+**2. Onboard a customer company** — log in as the superadmin and use the
+`/organizations` page in the web app, or call the API directly:
+
+```bash
+curl -X POST http://localhost:8000/api/organizations \
+  -H "Authorization: Bearer $SUPERADMIN_ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Acme Logistics","admin_email":"owner@acme.uz","admin_password":"password123"}'
+```
+
+The org and its first **admin** are created in one transaction. That admin adds
+managers/operators via `POST /api/auth/users` (or the `/users` page), and driver
+mobile logins via `POST /api/drivers/{id}/create-login`.
+
+A superadmin manages companies (`/api/organizations/*`) but never sees their fleet
+data — every fleet query is scoped to the signed-in user's own org, so one customer
+can never see another's data. Suspending a company (`is_active = false`) blocks its
+logins, REST calls, token refreshes and live WebSocket feed immediately.
 
 ## Money-first analytics
 

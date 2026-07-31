@@ -47,7 +47,9 @@ class FuelLog(Base):
     truck_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("trucks.id", ondelete="CASCADE"), nullable=False)
     trip_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("trips.id", ondelete="SET NULL"), nullable=True)
     liters: Mapped[float] = mapped_column(Numeric(8, 2), nullable=False)
-    cost_per_liter: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    # Wide enough for so'm-denominated prices (~12 000 UZS/litre), not just
+    # USD/EUR — see migration b2c3d4e5f6a7.
+    cost_per_liter: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     total_cost: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     mileage_at_fill: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     fuel_station: Mapped[str | None] = mapped_column(String(200), nullable=True)

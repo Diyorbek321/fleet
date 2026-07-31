@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     # every /api/auth/refresh, so an active driver effectively never expires.
     refresh_token_expire_days: int = Field(default=90, alias="REFRESH_TOKEN_EXPIRE_DAYS")
 
+    # Self-service sign-up at POST /api/auth/register. Off by default because
+    # this is a paid, operator-provisioned product: an open sign-up endpoint would
+    # let anyone create a tenant (and burn storage, scheduler and Telegram quota)
+    # without ever appearing in the platform operator's books. Companies are
+    # created by a superadmin via POST /api/organizations instead. Flip it on only
+    # for demo/staging deployments where a throwaway tenant is the point.
+    allow_public_registration: bool = Field(default=False, alias="ALLOW_PUBLIC_REGISTRATION")
+
     cors_origins: str = Field(default="", alias="CORS_ORIGINS")
 
     gps_api_keys: str = Field(default="", alias="GPS_API_KEYS")

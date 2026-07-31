@@ -73,14 +73,31 @@ Caddy will log certificate issuance for both domains. Then:
 - `https://app.yourdomain` → the web app
 - `https://api.yourdomain/health` → `{"status":"ok"}`
 
-## 6. Seed the first admin
+## 6. Seed the platform superadmin
+
+FleetWatch is sold company by company, so customer organizations are
+**provisioned by you**, not by self-serve sign-up: `ALLOW_PUBLIC_REGISTRATION`
+defaults to `false`, and `POST /api/auth/register` answers
+`403 {"detail":"Public registration is disabled"}`. The superadmin account is
+therefore the only way into a fresh deployment — create it first:
 
 ```bash
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec \
-  -e SEED_ADMIN_EMAIL=admin@yourcompany.uz \
-  -e SEED_ADMIN_PASSWORD='<strong-password>' \
+  -e SEED_SUPERADMIN_EMAIL=you@yourcompany.uz \
+  -e SEED_SUPERADMIN_PASSWORD='<strong-password>' \
   api python seed.py
 ```
+
+This creates the account inside an organization named `Platform`, which holds no
+fleet data. The seeder is idempotent — if the email already exists it prints a
+notice and changes nothing, so re-running it after an update is safe.
+
+Log in at `https://app.yourdomain`; a superadmin lands on `/organizations`.
+Onboard each customer company from there (or via `POST /api/organizations`),
+which creates the org and its first admin in one transaction.
+
+The older `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` pair still seeds a demo fleet
+organization and is optional — skip it on a real deployment.
 
 ## 7. Mobile app
 

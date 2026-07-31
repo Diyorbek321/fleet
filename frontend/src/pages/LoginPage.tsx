@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
+import { landingPathFor } from '@/components/RoleRoute';
 import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const { t } = useTranslation();
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, login, isAuthenticated, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,7 +29,7 @@ export default function LoginPage() {
   }
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={landingPathFor(user?.role)} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,8 +37,8 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      const me = await login(email, password);
+      navigate(landingPathFor(me.role));
       toast({
         title: t('auth.welcome'),
         description: t('auth.welcomeDescription'),

@@ -101,10 +101,29 @@ export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
 
 // ---- Auth endpoints ----
 
+/**
+ * Mirrors backend `app.models.enums.UserRole` exactly, in the same order.
+ * `superadmin` is the platform operator (us, selling this product); it is not a
+ * "bigger admin" — it never sees another company's fleet data, only the
+ * `/api/organizations` console.
+ */
+export type UserRole = 'superadmin' | 'admin' | 'manager' | 'operator' | 'driver';
+
+/**
+ * The roles a human may be *assigned* through the UI. `superadmin` is excluded
+ * because handing it out from a request body would be privilege escalation into
+ * the platform itself; `driver` is excluded because drivers are created through
+ * `/api/drivers` so they get a linked Driver profile the mobile app scopes to.
+ */
+export type AssignableRole = Extract<UserRole, 'admin' | 'manager' | 'operator'>;
+
+export const ASSIGNABLE_ROLES: readonly AssignableRole[] = ['admin', 'manager', 'operator'];
+
 export interface AuthUser {
   id: string;
+  org_id: string;
   email: string;
-  role: 'admin' | 'operator' | 'viewer';
+  role: UserRole;
 }
 
 export const authApi = {
@@ -113,4 +132,96 @@ export const authApi = {
   me: () => api<AuthUser>('/api/auth/me'),
   logout: (refresh_token: string) =>
     api<{ message: string }>('/api/auth/logout', { method: 'POST', body: { refresh_token }, auth: false }),
+};
+
+// ---- Organizations (superadmin-only platform console) ----
+
+/**
+ * Field names stay snake_case on purpose: unlike the domain modules in
+ * `src/lib/*.ts`, this is a thin console over the raw API and an adapter layer
+ * would only add a place for the two shapes to drift apart.
+ */
+export interface Organization {
+  id: string;
+  name: string;
+  is_active: boolean;
+  contact_name: string | null;
+  contact_phone: string | null;
+  notes: string | null;
+  created_at: string;
+  user_count: number;
+  truck_count: number;
+  driver_count: number;
+  trip_count: number;
+}
+
+export interface OrganizationCreate {
+  name: string;
+  admin_email: string;
+  /** Backend enforces min length 8. */
+  admin_password: string;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  notes?: string | null;
+}
+
+export interface OrganizationUpdate {
+  name?: string;
+  /** `false` suspends the company: its users can no longer log in. */
+  is_active?: boolean;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  notes?: string | null;
+}
+
+/** A staff user row as returned by both the superadmin and the org-admin endpoints. */
+export interface OrgUser {
+  id: string;
+  org_id: string;
+  email: string;
+  role: UserRole;
+}
+
+export interface OrgUserCreate {
+  email: string;
+  /** Backend enforces min length 8. */
+  password: string;
+  role: AssignableRole;
+}
+
+export interface OrgUserUpdate {
+  role?: AssignableRole;
+  password?: string;
+}
+
+export const organizationsApi = {
+  list: (q?: string) =>
+    api<Organization[]>(`/api/organizations${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+  get: (orgId: string) => api<Organization>(`/api/organizations/${orgId}`),
+  create: (body: OrganizationCreate) =>
+    api<Organization>('/api/organizations', { method: 'POST', body }),
+  update: (orgId: string, body: OrganizationUpdate) =>
+    api<Organization>(`/api/organizations/${orgId}`, { method: 'PATCH', body }),
+  /**
+   * Destructive and irreversible, so the backend demands the org's exact name as
+   * `?confirm=` — the caller must have typed it, a stray click cannot delete a
+   * customer.
+   */
+  remove: (orgId: string, confirm: string) =>
+    api<void>(`/api/organizations/${orgId}?confirm=${encodeURIComponent(confirm)}`, {
+      method: 'DELETE',
+    }),
+  listUsers: (orgId: string) => api<OrgUser[]>(`/api/organizations/${orgId}/users`),
+  createUser: (orgId: string, body: OrgUserCreate) =>
+    api<OrgUser>(`/api/organizations/${orgId}/users`, { method: 'POST', body }),
+};
+
+// ---- Org-scoped user management (a company's own admin) ----
+
+export const usersApi = {
+  list: () => api<OrgUser[]>('/api/auth/users'),
+  create: (body: OrgUserCreate) => api<OrgUser>('/api/auth/users', { method: 'POST', body }),
+  update: (userId: string, body: OrgUserUpdate) =>
+    api<OrgUser>(`/api/auth/users/${userId}`, { method: 'PATCH', body }),
+  remove: (userId: string) => api<void>(`/api/auth/users/${userId}`, { method: 'DELETE' }),
 };

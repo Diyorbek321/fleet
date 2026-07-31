@@ -1,5 +1,4 @@
 node_modules
-dist
 coverage
 .env
 .env.*
@@ -9,5 +8,6 @@ coverage
 *.log
 .DS_Store
 Dockerfile
+Dockerfile.prebuilt
 .dockerignore
 bun.lockb
