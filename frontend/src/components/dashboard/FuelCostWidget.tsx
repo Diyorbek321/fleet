@@ -1,29 +1,54 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Fuel, DollarSign, Gauge, TrendingUp } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Fuel, Banknote, Gauge, TrendingUp } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { maintenanceApi, type FuelSummary } from '@/lib/maintenance';
+import { analyticsApi, type FuelAnomalyRow } from '@/lib/analytics';
+import { formatAmount, formatKm, formatLiters } from '@/lib/format';
 
-function formatUSD(n: number): string {
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
+const WINDOW_DAYS = 30;
+
+/**
+ * Fuel spend comes from the fuel logs, but efficiency does NOT: the log-derived
+ * figure divides litres by an odometer delta that only covers the span between
+ * the first and last fill, which undercounts distance badly (and collapses to
+ * zero for trucks with a single fill). The analytics endpoint measures distance
+ * from GPS history instead, so consumption here matches the Leakage page rather
+ * than contradicting it.
+ */
+function fleetConsumption(rows: FuelAnomalyRow[]): number | null {
+  const distance = rows.reduce((sum, r) => sum + r.distanceKm, 0);
+  const liters = rows.reduce((sum, r) => sum + r.liters, 0);
+  if (distance <= 0 || liters <= 0) return null;
+  return (liters / distance) * 100;
 }
 
-function formatNum(n: number): string {
-  return new Intl.NumberFormat('en-US').format(Math.round(n));
+/** Only trucks that actually moved can be ranked on consumption. */
+function rankable(rows: FuelAnomalyRow[]): FuelAnomalyRow[] {
+  return rows.filter((r) => r.distanceKm > 0 && r.lPer100km > 0);
 }
 
 export function FuelCostWidget() {
-  const { data, isLoading, isError } = useQuery<FuelSummary>({
-    queryKey: ['fuel-summary', 30],
-    queryFn: () => maintenanceApi.fuelSummary(30),
+  const { t } = useTranslation();
+
+  const summary = useQuery<FuelSummary>({
+    queryKey: ['fuel-summary', WINDOW_DAYS],
+    queryFn: () => maintenanceApi.fuelSummary(WINDOW_DAYS),
     refetchInterval: 60_000,
   });
 
-  if (isLoading) {
+  const anomalies = useQuery<FuelAnomalyRow[]>({
+    queryKey: ['fuel-anomalies', WINDOW_DAYS],
+    queryFn: () => analyticsApi.fuelAnomalies(WINDOW_DAYS),
+    refetchInterval: 60_000,
+  });
+
+  if (summary.isLoading || anomalies.isLoading) {
     return (
       <Card className="border-border/50 bg-card">
         <CardHeader>
-          <CardTitle>Fuel & Efficiency (30 days)</CardTitle>
+          <CardTitle>{t('dashboard.fuel.title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="skeleton h-32 w-full" />
@@ -32,71 +57,92 @@ export function FuelCostWidget() {
     );
   }
 
-  if (isError || !data) {
+  const data = summary.data;
+  if (summary.isError || !data) {
     return (
       <Card className="border-border/50 bg-card">
         <CardHeader>
-          <CardTitle>Fuel & Efficiency (30 days)</CardTitle>
+          <CardTitle>{t('dashboard.fuel.title')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">No fuel data available yet.</p>
+          <p className="text-sm text-muted-foreground">{t('dashboard.fuel.noData')}</p>
         </CardContent>
       </Card>
     );
   }
 
-  const topTrucks = data.trucks.slice(0, 3);
-  const bottomTruck = data.trucks[data.trucks.length - 1];
+  const rows = rankable(anomalies.data ?? []);
+  const byEfficiency = [...rows].sort((a, b) => a.lPer100km - b.lPer100km);
+  const topTrucks = byEfficiency.slice(0, 3);
+  const worstTruck = byEfficiency[byEfficiency.length - 1];
+  const consumption = fleetConsumption(rows);
 
   return (
     <Card className="border-border/50 bg-card">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Fuel & Efficiency</span>
-          <span className="text-xs font-normal text-muted-foreground">last {data.days} days</span>
+          <span>{t('dashboard.fuel.title')}</span>
+          <span className="text-xs font-normal text-muted-foreground">
+            {t('dashboard.fuel.window', { days: data.days })}
+          </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Stat
-            icon={DollarSign}
-            label="Total Fuel Cost"
-            value={formatUSD(data.total_cost)}
+            icon={Banknote}
+            label={t('dashboard.fuel.totalCost')}
+            value={`${formatAmount(data.total_cost)} ${t('common.currency')}`}
             tone="primary"
           />
           <Stat
             icon={Fuel}
-            label="Gallons Burned"
-            value={formatNum(data.total_gallons)}
+            label={t('dashboard.fuel.litersBurned')}
+            value={`${formatLiters(data.total_gallons)} ${t('common.liters')}`}
             tone="moving"
           />
           <Stat
             icon={Gauge}
-            label="Fleet MPG"
-            value={data.fleet_mpg > 0 ? data.fleet_mpg.toFixed(2) : '—'}
+            label={t('dashboard.fuel.fleetConsumption')}
+            value={
+              consumption === null
+                ? '—'
+                : `${consumption.toFixed(1)} ${t('common.lPer100km')}`
+            }
             tone="stopped"
           />
           <Stat
             icon={TrendingUp}
-            label="Avg $/gal"
-            value={`$${data.avg_price_per_gallon.toFixed(2)}`}
+            label={t('dashboard.fuel.avgLiterPrice')}
+            value={`${formatAmount(data.avg_price_per_gallon)} ${t('common.currency')}`}
             tone="primary"
           />
         </div>
 
         {topTrucks.length > 0 && (
           <div>
-            <h4 className="mb-2 text-sm font-semibold text-muted-foreground">Top Performers (MPG)</h4>
+            <h4 className="mb-2 text-sm font-semibold text-muted-foreground">
+              {t('dashboard.fuel.topPerformers')}
+            </h4>
             <div className="space-y-2">
-              {topTrucks.map((t) => (
-                <div key={t.truck_id} className="flex items-center justify-between rounded-lg border border-border/40 bg-background/50 px-3 py-2">
+              {topTrucks.map((truck) => (
+                <div
+                  key={truck.truckId}
+                  className="flex items-center justify-between rounded-lg border border-border/40 bg-background/50 px-3 py-2"
+                >
                   <div>
-                    <p className="text-sm font-medium">{t.truck_name}</p>
-                    <p className="text-xs text-muted-foreground">{t.plate_number} · {formatNum(t.miles)} mi</p>
+                    <p className="text-sm font-medium">{truck.truckName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {truck.plateNumber} · {formatKm(truck.distanceKm)} {t('common.km')}
+                    </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm font-bold">{t.mpg.toFixed(2)} mpg</p>
-                    <p className="text-xs text-muted-foreground">{formatUSD(t.cost)}</p>
+                    <p className="text-sm font-bold">
+                      {truck.lPer100km.toFixed(1)} {t('common.lPer100km')}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatLiters(truck.liters)} {t('common.liters')}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -104,11 +150,17 @@ export function FuelCostWidget() {
           </div>
         )}
 
-        {bottomTruck && data.trucks.length > 3 && bottomTruck.mpg > 0 && (
+        {worstTruck && byEfficiency.length > 3 && worstTruck.flagged && (
           <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2">
-            <p className="text-xs font-semibold text-destructive">⚠ Lowest MPG: {bottomTruck.truck_name}</p>
+            <p className="text-xs font-semibold text-destructive">
+              ⚠ {t('dashboard.fuel.worstTruck', { name: worstTruck.truckName })}
+            </p>
             <p className="text-xs text-muted-foreground">
-              {bottomTruck.mpg.toFixed(2)} mpg · {formatUSD(bottomTruck.cost)} this period · check engine/tire health
+              {worstTruck.lPer100km.toFixed(1)} {t('common.lPer100km')} ·{' '}
+              {t('dashboard.fuel.baseline', {
+                value: worstTruck.baselineLPer100km.toFixed(0),
+              })}{' '}
+              · {t('dashboard.fuel.worstTruckHint')}
             </p>
           </div>
         )}

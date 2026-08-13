@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -13,10 +14,11 @@ const data = [
 ];
 
 export function FleetOverviewChart() {
+  const { t } = useTranslation();
   return (
     <Card className="border-border/50 bg-card">
       <CardHeader>
-        <CardTitle className="text-lg">Fleet Activity (24h)</CardTitle>
+        <CardTitle className="text-lg">{t('dashboard.activity')}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-[300px]">
@@ -64,7 +66,7 @@ export function FleetOverviewChart() {
                 stackId="1"
                 stroke="hsl(var(--status-moving))"
                 fill="url(#movingGradient)"
-                name="Moving"
+                name={t('dashboard.stats.moving')}
               />
               <Area
                 type="monotone"
@@ -72,7 +74,7 @@ export function FleetOverviewChart() {
                 stackId="1"
                 stroke="hsl(var(--status-stopped))"
                 fill="url(#stoppedGradient)"
-                name="Stopped"
+                name={t('dashboard.stats.stopped')}
               />
               <Area
                 type="monotone"
@@ -80,7 +82,7 @@ export function FleetOverviewChart() {
                 stackId="1"
                 stroke="hsl(var(--status-offline))"
                 fill="url(#offlineGradient)"
-                name="Offline"
+                name={t('dashboard.stats.offline')}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -90,15 +92,15 @@ export function FleetOverviewChart() {
         <div className="flex items-center justify-center gap-6 mt-4">
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-status-moving" />
-            <span className="text-sm text-muted-foreground">Moving</span>
+            <span className="text-sm text-muted-foreground">{t('dashboard.stats.moving')}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-status-stopped" />
-            <span className="text-sm text-muted-foreground">Stopped</span>
+            <span className="text-sm text-muted-foreground">{t('dashboard.stats.stopped')}</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-status-offline" />
-            <span className="text-sm text-muted-foreground">Offline</span>
+            <span className="text-sm text-muted-foreground">{t('dashboard.stats.offline')}</span>
           </div>
         </div>
       </CardContent>

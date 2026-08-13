@@ -19,6 +19,33 @@
     "organizations": "Компании",
     "users": "Пользователи"
   },
+  "dashboard": {
+    "title": "Панель управления",
+    "subtitle": "Состояние и эффективность автопарка",
+    "stats": {
+      "totalTrucks": "Всего машин",
+      "moving": "В движении",
+      "stopped": "Остановлены",
+      "offline": "Нет связи"
+    },
+    "fuel": {
+      "title": "Топливо и эффективность",
+      "window": "последние {{days}} дней",
+      "noData": "Данных по топливу пока нет.",
+      "totalCost": "Общие расходы на топливо",
+      "litersBurned": "Израсходовано топлива",
+      "fleetConsumption": "Расход по автопарку",
+      "avgLiterPrice": "Средняя цена за литр",
+      "topPerformers": "Самые экономичные машины",
+      "worstTruck": "Наибольший расход: {{name}}",
+      "worstTruckHint": "проверьте двигатель и шины",
+      "baseline": "норма {{value}} л/100км"
+    },
+    "activity": "Активность автопарка (24 ч)",
+    "recent": "Последние события",
+    "viewAll": "Все",
+    "noDriver": "Водитель не назначен"
+  },
   "queue": {
     "title": "Очередь на границе",
     "subtitle": "Статус очереди CarGoRuqsat по каждому отслеживанию водителя.",
@@ -67,7 +94,11 @@
     "loading": "Загрузка…",
     "language": "Язык",
     "profile": "Профиль",
-    "settings": "Настройки"
+    "settings": "Настройки",
+    "currency": "сум",
+    "liters": "л",
+    "km": "км",
+    "lPer100km": "л/100км"
   },
   "trucks": {
     "status": {
@@ -166,8 +197,7 @@
     "entries": "Записей",
     "total": "Итого",
     "highest": "Больше всех",
-    "lowest": "Меньше всех",
-    "currencySuffix": "сум"
+    "lowest": "Меньше всех"
   },
   "geofences": {
     "title": "Геозоны",

@@ -19,6 +19,33 @@
     "organizations": "Organizations",
     "users": "Users"
   },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Fleet performance and status overview",
+    "stats": {
+      "totalTrucks": "Total trucks",
+      "moving": "Moving",
+      "stopped": "Stopped",
+      "offline": "Offline"
+    },
+    "fuel": {
+      "title": "Fuel & efficiency",
+      "window": "last {{days}} days",
+      "noData": "No fuel data yet.",
+      "totalCost": "Total fuel cost",
+      "litersBurned": "Fuel burned",
+      "fleetConsumption": "Fleet consumption",
+      "avgLiterPrice": "Avg. price per litre",
+      "topPerformers": "Most efficient trucks",
+      "worstTruck": "Highest consumption: {{name}}",
+      "worstTruckHint": "check the engine and tyres",
+      "baseline": "baseline {{value}} L/100km"
+    },
+    "activity": "Fleet activity (24h)",
+    "recent": "Recent activity",
+    "viewAll": "View all",
+    "noDriver": "No driver assigned"
+  },
   "queue": {
     "title": "Border Queue",
     "subtitle": "CarGoRuqsat border-queue status for each driver's watch.",
@@ -67,7 +94,11 @@
     "loading": "Loading…",
     "language": "Language",
     "profile": "Profile",
-    "settings": "Settings"
+    "settings": "Settings",
+    "currency": "UZS",
+    "liters": "L",
+    "km": "km",
+    "lPer100km": "L/100km"
   },
   "trucks": {
     "status": {
@@ -166,8 +197,7 @@
     "entries": "Entries",
     "total": "Total",
     "highest": "Highest",
-    "lowest": "Lowest",
-    "currencySuffix": "UZS"
+    "lowest": "Lowest"
   },
   "geofences": {
     "title": "Geofences",

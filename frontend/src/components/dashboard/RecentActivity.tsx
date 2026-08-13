@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Clock, ArrowRight } from 'lucide-react';
@@ -9,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
 export function RecentActivity() {
+  const { t } = useTranslation();
   const { trucks, isLoading, setSelectedTruck } = useTrucks();
   const navigate = useNavigate();
 
@@ -31,7 +33,7 @@ export function RecentActivity() {
     return (
       <Card className="border-border/50 bg-card">
         <CardHeader>
-          <CardTitle className="text-lg">Recent Activity</CardTitle>
+          <CardTitle className="text-lg">{t('dashboard.recent')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -53,9 +55,9 @@ export function RecentActivity() {
   return (
     <Card className="border-border/50 bg-card">
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-lg">Recent Activity</CardTitle>
+        <CardTitle className="text-lg">{t('dashboard.recent')}</CardTitle>
         <Button variant="ghost" size="sm" onClick={() => navigate('/trucks')}>
-          View all
+          {t('dashboard.viewAll')}
           <ArrowRight className="ml-1 h-4 w-4" />
         </Button>
       </CardHeader>
@@ -96,7 +98,7 @@ export function RecentActivity() {
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                  <span>{truck.driverName || 'No driver assigned'}</span>
+                  <span>{truck.driverName || t('dashboard.noDriver')}</span>
                   <span>•</span>
                   <span>{truck.speed} km/h</span>
                 </div>

@@ -19,6 +19,33 @@
     "organizations": "Kompaniyalar",
     "users": "Foydalanuvchilar"
   },
+  "dashboard": {
+    "title": "Boshqaruv paneli",
+    "subtitle": "Avtopark holati va samaradorligi",
+    "stats": {
+      "totalTrucks": "Jami mashinalar",
+      "moving": "Harakatda",
+      "stopped": "To‘xtagan",
+      "offline": "Aloqada emas"
+    },
+    "fuel": {
+      "title": "Yoqilg‘i va samaradorlik",
+      "window": "oxirgi {{days}} kun",
+      "noData": "Hozircha yoqilg‘i ma’lumoti yo‘q.",
+      "totalCost": "Jami yoqilg‘i xarajati",
+      "litersBurned": "Sarflangan yoqilg‘i",
+      "fleetConsumption": "Park bo‘yicha sarf",
+      "avgLiterPrice": "1 litr o‘rtacha narxi",
+      "topPerformers": "Eng tejamkor mashinalar",
+      "worstTruck": "Eng ko‘p sarf: {{name}}",
+      "worstTruckHint": "dvigatel va shinalarni tekshiring",
+      "baseline": "me’yor {{value}} L/100km"
+    },
+    "activity": "Avtopark faolligi (24 soat)",
+    "recent": "So‘nggi harakatlar",
+    "viewAll": "Barchasi",
+    "noDriver": "Haydovchi biriktirilmagan"
+  },
   "queue": {
     "title": "Chegara navbati",
     "subtitle": "Har bir haydovchi kuzatuvi uchun CarGoRuqsat chegara navbati holati.",
@@ -67,7 +94,11 @@
     "loading": "Yuklanmoqda…",
     "language": "Til",
     "profile": "Profil",
-    "settings": "Sozlamalar"
+    "settings": "Sozlamalar",
+    "currency": "so‘m",
+    "liters": "L",
+    "km": "km",
+    "lPer100km": "L/100km"
   },
   "trucks": {
     "status": {
@@ -166,8 +197,7 @@
     "entries": "Yozuvlar",
     "total": "Jami",
     "highest": "Eng ko‘p",
-    "lowest": "Eng kam",
-    "currencySuffix": "so‘m"
+    "lowest": "Eng kam"
   },
   "geofences": {
     "title": "Geozonalar",
