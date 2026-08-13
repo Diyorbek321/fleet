@@ -82,7 +82,12 @@
     "loginFailed": "Login failed",
     "invalidCredentials": "Invalid email or password.",
     "backendUnreachable": "Cannot reach the backend. Is the API running?",
-    "genericError": "Something went wrong. Please try again."
+    "genericError": "Something went wrong. Please try again.",
+    "highlights": {
+      "gps": "Live GPS tracking of every truck",
+      "fuel": "Fuel and cost control in so'm",
+      "telegram": "Telegram updates for cargo owners"
+    }
   },
   "common": {
     "save": "Save",

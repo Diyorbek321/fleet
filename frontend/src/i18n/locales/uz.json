@@ -82,7 +82,12 @@
     "loginFailed": "Kirish amalga oshmadi",
     "invalidCredentials": "Elektron pochta yoki parol noto‘g‘ri.",
     "backendUnreachable": "Backend serverga ulanib bo‘lmadi. API ishlayaptimi?",
-    "genericError": "Xatolik yuz berdi. Qayta urinib ko‘ring."
+    "genericError": "Xatolik yuz berdi. Qayta urinib ko‘ring.",
+    "highlights": {
+      "gps": "Har bir mashinani jonli GPS kuzatuv",
+      "fuel": "Yoqilg‘i va xarajat nazorati — so‘mda",
+      "telegram": "Yuk egasiga Telegram orqali xabar"
+    }
   },
   "common": {
     "save": "Saqlash",

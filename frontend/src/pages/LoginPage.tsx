@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Navigate } from 'react-router-dom';
-import { Truck, Loader2 } from 'lucide-react';
+import { Truck, Loader2, Check } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -90,20 +90,16 @@ export default function LoginPage() {
             <span className="text-gradient">{t('auth.heading_accent')}</span>
           </h1>
 
-          <div className="mt-12 flex gap-8">
-            <div>
-              <div className="text-3xl font-bold text-foreground">500+</div>
-              <div className="text-sm text-muted-foreground">Fleets Managed</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-foreground">10K+</div>
-              <div className="text-sm text-muted-foreground">Trucks Tracked</div>
-            </div>
-            <div>
-              <div className="text-3xl font-bold text-foreground">99.9%</div>
-              <div className="text-sm text-muted-foreground">Uptime</div>
-            </div>
-          </div>
+          {/* Capabilities, not traction numbers — invented metrics are the
+              first thing a prospective customer checks. */}
+          <ul className="mt-12 space-y-3">
+            {['gps', 'fuel', 'telegram'].map((key) => (
+              <li key={key} className="flex items-center gap-3 text-muted-foreground">
+                <Check className="h-5 w-5 shrink-0 text-primary" />
+                <span className="text-base">{t(`auth.highlights.${key}`)}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
 
@@ -165,10 +161,6 @@ export default function LoginPage() {
                 </Button>
               </form>
 
-              <div className="mt-6 text-center text-sm text-muted-foreground">
-                <p>Demo credentials:</p>
-                <p className="font-mono text-xs mt-1">admin@fleettrack.com / password123</p>
-              </div>
             </CardContent>
           </Card>
         </div>
