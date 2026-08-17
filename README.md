@@ -126,6 +126,14 @@ logins, REST calls, token refreshes and live WebSocket feed immediately.
 - `GET /api/analytics/unauthorized-stops` — long stops outside any geofence
 - `GET /api/reminders/expiring` — driver-licence + service-interval expiries (also runs as a scheduler job)
 
+The GPS scan behind these is streaming (server-side cursor, per-truck aggregates
+only), so a 30-day window over a large fleet costs bounded memory rather than one
+Python object per position ping. Every window is clamped to
+`GPS_HISTORY_RETENTION_DAYS` and the effective `window_days` is echoed in the
+response — fuel logs are kept forever but positions are not, and dividing a full
+year of litres by 90 days of kilometres would report a burn rate four times
+reality.
+
 ## Deployment
 
 - **Backend**: build `backend/Dockerfile` (runs `alembic upgrade head` then uvicorn). Needs managed Postgres + Redis. In `ENV=prod`, Redis is required and a strong `JWT_SECRET_KEY` + `CORS_ORIGINS` are enforced at startup. Optional `SENTRY_DSN` for error tracking.
@@ -147,7 +155,8 @@ logins, REST calls, token refreshes and live WebSocket feed immediately.
 - [x] WebSocket live map (token-auth, auto-reconnect)
 - [x] Per-device GPS enrollment (IMEI + API key, bcrypt-hashed)
 - [x] i18n (EN / UZ / RU) with language switcher
-- [x] Tests + CI (pytest 68/68, vitest 29/29, jest 25/25 mobile, GitHub Actions workflow)
+- [x] **GPS retention** — background purge past `GPS_HISTORY_RETENTION_DAYS` (default 90); the position table was the only unbounded one in the schema
+- [x] Tests + CI (pytest 157, vitest 64, jest 22 mobile, GitHub Actions workflow)
 - [x] Drivers management UI (CRUD + truck assignment)
 - [x] Reports (fleet summary + per-truck distance from GPS history)
 - [x] Rate limiting (slowapi) + prod secret guard + structured logging

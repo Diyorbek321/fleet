@@ -47,6 +47,9 @@ class FuelAnomalyRow(BaseModel):
 
 
 class FuelAnomalies(BaseModel):
+    # Echoed back because the service clamps the request to the GPS retention
+    # window — the client must know which period the numbers actually describe.
+    window_days: int
     baseline_l_per_100km: float
     flagged_count: int
     estimated_waste_cost: float
@@ -65,6 +68,7 @@ class UnauthorizedStop(BaseModel):
 
 
 class UnauthorizedStops(BaseModel):
+    window_days: int
     unauthorized_stop_count: int
     total_idle_hours: float
     stops: list[UnauthorizedStop]

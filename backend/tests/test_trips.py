@@ -133,3 +133,150 @@ async def test_driver_cannot_advance_foreign_trip(client: AsyncClient, admin_hea
         json={"to_status": "delivered"},
     )
     assert res.status_code == 404
+
+
+# --- reference numbering: per tenant, never global ---------------------------
+
+
+async def _signup(client: AsyncClient, email: str, org_name: str) -> dict[str, str]:
+    await client.post(
+        "/api/auth/register",
+        json={"email": email, "password": "password123", "org_name": org_name},
+    )
+    login = await client.post(
+        "/api/auth/login", json={"email": email, "password": "password123"}
+    )
+    return {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+
+async def test_each_organization_numbers_its_trips_from_one(client: AsyncClient):
+    """References are a per-tenant sequence.
+
+    Shared globally, a new customer's very first trip comes out numbered from the
+    platform-wide total — TR-2026-000587 tells them exactly how much freight
+    everyone else is moving. Both orgs here must independently start at 000001.
+    """
+    a_headers = await _signup(client, "ref-a@org.com", "Ref Org A")
+    b_headers = await _signup(client, "ref-b@org.com", "Ref Org B")
+
+    a1 = (await client.post("/api/trips", headers=a_headers, json={"rate": 1000})).json()
+    a2 = (await client.post("/api/trips", headers=a_headers, json={"rate": 1000})).json()
+    b1 = (await client.post("/api/trips", headers=b_headers, json={"rate": 1000})).json()
+
+    assert a1["reference"].endswith("-000001")
+    assert a2["reference"].endswith("-000002")
+    # Org B is unaffected by the two trips Org A already created.
+    assert b1["reference"].endswith("-000001")
+    assert b1["reference"] == a1["reference"]
+
+
+async def test_two_organizations_may_hold_the_same_explicit_reference(client: AsyncClient):
+    """A reference another tenant has taken is invisible here and must not 409."""
+    a_headers = await _signup(client, "dup-a@org.com", "Dup Org A")
+    b_headers = await _signup(client, "dup-b@org.com", "Dup Org B")
+
+    ref = "CMR-2026-777"
+    a = await client.post("/api/trips", headers=a_headers, json={"rate": 1, "reference": ref})
+    b = await client.post("/api/trips", headers=b_headers, json={"rate": 1, "reference": ref})
+
+    assert a.status_code == 200, a.text
+    assert b.status_code == 200, b.text
+    assert a.json()["reference"] == b.json()["reference"] == ref
+
+
+async def test_duplicate_reference_within_one_organization_is_rejected(
+    client: AsyncClient, admin_headers
+):
+    ref = "CMR-2026-DUP"
+    first = await client.post("/api/trips", headers=admin_headers, json={"rate": 1, "reference": ref})
+    assert first.status_code == 200, first.text
+
+    second = await client.post("/api/trips", headers=admin_headers, json={"rate": 1, "reference": ref})
+    assert second.status_code == 409
+
+
+async def test_deleting_a_middle_trip_does_not_make_the_next_one_collide(
+    client: AsyncClient, admin_headers
+):
+    """Why numbering reads the highest reference instead of counting rows.
+
+    Count three trips, delete the middle one, and a count-based generator returns
+    2 + 1 = 000003 — a reference the still-live third trip already holds. The
+    create then fails on the unique constraint for no reason the dispatcher can
+    see. Deriving from the maximum issued skips the freed number instead.
+    """
+    refs = [
+        (await client.post("/api/trips", headers=admin_headers, json={"rate": 1})).json()
+        for _ in range(3)
+    ]
+    assert refs[2]["reference"].endswith("-000003")
+
+    deleted = await client.delete(f"/api/trips/{refs[1]['id']}", headers=admin_headers)
+    assert deleted.status_code in (200, 204)
+
+    fourth = await client.post("/api/trips", headers=admin_headers, json={"rate": 1})
+    assert fourth.status_code == 200, fourth.text
+    assert fourth.json()["reference"].endswith("-000004")
+
+
+async def test_concurrent_creates_never_share_a_reference(client: AsyncClient, admin_headers):
+    """The race the unique constraint plus retry loop exists to close.
+
+    Reference allocation is read-then-write, so simultaneous creates can compute
+    the same number. Whoever loses at the constraint must retry and land on the
+    next one — not fail, and never duplicate.
+    """
+    import asyncio
+
+    results = await asyncio.gather(
+        *[
+            client.post("/api/trips", headers=admin_headers, json={"rate": 1000})
+            for _ in range(5)
+        ]
+    )
+
+    assert all(r.status_code == 200 for r in results), [r.text for r in results if r.status_code != 200]
+    references = [r.json()["reference"] for r in results]
+    assert len(set(references)) == 5, references
+
+
+async def test_numbering_continues_past_shorter_seeded_references(
+    client: AsyncClient, admin_headers
+):
+    """Reproduces production: seeded trips numbered TR-YYYY-0094, four digits.
+
+    As text ``'TR-2026-0094' > 'TR-2026-000095'`` — the '9' beats the '0' in the
+    third position — so a lexicographic MAX sticks on the short reference
+    forever and hands out the same number on every call. The tenant creates one
+    trip successfully and can never create a second. Taking the maximum
+    numerically is what makes mixed widths safe.
+    """
+    for n in (1, 94):
+        seeded = await client.post(
+            "/api/trips",
+            headers=admin_headers,
+            json={"rate": 1, "reference": f"TR-2026-{n:04d}"},
+        )
+        assert seeded.status_code == 200, seeded.text
+
+    first = await client.post("/api/trips", headers=admin_headers, json={"rate": 1})
+    second = await client.post("/api/trips", headers=admin_headers, json={"rate": 1})
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert first.json()["reference"] == "TR-2026-000095"
+    assert second.json()["reference"] == "TR-2026-000096"
+
+
+async def test_a_non_numeric_reference_does_not_break_numbering(
+    client: AsyncClient, admin_headers
+):
+    """A hand-typed reference sharing the prefix must not reach the integer cast."""
+    typed = await client.post(
+        "/api/trips", headers=admin_headers, json={"rate": 1, "reference": "TR-2026-ACME"}
+    )
+    assert typed.status_code == 200, typed.text
+
+    generated = await client.post("/api/trips", headers=admin_headers, json={"rate": 1})
+    assert generated.status_code == 200, generated.text
+    assert generated.json()["reference"] == "TR-2026-000001"

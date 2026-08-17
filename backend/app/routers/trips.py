@@ -7,6 +7,7 @@ from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -40,6 +41,13 @@ _MANAGE = require_role(UserRole.admin, UserRole.manager, UserRole.operator)
 
 # Timestamps stamped automatically on first entry into a status.
 _START_STATUSES = {TripStatus.en_route, TripStatus.loading}
+
+# Reference allocation is serialized by an advisory lock inside
+# generate_reference, so a losing insert should be unreachable in practice. The
+# retry stays as the backstop for what the lock does not cover: a reference typed
+# in by hand racing an auto-generated one, or a lock skipped on a non-Postgres
+# engine. The unique constraint is the guarantee; this is the graceful recovery.
+_REFERENCE_ATTEMPTS = 3
 
 
 async def _get_owned_trip(db: AsyncSession, trip_id: uuid.UUID, org: uuid.UUID, *, with_events: bool = False) -> Trip:
@@ -112,11 +120,7 @@ async def create_trip(
     _user=Depends(_MANAGE),
 ):
     payload = data.model_dump(exclude_unset=True)
-    reference = payload.pop("reference", None) or await generate_reference(db)
-
-    existing = (await db.execute(select(Trip).where(Trip.reference == reference))).scalar_one_or_none()
-    if existing:
-        raise HTTPException(status_code=409, detail="Trip reference already exists")
+    explicit_reference = payload.pop("reference", None)
 
     # A trip may only reference a truck/driver from the same organization.
     if payload.get("truck_id") is not None:
@@ -128,15 +132,45 @@ async def create_trip(
         if not owned:
             raise HTTPException(status_code=404, detail="Driver not found")
 
-    trip = Trip(org_id=org, reference=reference, **payload)
-    db.add(trip)
-    # Relationship append (rather than a bare TripEvent(trip_id=...)) keeps
-    # trip.events in sync in memory, so no post-commit reload is needed —
-    # expire_on_commit=False means `trip` stays valid as-is after commit.
-    trip.events.append(TripEvent(event=TripEventType.created, to_status=trip.status))
-    await db.commit()
+    for attempt in range(_REFERENCE_ATTEMPTS):
+        reference = explicit_reference or await generate_reference(db, org)
 
-    return await _detail(db, trip)
+        # Scoped to this org: a reference taken by another tenant is invisible
+        # here and must not block this one. The pre-check exists only to return
+        # a clean 409 for a duplicate the caller supplied; the constraint below
+        # is what actually guarantees uniqueness.
+        existing = (
+            await db.execute(
+                select(Trip.id).where(Trip.org_id == org, Trip.reference == reference)
+            )
+        ).scalar_one_or_none()
+        if existing:
+            if explicit_reference:
+                raise HTTPException(status_code=409, detail="Trip reference already exists")
+            continue
+
+        trip = Trip(org_id=org, reference=reference, **payload)
+        db.add(trip)
+        # Relationship append (rather than a bare TripEvent(trip_id=...)) keeps
+        # trip.events in sync in memory, so no post-commit reload is needed —
+        # expire_on_commit=False means `trip` stays valid as-is after commit.
+        trip.events.append(TripEvent(event=TripEventType.created, to_status=trip.status))
+        try:
+            await db.commit()
+        except IntegrityError:
+            # Lost a race on uq_trips_org_reference. Roll back and recompute:
+            # the winning row is now visible, so the next maximum is higher.
+            await db.rollback()
+            if explicit_reference:
+                raise HTTPException(status_code=409, detail="Trip reference already exists")
+            continue
+
+        return await _detail(db, trip)
+
+    raise HTTPException(
+        status_code=409,
+        detail="Could not allocate a trip reference — too many concurrent creates, please retry",
+    )
 
 
 @router.get("/{trip_id}", response_model=TripDetailsOut)

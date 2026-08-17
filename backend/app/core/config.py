@@ -49,6 +49,21 @@ class Settings(BaseSettings):
 
     gps_api_keys: str = Field(default="", alias="GPS_API_KEYS")
 
+    # ---- GPS history retention ----
+    # Every position ping writes one truck_location_history row. A phone pings
+    # every 15s, so one truck driving 10h/day produces ~2 400 rows/day and a
+    # 20-truck fleet ~1.4M rows/month — unbounded growth that eventually
+    # outgrows the droplet's disk and slows every analytics scan.
+    # A background job purges rows older than this many days. 90 comfortably
+    # covers the 30-day default leakage window plus quarter-end review; set to
+    # 0 to disable purging (keep everything forever) if disk is not a concern.
+    # Analytics windows are clamped to this value so a report can never mix a
+    # full-period fuel total with a truncated distance total.
+    gps_history_retention_days: int = Field(default=90, alias="GPS_HISTORY_RETENTION_DAYS")
+    # Rows deleted per statement. Batched so a first purge on a table that has
+    # grown to millions of rows never takes a long lock or blows up the WAL.
+    gps_purge_batch_size: int = Field(default=10_000, alias="GPS_PURGE_BATCH_SIZE")
+
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     use_redis_refresh_tokens: bool = Field(default=False, alias="USE_REDIS_REFRESH_TOKENS")
 

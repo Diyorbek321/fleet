@@ -56,6 +56,11 @@ services:
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN in .env.prod}
       GPS_API_KEYS: ${GPS_API_KEYS:-}
+      # Raw position history is purged past this age by a background job — the
+      # only thing standing between the droplet's disk and unbounded GPS growth.
+      # Also caps how far back a leakage report can look; see .env.prod.example.
+      GPS_HISTORY_RETENTION_DAYS: ${GPS_HISTORY_RETENTION_DAYS:-90}
+      GPS_PURGE_BATCH_SIZE: ${GPS_PURGE_BATCH_SIZE:-10000}
       SENTRY_DSN: ${SENTRY_DSN:-}
       # Trip document storage: local disk on a persistent volume, served via
       # signed /api/files URLs. API_PUBLIC_URL makes those links absolute.

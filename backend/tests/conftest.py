@@ -61,7 +61,7 @@ from sqlalchemy import text  # noqa: E402
 from sqlalchemy.engine import URL, make_url  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker  # noqa: E402
 
-from app.core.database import Base, engine as app_engine, get_db  # noqa: E402
+from app.core.database import Base, SessionLocal, engine as app_engine, get_db  # noqa: E402
 from app.core.rate_limit import limiter  # noqa: E402
 from app.main import app  # noqa: E402
 
@@ -172,6 +172,18 @@ async def _disable_rate_limits():
         yield
     finally:
         limiter.enabled = original
+
+
+@pytest_asyncio.fixture
+async def db() -> AsyncSession:
+    """A session on the test database, for rows the HTTP API cannot create.
+
+    Raw GPS history at controlled timestamps is the motivating case: the ingest
+    endpoint always stamps "now", so backdating a track — which every retention
+    and analytics-window test needs — has to go through the ORM directly.
+    """
+    async with SessionLocal() as session:
+        yield session
 
 
 @pytest_asyncio.fixture

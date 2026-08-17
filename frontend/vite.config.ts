@@ -24,8 +24,20 @@ export default defineConfig(({ mode }) => ({
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],
-      include: ["src/lib/**", "src/hooks/**", "src/contexts/**"],
-      exclude: ["**/*.test.*", "**/node_modules/**"],
+      // Pages and feature components count too: the screens that report money
+      // are where a presentation bug does the damage, and leaving them out of
+      // coverage made the suite look healthier than it was.
+      include: [
+        "src/lib/**",
+        "src/hooks/**",
+        "src/contexts/**",
+        "src/pages/**",
+        "src/components/trips/**",
+        "src/components/dashboard/**",
+        "src/components/maintenance/**",
+      ],
+      // src/components/ui/** is vendored shadcn primitives — not our code to test.
+      exclude: ["**/*.test.*", "**/node_modules/**", "src/test/**"],
     },
   },
 }));

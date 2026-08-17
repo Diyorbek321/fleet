@@ -13,7 +13,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import String, DateTime, Numeric, Enum, ForeignKey, Text, Index, Integer
+from sqlalchemy import String, DateTime, Numeric, Enum, ForeignKey, Text, Index, Integer, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -26,13 +26,19 @@ class Trip(Base):
     __table_args__ = (
         Index("ix_trips_status", "status"),
         Index("ix_trips_truck", "truck_id"),
+        # Per-tenant, NOT global. A globally unique reference means two customers
+        # share one numbering space: the second one's first trip comes out as
+        # TR-2026-000587 (leaking how much freight the others move), and two orgs
+        # creating a trip at the same moment collide on a reference neither of
+        # them can see.
+        UniqueConstraint("org_id", "reference", name="uq_trips_org_reference"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    reference: Mapped[str] = mapped_column(String(40), unique=True, nullable=False)
+    reference: Mapped[str] = mapped_column(String(40), nullable=False)
 
     truck_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("trucks.id", ondelete="SET NULL"), nullable=True)
     driver_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True)
