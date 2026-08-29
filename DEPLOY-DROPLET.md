@@ -115,20 +115,70 @@ git pull
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 ```
 
-**Back up the database** (cron this):
+### Backups
+
+Customer data lives in **two** places, and a backup that captures only one is
+worthless: Postgres holds every row, while driver-uploaded trip document photos
+(`yo'l varaqasi`) sit on the `uploads` Docker volume on local disk. Restore a
+`pg_dump` alone and you get a database full of trips whose photos are gone.
+
+`scripts/backup.sh` captures both, verifies the dump completed, writes a
+manifest, and rotates old snapshots:
 
 ```bash
-docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
-  pg_dump -U fleet fleet | gzip > backup-$(date +%F).sql.gz
+./scripts/backup.sh
 ```
 
-**Restore:**
+Cron it as root:
+
+```cron
+0 3 * * * /opt/fleet-watch-pro/scripts/backup.sh >> /var/log/fleet-backup.log 2>&1
+```
+
+**Send it off the box.** A backup stored on the Droplet dies with the disk it
+was protecting against, so set these in `.env.prod` (or the cron environment)
+to copy each run to DigitalOcean Spaces:
 
 ```bash
-gunzip -c backup-YYYY-MM-DD.sql.gz | \
-  docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
-  psql -U fleet fleet
+BACKUP_S3_BUCKET=s3://your-backup-space
+BACKUP_S3_ENDPOINT=https://fra1.digitaloceanspaces.com
+BACKUP_S3_KEY=...
+BACKUP_S3_SECRET=...
 ```
+
+Without them the script still runs and still warns on every invocation.
+
+Tunables: `BACKUP_DIR` (default `/var/backups/fleet-watch`), `RETENTION_DAYS`
+(default 7, pruned by count so an outage cannot wipe every snapshot at once).
+
+### Restore
+
+```bash
+./scripts/restore.sh /var/backups/fleet-watch/2026-08-29T03-00-00Z
+```
+
+Stops the API, restores Postgres with `ON_ERROR_STOP` (a partial restore fails
+loudly instead of silently handing you a database missing tables), replaces the
+uploads volume, restarts the API, and verifies `/health/db` before reporting
+success. It requires you to type the database name to confirm; `FORCE=1` skips
+that prompt for the unattended drill below.
+
+### Restore drill — do this before you take a paying customer
+
+An untested backup is a guess. The failure modes that matter (a dump that only
+ever captured an empty schema, an uploads volume that was never mounted) stay
+invisible until the day you need them, which is the worst possible day to find
+out. Once, on a scratch Droplet:
+
+```bash
+./scripts/backup.sh                          # take one
+docker compose ... exec -T postgres psql -U fleet -d fleet \
+  -c 'select count(*) from organizations'    # note the number
+FORCE=1 ./scripts/restore.sh /var/backups/fleet-watch/<newest>
+```
+
+Then confirm the row counts match and that a trip's document photo still opens
+in the manager panel. Repeat after any change to the storage layout.
 
 **Logs:** `docker compose -f docker-compose.prod.yml --env-file .env.prod logs -f api`
 
@@ -137,8 +187,10 @@ gunzip -c backup-YYYY-MM-DD.sql.gz | \
 - The live-map WebSocket runs in a single backend process — correct for one
   Droplet. If you ever run the `api` service with `--scale api=N`, add Redis
   pub/sub first so location updates fan out across replicas.
-- DigitalOcean's weekly Droplet snapshot/backup (a few $/mo) is the simplest
-  whole-box safety net on top of the `pg_dump` above.
+- DigitalOcean's weekly Droplet snapshot/backup (a few $/mo) is a useful
+  whole-box safety net on top of `scripts/backup.sh`, not a replacement for it:
+  snapshots are weekly and restore the entire machine, so they cannot recover a
+  single tenant's data from Tuesday.
 - To use DigitalOcean **Managed Postgres** instead of the in-compose one, drop
   the `postgres` service and point `DATABASE_URL` at the managed cluster's
   connection string (the app coerces `postgres://` to the async driver).
