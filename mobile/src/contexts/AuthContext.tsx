@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 
 import { getToken } from '../lib/auth';
 import { signIn as apiSignIn, signOut as apiSignOut } from '../lib/authApi';
+import { registerPushToken, unregisterPushToken } from '../lib/push';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -21,15 +22,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     getToken().then((token) => {
       setIsAuthenticated(!!token);
       setInitializing(false);
+      // Re-register on every launch with a live session, not just at sign-in:
+      // Expo push tokens rotate on reinstall and on restore to a new handset,
+      // and a driver who stays signed in for months would otherwise keep a
+      // token the backend can no longer deliver to.
+      if (token) void registerPushToken();
     });
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
     await apiSignIn(email, password);
     setIsAuthenticated(true);
+    // Deliberately not awaited: registration needs a permission prompt and a
+    // network round trip, and neither should stand between a driver and the
+    // app they just signed in to.
+    void registerPushToken();
   }, []);
 
   const signOut = useCallback(async () => {
+    // Before apiSignOut, which clears the stored access token — the DELETE is
+    // an authenticated call, so afterwards it could not be made at all.
+    await unregisterPushToken();
     await apiSignOut();
     setIsAuthenticated(false);
   }, []);

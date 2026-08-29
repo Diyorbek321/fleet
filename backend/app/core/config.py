@@ -76,6 +76,12 @@ class Settings(BaseSettings):
     # ---- Observability ----
     sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
 
+    # ---- Push notifications (Expo) ----
+    # Expo's push endpoint accepts unauthenticated sends, so this is optional
+    # and delivery works without it. Set it once a project switches on Expo's
+    # "enhanced security", which then requires the header.
+    expo_access_token: str = Field(default="", alias="EXPO_ACCESS_TOKEN")
+
     ai_api_key: str = Field(default="", alias="AI_API_KEY")
     ai_base_url: str = Field(default="https://api.openai.com/v1", alias="AI_BASE_URL")
     ai_model: str = Field(default="gpt-4o-mini", alias="AI_MODEL")

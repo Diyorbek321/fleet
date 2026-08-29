@@ -62,6 +62,10 @@ services:
       GPS_HISTORY_RETENTION_DAYS: ${GPS_HISTORY_RETENTION_DAYS:-90}
       GPS_PURGE_BATCH_SIZE: ${GPS_PURGE_BATCH_SIZE:-10000}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # Optional. Expo's push endpoint accepts unauthenticated sends, so
+      # notifications work without this; set it only if the Expo project has
+      # "enhanced security" switched on, which then requires the header.
+      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
       # Trip document storage: local disk on a persistent volume, served via
       # signed /api/files URLs. API_PUBLIC_URL makes those links absolute.
       UPLOAD_DIR: /data/uploads

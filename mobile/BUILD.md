@@ -82,6 +82,36 @@ This produces a `.apk` you can install on any Android phone. It builds in Expo's
 
 ---
 
+## Push notifications
+
+Border-queue alerts reach the driver as a system notification. Two things have to
+be true or they silently never arrive:
+
+1. **The project must be linked to EAS.** `eas init` (Path B, step 2) writes
+   `expo.extra.eas.projectId` into `app.json`, and Expo cannot mint a push token
+   without it. The app degrades rather than crashing — it logs
+   `[push] no EAS project id` and carries on — so a build that was never linked
+   looks completely healthy while no driver is ever notified. If you ship an APK
+   and notifications do not arrive, check that key in `app.json` first.
+2. **The driver must grant the notification permission.** It is requested at
+   sign-in. Declined once, Android and iOS both stop showing the prompt, and the
+   driver has to enable it in system settings.
+
+Sign-out deletes this device's token from the backend, so a handset passed to a
+different driver stops receiving the previous one's alerts.
+
+To check the whole chain end to end: sign in on the phone, then from the backend
+confirm a row exists —
+
+```bash
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec -T postgres \
+  psql -U fleet -d fleet -c 'select platform, left(token, 24) from push_tokens'
+```
+
+An empty table means registration never happened; look at point 1.
+
+---
+
 ## Path C — Fully local APK (advanced, needs Android SDK)
 
 Only if you want to build without Expo's cloud. Requires Android SDK + `ANDROID_HOME` set.

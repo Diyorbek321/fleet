@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.logging import logger
 from app.models.driver_app import PushToken, QueueWatch
 from app.models.users import User
+from app.services import push
 from app.services.cgr import BookingRecord, CgrClient
 
 # Status string stored when the truck has no booking in the public registry.
@@ -44,11 +45,15 @@ async def evaluate_watch(
 async def notify_queue_change(
     db: AsyncSession, watch: QueueWatch, record: Optional[BookingRecord]
 ) -> int:
-    """Record that we've notified the driver of the current status and fan out to
-    their registered devices. Returns the number of target devices.
+    """Tell the driver their border-queue status changed.
 
-    NOTE: actual push delivery (Expo/FCM/APNs) is a separate integration; here we
-    resolve the devices and mark the watch so we don't re-notify the same status.
+    Marks the watch first so a delivery failure cannot turn into a notification
+    loop: if the send is retried on the next sweep because the mark never
+    landed, a driver whose phone is merely unreachable gets the same alert over
+    and over once it comes back. Being told once and missing it is the better
+    failure.
+
+    Returns the number of devices Expo accepted the message for.
     """
     watch.last_notified_status = watch.last_status
 
@@ -62,16 +67,29 @@ async def notify_queue_change(
         await db.execute(select(PushToken).where(PushToken.user_id == user.id))
     ).scalars().all()
 
+    title, body = push.queue_status_message(
+        watch.last_status or NO_BOOKING,
+        plate=watch.plate,
+        checkpoint=record.checkpoint if record else watch.checkpoint,
+    )
+    outcome = await push.send_to_tokens(
+        db,
+        tokens,
+        title=title,
+        body=body,
+        # Lets the app open straight onto the queue screen from the notification.
+        data={"kind": "queue", "status": watch.last_status or NO_BOOKING},
+    )
+
     logger.info(
         "queue_watch_notify",
-        extra={
-            "driver_id": str(watch.driver_id),
-            "plate": watch.plate,
-            "status": watch.last_status,
-            "devices": len(tokens),
-        },
+        driver_id=str(watch.driver_id),
+        plate=watch.plate,
+        status=watch.last_status,
+        devices=len(tokens),
+        delivered=outcome.accepted,
     )
-    return len(tokens)
+    return outcome.accepted
 
 
 @dataclass(frozen=True)

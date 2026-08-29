@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
-from sqlalchemy import desc, select
+from sqlalchemy import delete, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -165,9 +165,38 @@ async def register_push_token(
     existing = await db.execute(select(PushToken).where(PushToken.token == data.token))
     row = existing.scalar_one_or_none()
     if row:
+        # Re-point rather than reject: a token follows the handset, so when a
+        # second driver signs in on the same phone the old owner must stop
+        # receiving that phone's notifications.
         row.user_id = user.id
         row.platform = data.platform
     else:
         db.add(PushToken(user_id=user.id, token=data.token, platform=data.platform))
     await db.commit()
     return {"message": "registered"}
+
+
+@router.delete("/push-token", status_code=status.HTTP_200_OK)
+async def unregister_push_token(
+    data: PushTokenIn = Body(...),
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Drop one device's registration, on sign-out.
+
+    Scoped to the caller's own tokens: the token string is the only identifier
+    the client holds, and without the ``user_id`` filter anyone holding (or
+    guessing) another driver's token could silence their notifications.
+
+    Deleting nothing is a success. The client calls this while tearing down its
+    session and cannot act on a 404 — and the token may already be gone,
+    dropped when Expo reported the device as unregistered.
+    """
+    await db.execute(
+        delete(PushToken).where(
+            PushToken.token == data.token,
+            PushToken.user_id == user.id,
+        )
+    )
+    await db.commit()
+    return {"message": "unregistered"}

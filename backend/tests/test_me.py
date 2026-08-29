@@ -133,3 +133,58 @@ async def test_push_token_register(client: AsyncClient, driver_login):
             json={"token": "ExponentPushToken[abc123]", "platform": "expo"},
         )
     ).status_code == 201
+
+
+async def test_push_token_unregister(client: AsyncClient, driver_login):
+    """Sign-out must drop the device, or the phone keeps getting alerts."""
+    h = driver_login["headers"]
+    token = "ExponentPushToken[signout123]"
+    assert (
+        await client.post("/api/me/push-token", headers=h,
+                          json={"token": token, "platform": "android"})
+    ).status_code == 201
+
+    res = await client.request("DELETE", "/api/me/push-token", headers=h,
+                               json={"token": token})
+    assert res.status_code == 200
+
+    # Deleting again is still a success: the client is tearing down its session
+    # and has nothing useful to do with a 404.
+    assert (
+        await client.request("DELETE", "/api/me/push-token", headers=h,
+                             json={"token": token})
+    ).status_code == 200
+
+
+async def test_push_token_unregister_cannot_touch_another_users_device(
+    client: AsyncClient, admin_headers, driver_login
+):
+    """The token string is the only identifier a client holds.
+
+    Without scoping the delete to the caller, anyone holding another driver's
+    token could silence their border-queue alerts.
+    """
+    victim = driver_login["headers"]
+    token = "ExponentPushToken[victim999]"
+    assert (
+        await client.post("/api/me/push-token", headers=victim,
+                          json={"token": token, "platform": "android"})
+    ).status_code == 201
+
+    # A different account tries to delete it — succeeds as a no-op, deletes nothing.
+    assert (
+        await client.request("DELETE", "/api/me/push-token", headers=admin_headers,
+                             json={"token": token})
+    ).status_code == 200
+
+    # The victim's own delete still finds it, proving it was never removed.
+    from sqlalchemy import select
+
+    from app.core.database import SessionLocal
+    from app.models.driver_app import PushToken
+
+    async with SessionLocal() as db:
+        still_there = (
+            await db.execute(select(PushToken).where(PushToken.token == token))
+        ).scalar_one_or_none()
+    assert still_there is not None
