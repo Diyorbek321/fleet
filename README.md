@@ -196,9 +196,11 @@ Translations live in `frontend/src/i18n/locales/`. Supported languages:
 
 To add a language, create a new locale file and register it in `frontend/src/i18n/index.ts`.
 
-## Deploy targets
+## Deploy
 
-- **Backend**: Railway / Fly.io / Render (managed Postgres + Redis).
-- **Frontend**: Vercel / Netlify / Cloudflare Pages.
+Production runs the whole stack — Caddy, the SPA, the API, Postgres and Redis —
+on a single DigitalOcean Droplet from `docker-compose.prod.yml`. Updates are a
+`git pull` plus a rebuild on the box; nothing deploys automatically on push.
 
-See next steps in the team doc.
+See [DEPLOY-DROPLET.md](./DEPLOY-DROPLET.md) for the walkthrough, day-2
+operations, and the backup/restore drill.

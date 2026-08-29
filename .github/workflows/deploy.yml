@@ -5,8 +5,12 @@ name: Deploy
 #
 # This is OFF by default. To enable it, set a repository variable
 #   ENABLE_DEPLOY = true
-# (Settings → Secrets and variables → Actions → Variables). Wire the
-# "deploy" step at the bottom to your host (Railway/Fly/Render/VPS).
+# (Settings → Secrets and variables → Actions → Variables).
+#
+# Nothing here deploys. Production is a DigitalOcean Droplet that is updated by
+# hand (see DEPLOY-DROPLET.md), so pushing to main never changes what customers
+# are running. These images exist so that update can pull a prebuilt layer
+# instead of compiling on a small-disk box.
 
 on:
   push:
@@ -60,29 +64,22 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  deploy:
+  # Deliberately no deploy step. Production is updated by hand on the Droplet so
+  # that a push can never restart the stack under a customer mid-shift, and so
+  # that the person running a migration is watching when it runs.
+  summary:
     needs: images
     if: ${{ vars.ENABLE_DEPLOY == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy
-        # Render (via render.yaml Blueprint) auto-deploys on every push to main —
-        # nothing to trigger here unless you opt into a deploy hook below. The
-        # GHCR images above are for Railway / VPS hosts that pull a prebuilt
-        # image instead of building from source.
-        #
-        # To trigger Render explicitly (e.g. autoDeploy is off), add a repository
-        # secret RENDER_DEPLOY_HOOK_URL (Render service → Settings → Deploy Hook).
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+      - name: Publish instructions
         run: |
           echo "Images published to GHCR:"
           echo "  ghcr.io/${{ github.repository }}-backend:${{ github.sha }}"
           echo "  ghcr.io/${{ github.repository }}-frontend:${{ github.sha }}"
-          if [ -n "$RENDER_DEPLOY_HOOK_URL" ]; then
-            echo "Triggering Render deploy hook…"
-            curl -fsS "$RENDER_DEPLOY_HOOK_URL" && echo "  -> Render deploy triggered."
-          else
-            echo "No RENDER_DEPLOY_HOOK_URL set — relying on Render autoDeploy (render.yaml)."
-          fi
-          echo "Backend runs 'alembic upgrade head' on release (see backend/Dockerfile CMD)."
+          echo
+          echo "To roll these out, on the Droplet:"
+          echo "  git pull && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build"
+          echo
+          echo "Take a backup first: ./scripts/backup.sh"
+          echo "The backend runs 'alembic upgrade head' on start (backend/Dockerfile CMD)."
