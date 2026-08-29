@@ -104,9 +104,17 @@ class LocationPingIn(BaseModel):
 # ── CarGoRuqsat border-queue ──────────────────────────────────────────
 
 class QueueStatusOut(BaseModel):
+    """A booking as the registry currently shows it.
+
+    ``queue_at``/``queue_until`` bound an hour-long slot the driver has to
+    present within, so a client that shows only the start is telling them a
+    deadline that may already have passed.
+    """
+
     plate: str
     checkpoint: str
     queue_at: Optional[datetime]
+    queue_until: Optional[datetime] = None
     status: str
     raw_status: str
 

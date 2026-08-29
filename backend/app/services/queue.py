@@ -4,6 +4,7 @@ to drive from a background scheduler later.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -73,21 +74,41 @@ async def notify_queue_change(
     return len(tokens)
 
 
-async def poll_active_watches(db: AsyncSession, client: CgrClient) -> int:
+@dataclass(frozen=True)
+class PollResult:
+    """What one sweep of the watches saw.
+
+    ``found`` is separate from ``changed`` on purpose. This feature depends on
+    scraping someone else's HTML, and the way that breaks is silent: the site
+    changes shape, every lookup parses to "no booking", and the platform simply
+    stops telling drivers anything. Nothing errors, so error-rate monitoring
+    stays quiet. Watches that are being tracked but never resolve to a booking
+    is the signal for that, which is why the count is carried out of here.
+    """
+
+    watched: int = 0
+    found: int = 0
+    changed: int = 0
+
+
+async def poll_active_watches(db: AsyncSession, client: CgrClient) -> PollResult:
     """Refresh every active queue-watch (across all orgs) and notify on change.
 
     Designed to be driven from the background scheduler. Each watch is evaluated
     in isolation so one failing external lookup never aborts the whole batch; we
-    commit once at the end. Returns the number of watches whose status changed.
+    commit once at the end.
     """
     watches = (
         await db.execute(select(QueueWatch).where(QueueWatch.active.is_(True)))
     ).scalars().all()
 
+    found = 0
     changed = 0
     for watch in watches:
         try:
             record, notify = await evaluate_watch(watch, client)
+            if record is not None:
+                found += 1
             if notify:
                 await notify_queue_change(db, watch, record)
                 changed += 1
@@ -98,4 +119,4 @@ async def poll_active_watches(db: AsyncSession, client: CgrClient) -> int:
             )
 
     await db.commit()
-    return changed
+    return PollResult(watched=len(watches), found=found, changed=changed)

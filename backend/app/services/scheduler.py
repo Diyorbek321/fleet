@@ -171,6 +171,17 @@ async def recalc_safety_scores() -> None:
         logger.exception("safety_recalc_failed")
 
 
+# How many consecutive sweeps may find nothing, while trucks are actively being
+# watched, before we treat it as a breakage rather than a quiet day. At the
+# default 15-minute interval this is two hours — long enough that a genuine lull
+# does not page anyone, short enough to catch the site changing shape the same
+# working day.
+_EMPTY_POLL_ALERT_THRESHOLD = 8
+
+# Reset by any sweep that resolves at least one booking, and by a restart.
+_consecutive_empty_polls = 0
+
+
 async def poll_queue_watches() -> None:
     """Refresh every active CarGoRuqsat border-queue watch against the public registry.
 
@@ -178,12 +189,47 @@ async def poll_queue_watches() -> None:
     panel's refresh uses) so drivers get notified of status changes without anyone
     opening the app. Errors are swallowed/logged so a flaky external site never
     crashes the scheduler.
+
+    Also watches for the failure this integration actually suffers. Scraping
+    another site's HTML breaks silently: the markup changes, every lookup parses
+    to "no booking", and drivers stop being told anything while the logs stay
+    clean and no exception is ever raised. A run of sweeps that resolve nothing
+    at all, with watches active, is the only visible symptom — so escalate it
+    instead of logging another cheerful "done".
     """
+    global _consecutive_empty_polls
     try:
         async with SessionLocal() as db:
             client = get_cgr_client()
-            changed = await poll_active_watches(db, client)
-            logger.info("queue_poll_done", changed=changed)
+            result = await poll_active_watches(db, client)
+            logger.info(
+                "queue_poll_done",
+                watched=result.watched,
+                found=result.found,
+                changed=result.changed,
+            )
+
+            if result.watched == 0:
+                return  # nothing to infer from a sweep with no watches
+
+            if result.found:
+                _consecutive_empty_polls = 0
+                return
+
+            _consecutive_empty_polls += 1
+            if _consecutive_empty_polls >= _EMPTY_POLL_ALERT_THRESHOLD:
+                # error, not warning: this is a customer-facing outage, and it
+                # needs to reach Sentry rather than sit in the log stream.
+                logger.error(
+                    "queue_poll_no_bookings_found",
+                    consecutive_empty_polls=_consecutive_empty_polls,
+                    watched=result.watched,
+                    hint=(
+                        "no watched truck has resolved to a booking for several "
+                        "sweeps — the public registry may have changed shape; "
+                        "run `pytest -m live tests/test_cgr.py`"
+                    ),
+                )
     except Exception:  # noqa: BLE001 — never let a job crash the scheduler
         logger.exception("queue_poll_failed")
 

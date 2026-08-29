@@ -65,3 +65,86 @@ async def test_safety_recalc_runs_without_history(client: AsyncClient, admin_hea
         json={"name": "NoEvents", "license_number": "LIC-SCH-1"},
     )
     await recalc_safety_scores()  # must not raise
+
+
+# ── border-queue poll: detecting a silent scraper breakage ───────────────────
+#
+# The CarGoRuqsat integration reads someone else's HTML, and when that breaks it
+# does not raise: every lookup parses to "no booking" and drivers simply stop
+# being told anything. These cover the only signal that distinguishes it from a
+# quiet day — repeated sweeps that resolve nothing while watches are active.
+
+async def _run_poll(monkeypatch, results):
+    """Drive poll_queue_watches over a canned sequence of PollResults."""
+    from app.services import scheduler as sched
+    from app.services.queue import PollResult
+
+    calls = iter(results)
+
+    async def fake_poll(db, client):
+        return next(calls)
+
+    monkeypatch.setattr(sched, "poll_active_watches", fake_poll)
+    monkeypatch.setattr(sched, "_consecutive_empty_polls", 0, raising=False)
+
+    logged: list[tuple[str, dict]] = []
+    for level in ("info", "error"):
+        def record(event, _level=level, **kw):
+            logged.append((_level, {"event": event, **kw}))
+        monkeypatch.setattr(sched.logger, level, record)
+
+    for _ in results:
+        await sched.poll_queue_watches()
+    return logged, PollResult
+
+
+async def test_empty_polls_below_the_threshold_stay_quiet(monkeypatch):
+    from app.services.queue import PollResult
+    from app.services import scheduler as sched
+
+    logged, _ = await _run_poll(
+        monkeypatch,
+        [PollResult(watched=3, found=0, changed=0)] * (sched._EMPTY_POLL_ALERT_THRESHOLD - 1),
+    )
+    assert not [e for lvl, e in logged if lvl == "error"]
+
+
+async def test_a_run_of_empty_polls_is_escalated(monkeypatch):
+    from app.services.queue import PollResult
+    from app.services import scheduler as sched
+
+    logged, _ = await _run_poll(
+        monkeypatch,
+        [PollResult(watched=3, found=0, changed=0)] * sched._EMPTY_POLL_ALERT_THRESHOLD,
+    )
+    errors = [e for lvl, e in logged if lvl == "error"]
+    assert len(errors) == 1
+    assert errors[0]["event"] == "queue_poll_no_bookings_found"
+    assert errors[0]["watched"] == 3
+
+
+async def test_a_single_booking_resets_the_streak(monkeypatch):
+    """One truck resolving proves the scraper still works; the count starts over."""
+    from app.services.queue import PollResult
+    from app.services import scheduler as sched
+
+    n = sched._EMPTY_POLL_ALERT_THRESHOLD
+    logged, _ = await _run_poll(
+        monkeypatch,
+        [PollResult(watched=3, found=0, changed=0)] * (n - 1)
+        + [PollResult(watched=3, found=1, changed=0)]
+        + [PollResult(watched=3, found=0, changed=0)] * (n - 1),
+    )
+    assert not [e for lvl, e in logged if lvl == "error"]
+
+
+async def test_no_active_watches_is_not_a_breakage(monkeypatch):
+    """An empty sweep says nothing about the scraper when nobody is watching."""
+    from app.services.queue import PollResult
+    from app.services import scheduler as sched
+
+    logged, _ = await _run_poll(
+        monkeypatch,
+        [PollResult(watched=0, found=0, changed=0)] * (sched._EMPTY_POLL_ALERT_THRESHOLD * 2),
+    )
+    assert not [e for lvl, e in logged if lvl == "error"]

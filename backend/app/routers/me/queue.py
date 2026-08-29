@@ -37,6 +37,7 @@ def _to_status_out(record: BookingRecord | None) -> QueueStatusOut | None:
         plate=record.plate,
         checkpoint=record.checkpoint,
         queue_at=record.queue_at,
+        queue_until=record.queue_until,
         status=record.status.value,
         raw_status=record.raw_status,
     )

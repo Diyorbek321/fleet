@@ -12,7 +12,10 @@ export type QueueStatusValue =
 export interface QueueStatus {
   plate: string;
   checkpoint: string;
+  /** Start and end of the booked slot. The registry books an hour-long window,
+   *  so the end is the deadline the driver is actually working against. */
   queue_at: string | null;
+  queue_until: string | null;
   status: QueueStatusValue;
   raw_status: string;
 }

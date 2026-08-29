@@ -16,9 +16,10 @@ live page via browser devtools.
 from __future__ import annotations
 
 import enum
+import re
 import urllib.parse
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from typing import Optional, Protocol, runtime_checkable
 
 import httpx
@@ -46,17 +47,58 @@ _RU_STATUS_MAP: dict[str, CgrStatus] = {
 }
 
 
+# When a row carries several badges at once we report the one the driver has to
+# act on. "В очереди" plus "Опаздывает" is the common pair: still booked, but
+# running late — and "late" is the half worth waking someone up for. Ordered
+# most- to least-urgent; the first match wins.
+_STATUS_PRIORITY: tuple[CgrStatus, ...] = (
+    CgrStatus.revoked,
+    CgrStatus.check_failed,
+    CgrStatus.late,
+    CgrStatus.crossed,
+    CgrStatus.in_queue,
+)
+
+
 def normalize_status(ru_label: str) -> CgrStatus:
-    return _RU_STATUS_MAP.get(ru_label.strip().lower(), CgrStatus.unknown)
+    """Map the registry's Russian status text onto one of ours.
+
+    The text may hold more than one label. The site renders each as its own
+    ``<span class="badge">``, so what arrives here is their concatenation —
+    matching the whole string against the map returns ``unknown`` and the
+    driver is told nothing at all. Match on substrings instead and rank.
+    """
+    text = " ".join(ru_label.split()).lower()
+    if not text:
+        return CgrStatus.unknown
+
+    exact = _RU_STATUS_MAP.get(text)
+    if exact is not None:
+        return exact
+
+    found = {status for label, status in _RU_STATUS_MAP.items() if label in text}
+    for status in _STATUS_PRIORITY:
+        if status in found:
+            return status
+    return CgrStatus.unknown
 
 
 @dataclass(frozen=True)
 class BookingRecord:
+    """One truck's booking as the public registry currently shows it.
+
+    ``queue_at``/``queue_until`` are the ends of a slot, not an instant: the
+    registry books an hour-long window ("29.08.2026", "00:00-01:00") and the
+    driver has to present within it. We keep both so the app can say "by 01:00"
+    rather than just naming a start time that has already passed.
+    """
+
     plate: str
     checkpoint: str
     queue_at: Optional[datetime]
     status: CgrStatus
     raw_status: str
+    queue_until: Optional[datetime] = None
 
 
 def build_booking_handoff_url(checkpoint: Optional[str] = None, plate: Optional[str] = None) -> str:
@@ -82,33 +124,52 @@ class CgrClient(Protocol):
 class HttpCgrClient:
     """Reads the public booking registry over HTTP. No authentication required.
 
-    INTEGRATION TODO (verify against live page via devtools, then adjust only here):
-      - The exact query-param name for plate search on /ru/registry/public-list
-        (placeholder: ``number``).
-      - The results table row/cell selectors in ``_parse_public_list``.
-    These are the only unknowns; the rest of the system is independent of them.
+    Verified against the live page; ``tests/test_cgr.py`` pins both the request
+    and the parsing, and its ``live``-marked tests re-check them against the
+    real site on demand.
     """
 
     PUBLIC_LIST_PATH = "/ru/registry/public-list"
 
-    def __init__(self, base_url: str = CGR_BASE, timeout: float = 15.0) -> None:
+    # The registry's own filter field name. Getting this wrong is silent: the
+    # site ignores an unrecognised query parameter and serves the unfiltered
+    # first page, so every lookup "succeeds" and finds the truck only by
+    # coincidence.
+    PLATE_PARAM = "flTruckNumber"
+
+    def __init__(
+        self,
+        base_url: str = CGR_BASE,
+        timeout: float = 15.0,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
         self._base = base_url.rstrip("/")
         self._timeout = timeout
+        # Only tests pass a transport; it is the seam that lets them assert on
+        # the outgoing request without reaching the network.
+        self._transport = transport
 
     async def lookup_truck(self, plate: str) -> Optional[BookingRecord]:
-        async with httpx.AsyncClient(timeout=self._timeout, follow_redirects=True) as client:
+        async with httpx.AsyncClient(
+            timeout=self._timeout, follow_redirects=True, transport=self._transport
+        ) as client:
             resp = await client.get(
                 f"{self._base}{self.PUBLIC_LIST_PATH}",
-                params={"number": plate},
+                params={self.PLATE_PARAM: plate},
             )
             resp.raise_for_status()
         return self._parse_public_list(resp.text, plate)
 
     @staticmethod
     def _parse_public_list(html: str, plate: str) -> Optional[BookingRecord]:
-        """Parse the first matching row from the public registry HTML table.
+        """Parse the row for ``plate`` out of the public registry table.
 
-        Selectors are isolated here pending live verification (see class TODO).
+        Every cell wraps its content in nested ``<span>``/``<div>`` elements —
+        the date is two sibling spans, a status can be two badges — so the text
+        is extracted with an explicit separator. ``get_text(strip=True)`` runs
+        the siblings together and yields "29.08.202600:00-01:00", which no date
+        format parses, and "В очередиОпаздывает", which no status label
+        matches. Both then fail silently, leaving a record that says nothing.
         """
         from bs4 import BeautifulSoup  # lazy import: only needed for the real fetch
 
@@ -117,31 +178,65 @@ class HttpCgrClient:
         if table is None:
             return None
 
-        target = plate.replace(" ", "").upper()
+        target = _normalize_plate(plate)
         for row in table.find_all("tr"):
-            cells = [c.get_text(strip=True) for c in row.find_all("td")]
+            cells = [" ".join(c.get_text(" ", strip=True).split()) for c in row.find_all("td")]
             if len(cells) < 4:
                 continue
-            checkpoint, row_plate, queue_at_text, status_text = cells[0], cells[1], cells[2], cells[3]
-            if row_plate.replace(" ", "").upper() != target:
+            checkpoint, row_plate, window_text, status_text = cells[0], cells[1], cells[2], cells[3]
+            if _normalize_plate(row_plate) != target:
                 continue
+            queue_at, queue_until = _parse_queue_window(window_text)
             return BookingRecord(
-                plate=row_plate,
+                plate=_normalize_plate(row_plate),
                 checkpoint=checkpoint,
-                queue_at=_parse_dt(queue_at_text),
+                queue_at=queue_at,
+                queue_until=queue_until,
                 status=normalize_status(status_text),
                 raw_status=status_text,
             )
         return None
 
 
-def _parse_dt(text: str) -> Optional[datetime]:
-    for fmt in ("%d.%m.%Y %H:%M", "%d.%m.%Y %H:%M:%S", "%Y-%m-%d %H:%M"):
-        try:
-            return datetime.strptime(text.strip(), fmt)
-        except ValueError:
-            continue
-    return None
+def _normalize_plate(plate: str) -> str:
+    """Plates are compared and stored without spacing, in upper case.
+
+    The registry pads them for display and drivers type them however they like;
+    neither should decide whether a lookup matches.
+    """
+    return "".join(plate.split()).upper()
+
+
+# "29.08.2026 00:00-01:00" — a date followed by an hour-long slot.
+_WINDOW_RE = re.compile(
+    r"(?P<date>\d{2}\.\d{2}\.\d{4})\s*"
+    r"(?:(?P<start>\d{2}:\d{2})\s*-\s*(?P<end>\d{2}:\d{2}))?"
+)
+
+
+def _parse_queue_window(text: str) -> tuple[Optional[datetime], Optional[datetime]]:
+    """Split the registry's queue cell into the start and end of the slot."""
+    match = _WINDOW_RE.search(text)
+    if match is None:
+        # Fall back to a plain timestamp, in case the site ever renders one.
+        for fmt in ("%d.%m.%Y %H:%M", "%d.%m.%Y %H:%M:%S", "%Y-%m-%d %H:%M"):
+            try:
+                return datetime.strptime(text.strip(), fmt), None
+            except ValueError:
+                continue
+        return None, None
+
+    day = datetime.strptime(match.group("date"), "%d.%m.%Y")
+    if not match.group("start"):
+        return day, None
+
+    start = datetime.combine(day.date(), time.fromisoformat(match.group("start")))
+    end = datetime.combine(day.date(), time.fromisoformat(match.group("end")))
+    # A slot printed as 23:00-00:00 ends on the following day; without this the
+    # window reads as negative and any "you have N minutes left" is nonsense.
+    if end <= start:
+        end += timedelta(days=1)
+    return start, end
 
 
 # Module-level default. Overridable in tests via ``app.dependency_overrides``.

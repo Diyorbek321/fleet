@@ -37,6 +37,24 @@ function formatDateTime(iso: string | null): string {
   return d.toLocaleString();
 }
 
+function formatTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+/** The booked slot as a driver reads it: "29.08.2026, 00:00 – 01:00".
+ *
+ *  Showing only the start is worse than useless once it has passed — a driver
+ *  glancing at a time already behind them cannot tell whether they still have
+ *  the slot. The end is the deadline they are actually racing.
+ */
+function formatWindow(from: string | null, until: string | null): string {
+  if (!from) return '—';
+  if (!until) return formatDateTime(from);
+  return `${formatDateTime(from)} – ${formatTime(until)}`;
+}
+
 export function QueueScreen() {
   const { t } = useTranslation();
 
@@ -161,7 +179,10 @@ export function QueueScreen() {
                 bg={STATUS_STYLE[status.status].bg}
               />
               <Row label={t('queue.checkpoint')} value={status.checkpoint} />
-              <Row label={t('queue.queueTime')} value={formatDateTime(status.queue_at)} />
+              <Row
+                label={t('queue.queueTime')}
+                value={formatWindow(status.queue_at, status.queue_until)}
+              />
               <Row label="Truck" value={status.plate} />
             </>
           ) : (
