@@ -18,7 +18,14 @@ from app.deps.auth import get_current_driver
 from app.models.driver_app import DriverExpense
 from app.models.drivers import Driver
 from app.models.maintenance import FuelLog
-from app.routers.me._common import PREFIX, TAGS, assigned_truck, require_assigned_truck
+from app.routers.me._common import (
+    PREFIX,
+    TAGS,
+    active_trip,
+    assigned_truck,
+    own_trip_or_404,
+    require_assigned_truck,
+)
 from app.schemas.maintenance import FuelLogCreate, FuelLogOut
 from app.schemas.me import ExpenseCreate, ExpenseOut
 
@@ -53,8 +60,22 @@ async def add_fuel_log(
 ):
     truck = await require_assigned_truck(db, driver.id)
     total = data.total_cost if data.total_cost is not None else round(data.liters * data.cost_per_liter, 2)
+
+    # Attach the load this fuel was burned on. FuelLogCreate has accepted a
+    # trip_id for as long as the field existed, but nothing ever supplied one
+    # and this handler dropped it — so every fill in production was unlinked,
+    # and every trip's P&L reported zero fuel cost and a margin near 100% on
+    # freight that really earns half that. An explicit trip_id from the client
+    # still wins; the lookup is the fallback for a driver who just fills up.
+    trip = (
+        await own_trip_or_404(db, data.trip_id, driver)
+        if data.trip_id
+        else await active_trip(db, driver.id)
+    )
+
     log = FuelLog(
         truck_id=truck.id,
+        trip_id=trip.id if trip else None,
         liters=data.liters,
         cost_per_liter=data.cost_per_liter,
         total_cost=total,
@@ -99,9 +120,13 @@ async def add_expense(
     db: AsyncSession = Depends(get_db),
 ):
     truck = await assigned_truck(db, driver.id)
+    # Same reasoning as the fuel handler above: an expense with no trip is a
+    # cost the trip P&L cannot see.
+    trip = await active_trip(db, driver.id)
     expense = DriverExpense(
         driver_id=driver.id,
         truck_id=truck.id if truck else None,
+        trip_id=trip.id if trip else None,
         category=data.category,
         amount=data.amount,
         note=data.note,

@@ -23,6 +23,8 @@ from app.services.ai_reports import (
     ReportType,
     generate_report,
 )
+from app.services.period_report_xlsx import build_workbook, filename_for
+from app.services.period_reports import PeriodKind, build_period_report, resolve_period
 
 router = APIRouter(prefix="/api/reports", tags=["Reports"])
 
@@ -263,4 +265,159 @@ async def generate_ai_report(
         content=report.content,
         media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{report.filename}"'},
+    )
+
+
+# ── Calendar-period reports ──────────────────────────────────────────────────
+#
+# Separate from the endpoints above on purpose. Those answer "how are we doing
+# lately" over a rolling window, which is right for a dashboard. These produce a
+# *document*: a fixed calendar month or week that returns identical numbers to
+# whoever opens it, whenever they open it. A rolling window cannot promise that,
+# and a report an owner cannot re-derive tomorrow is not one they will send to
+# anybody.
+
+
+class PeriodTruckLine(BaseModel):
+    truck_id: str
+    name: str
+    plate_number: str
+    trips: int
+    revenue: float
+    fuel_cost: float
+    fuel_liters: float
+    expense_cost: float
+    maintenance_cost: float
+    total_cost: float
+    profit: float
+    distance_km: float
+    l_per_100km: Optional[float]
+
+
+class PeriodDriverLine(BaseModel):
+    driver_id: str
+    name: str
+    trips: int
+    revenue: float
+    expense_cost: float
+
+
+class PeriodReportOut(BaseModel):
+    kind: str
+    label: str
+    start: date
+    end: date
+    organization: str
+    generated_at: datetime
+    currency: str
+
+    trips_delivered: int
+    trips_in_progress: int
+    revenue: float
+    fuel_cost: float
+    fuel_liters: float
+    expense_cost: float
+    maintenance_cost: float
+    total_cost: float
+    profit: float
+    margin_pct: float
+    distance_km: float
+    l_per_100km: Optional[float]
+    # False when too little refuelling happened in the period for the ratio to
+    # mean anything — see PeriodReport.consumption_reliable. Clients should say
+    # so rather than print a figure someone will act on.
+    consumption_reliable: bool
+    # True when the period reaches past the GPS retention horizon, so distance
+    # — and therefore L/100km — covers only part of it.
+    distance_partial: bool
+
+    trucks: list[PeriodTruckLine]
+    drivers: list[PeriodDriverLine]
+
+
+def _to_out(report) -> PeriodReportOut:
+    return PeriodReportOut(
+        kind=report.period.kind,
+        label=report.period.label,
+        start=report.period.start,
+        end=report.period.end,
+        organization=report.organization,
+        generated_at=report.generated_at,
+        currency=report.currency,
+        trips_delivered=report.trips_delivered,
+        trips_in_progress=report.trips_in_progress,
+        revenue=report.revenue,
+        fuel_cost=report.fuel_cost,
+        fuel_liters=report.fuel_liters,
+        expense_cost=report.expense_cost,
+        maintenance_cost=report.maintenance_cost,
+        total_cost=report.total_cost,
+        profit=report.profit,
+        margin_pct=report.margin_pct,
+        distance_km=report.distance_km,
+        l_per_100km=report.l_per_100km,
+        consumption_reliable=report.consumption_reliable,
+        distance_partial=report.distance_partial,
+        trucks=[
+            PeriodTruckLine(
+                truck_id=line.truck_id,
+                name=line.name,
+                plate_number=line.plate_number,
+                trips=line.trips,
+                revenue=line.revenue,
+                fuel_cost=round(line.fuel_cost, 2),
+                fuel_liters=round(line.fuel_liters, 1),
+                expense_cost=round(line.expense_cost, 2),
+                maintenance_cost=round(line.maintenance_cost, 2),
+                total_cost=line.total_cost,
+                profit=line.profit,
+                distance_km=line.distance_km,
+                l_per_100km=line.l_per_100km,
+            )
+            for line in report.trucks
+        ],
+        drivers=[
+            PeriodDriverLine(
+                driver_id=d.driver_id,
+                name=d.name,
+                trips=d.trips,
+                revenue=round(d.revenue, 2),
+                expense_cost=round(d.expense_cost, 2),
+            )
+            for d in report.drivers
+        ],
+    )
+
+
+# `offset` counts periods back from the current one, rather than taking dates,
+# so "last month" is one link the client can render without doing calendar
+# arithmetic — and so two clients cannot disagree about where a month begins.
+_OFFSET = Query(default=0, ge=0, le=60, description="0 = current period, 1 = the one before")
+
+
+@router.get("/period", response_model=PeriodReportOut)
+async def period_report(
+    kind: PeriodKind = Query(..., description="week | month"),
+    offset: int = _OFFSET,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+):
+    """One calendar week or month of money and movement, for this organization."""
+    report = await build_period_report(db, org, resolve_period(kind, offset))
+    return _to_out(report)
+
+
+@router.get("/period.xlsx")
+async def period_report_xlsx(
+    kind: PeriodKind = Query(..., description="week | month"),
+    offset: int = _OFFSET,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+) -> Response:
+    """The same report as a spreadsheet, for the customer's accountant."""
+    report = await build_period_report(db, org, resolve_period(kind, offset))
+    return Response(
+        content=build_workbook(report),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename_for(report)}"'},
     )

@@ -74,7 +74,105 @@ interface BackendTruckDistance {
   point_count: number;
 }
 
+export type PeriodKind = 'week' | 'month';
+
+/** One period option the user can pick, and where it sits relative to today. */
+export interface PeriodChoice {
+  kind: PeriodKind;
+  offset: number;
+  labelKey: string;
+}
+
+export const PERIOD_CHOICES: readonly PeriodChoice[] = [
+  { kind: 'month', offset: 0, labelKey: 'reports.thisMonth' },
+  { kind: 'month', offset: 1, labelKey: 'reports.lastMonth' },
+  { kind: 'week', offset: 0, labelKey: 'reports.thisWeek' },
+  { kind: 'week', offset: 1, labelKey: 'reports.lastWeek' },
+];
+
+export interface PeriodTruckLine {
+  truck_id: string;
+  name: string;
+  plate_number: string;
+  trips: number;
+  revenue: number;
+  fuel_cost: number;
+  fuel_liters: number;
+  expense_cost: number;
+  maintenance_cost: number;
+  total_cost: number;
+  profit: number;
+  distance_km: number;
+  l_per_100km: number | null;
+}
+
+export interface PeriodDriverLine {
+  driver_id: string;
+  name: string;
+  trips: number;
+  revenue: number;
+  expense_cost: number;
+}
+
+/**
+ * A closed calendar period, not a rolling window — the shape a document needs.
+ *
+ * Field names stay snake_case: this mirrors the API response one-for-one, and
+ * an adapter here would only be somewhere for the two to drift apart.
+ */
+export interface PeriodReport {
+  kind: PeriodKind;
+  label: string;
+  start: string;
+  end: string;
+  organization: string;
+  generated_at: string;
+  currency: string;
+  trips_delivered: number;
+  trips_in_progress: number;
+  revenue: number;
+  fuel_cost: number;
+  fuel_liters: number;
+  expense_cost: number;
+  maintenance_cost: number;
+  total_cost: number;
+  profit: number;
+  margin_pct: number;
+  distance_km: number;
+  l_per_100km: number | null;
+  /** False when too little refuelling happened for L/100km to mean anything. */
+  consumption_reliable: boolean;
+  /** True when GPS retention truncated the distance, so it covers part of the period. */
+  distance_partial: boolean;
+  trucks: PeriodTruckLine[];
+  drivers: PeriodDriverLine[];
+}
+
 export const reportsApi = {
+  period: (kind: PeriodKind, offset: number) =>
+    api<PeriodReport>(`/api/reports/period?kind=${kind}&offset=${offset}`),
+
+  /** The same period as a spreadsheet. Returns the blob plus the server's filename. */
+  periodXlsx: async (kind: PeriodKind, offset: number): Promise<GeneratedReportFile> => {
+    const token = tokenStorage.getAccess();
+    const res = await fetch(
+      `${BASE_URL}/api/reports/period.xlsx?kind=${kind}&offset=${offset}`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+    );
+    if (!res.ok) {
+      let detail = res.statusText;
+      try {
+        detail = (await res.json()).detail ?? detail;
+      } catch {
+        /* not JSON */
+      }
+      throw new ApiError(res.status, detail);
+    }
+    const disposition = res.headers.get('Content-Disposition') ?? '';
+    const filename = disposition.match(/filename="?([^"]+)"?/)?.[1] ?? 'hisobot.xlsx';
+    return { filename, blob: await res.blob() };
+  },
+
   fleetSummary: async (days: number): Promise<FleetSummary> => {
     const data = await api<BackendFleetSummary>(`/api/reports/fleet-summary?days=${days}`);
     return {

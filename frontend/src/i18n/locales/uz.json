@@ -114,7 +114,8 @@
     "km": "km",
     "lPer100km": "L/100km",
     "saving": "Saqlanmoqda…",
-    "errorOccurred": "Xatolik yuz berdi. Qayta urinib ko‘ring."
+    "errorOccurred": "Xatolik yuz berdi. Qayta urinib ko‘ring.",
+    "sum": "so‘m"
   },
   "trucks": {
     "status": {
@@ -213,7 +214,25 @@
     "entries": "Yozuvlar",
     "total": "Jami",
     "highest": "Eng ko‘p",
-    "lowest": "Eng kam"
+    "lowest": "Eng kam",
+    "periodTitle": "Yakuniy hisobot",
+    "periodHint": "Kalendar oy yoki hafta — har safar ochilganda bir xil raqamlar",
+    "thisMonth": "Bu oy",
+    "lastMonth": "O‘tgan oy",
+    "thisWeek": "Bu hafta",
+    "lastWeek": "O‘tgan hafta",
+    "revenue": "Daromad",
+    "costs": "Xarajat",
+    "profit": "Foyda",
+    "margin": "Rentabellik",
+    "tripsDelivered": "Yetkazilgan",
+    "tripsInProgress": "Jarayonda",
+    "consumption": "Sarfiyot",
+    "trips": "Reys",
+    "periodEmpty": "Bu davrda yozuv yo‘q",
+    "downloadFailed": "Yuklab olinmadi",
+    "consumptionUnreliable": "Sarfiyot ko‘rsatilmadi: quyilgan yoqilg‘i yoqilgan yoqilg‘i emas — bakda qolgani keyingi davrga o‘tadi. Qisqa davrda bu farq natijani buzadi. Oylik hisobotdan yoki Leakage sahifasidan foydalaning — u har bir mashinani flot medianasiga solishtiradi.",
+    "distancePartial": "Davrning bir qismi GPS saqlash muddatidan eski — masofa to‘liq emas."
   },
   "geofences": {
     "title": "Geozonalar",

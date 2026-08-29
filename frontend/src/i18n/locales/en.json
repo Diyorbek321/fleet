@@ -114,7 +114,8 @@
     "km": "km",
     "lPer100km": "L/100km",
     "saving": "Saving…",
-    "errorOccurred": "Something went wrong. Please try again."
+    "errorOccurred": "Something went wrong. Please try again.",
+    "sum": "so'm"
   },
   "trucks": {
     "status": {
@@ -213,7 +214,25 @@
     "entries": "Entries",
     "total": "Total",
     "highest": "Highest",
-    "lowest": "Lowest"
+    "lowest": "Lowest",
+    "periodTitle": "Closing report",
+    "periodHint": "A calendar month or week — the same numbers every time it is opened",
+    "thisMonth": "This month",
+    "lastMonth": "Last month",
+    "thisWeek": "This week",
+    "lastWeek": "Last week",
+    "revenue": "Revenue",
+    "costs": "Costs",
+    "profit": "Profit",
+    "margin": "Margin",
+    "tripsDelivered": "Delivered",
+    "tripsInProgress": "In progress",
+    "consumption": "Consumption",
+    "trips": "Trips",
+    "periodEmpty": "Nothing recorded in this period",
+    "downloadFailed": "Download failed",
+    "consumptionUnreliable": "Consumption is not shown: fuel bought is not fuel burned — what is left in the tank carries into the next period. Over a short period that gap distorts the result. Use the monthly report, or the Leakage page, which ranks each truck against the fleet median.",
+    "distancePartial": "Part of this period is older than the GPS retention window, so distance is incomplete."
   },
   "geofences": {
     "title": "Geofences",

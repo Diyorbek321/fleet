@@ -12,7 +12,10 @@ import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
  * Keeping the loaders in a map lets the sidebar warm a chunk before the user
  * commits to the click, so the navigation they eventually make is instant.
  */
-type Loader = () => Promise<{ default: ComponentType<never> }>;
+// These are route elements: React Router renders each as `<Page />` with no
+// props, so a props type that admits none is the accurate one.
+type PageComponent = ComponentType<Record<string, never>>;
+type Loader = () => Promise<{ default: PageComponent }>;
 
 const loaders = {
   '/dashboard': () => import('@/pages/DashboardPage'),
@@ -122,4 +125,4 @@ export function schedulePrefetch(): void {
 
 export const lazyPages = Object.fromEntries(
   Object.entries(loaders).map(([path, load]) => [path, lazy(load as Loader)]),
-) as Record<RoutePath, LazyExoticComponent<ComponentType<never>>>;
+) as Record<RoutePath, LazyExoticComponent<PageComponent>>;

@@ -77,6 +77,10 @@ class ExpenseOut(BaseModel):
     id: uuid.UUID
     driver_id: uuid.UUID
     truck_id: Optional[uuid.UUID]
+    # The load this was spent on. Exposed because it is what makes the cost
+    # findable: a trip's P&L sums by it, and a dispatcher querying an expense
+    # needs to see which run it belongs to.
+    trip_id: Optional[uuid.UUID]
     category: ExpenseCategory
     amount: float
     note: Optional[str]

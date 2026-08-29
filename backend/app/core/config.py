@@ -76,6 +76,12 @@ class Settings(BaseSettings):
     # ---- Observability ----
     sentry_dsn: str = Field(default="", alias="SENTRY_DSN")
 
+    # ---- Reports ----
+    # Calendar-period reports need local boundaries: a month that starts at
+    # 00:00 UTC starts at 05:00 on the 1st in Tashkent, which files the first
+    # five hours of business under the previous month.
+    report_timezone: str = Field(default="Asia/Tashkent", alias="REPORT_TIMEZONE")
+
     # ---- Push notifications (Expo) ----
     # Expo's push endpoint accepts unauthenticated sends, so this is optional
     # and delivery works without it. Set it once a project switches on Expo's

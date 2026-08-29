@@ -517,6 +517,49 @@ MAINT_COST_UZS = {
 }
 
 
+async def link_fuel_to_trips(db, org: Organization) -> None:
+    """Attach each fuel fill to the trip that truck was running at the time.
+
+    Fuel has to be seeded before trips — the trips are built from the same GPS
+    tracks the fills are spaced along — so it cannot be linked at creation.
+    This second pass does what the driver app now does at the point of sale:
+    match the fill to the load that was open.
+
+    Without it the demo reproduces the exact bug this release fixes. Every trip
+    would show zero fuel cost and a margin near 100%, which on freight is not a
+    number anyone would believe twice.
+    """
+    fills = (
+        await db.execute(
+            select(FuelLog)
+            .join(Truck, Truck.id == FuelLog.truck_id)
+            .where(Truck.org_id == org.id)
+        )
+    ).scalars().all()
+    trips = (
+        await db.execute(select(Trip).where(Trip.org_id == org.id))
+    ).scalars().all()
+
+    by_truck: dict[uuid.UUID, list[Trip]] = {}
+    for trip in trips:
+        if trip.truck_id and trip.started_at:
+            by_truck.setdefault(trip.truck_id, []).append(trip)
+
+    linked = 0
+    for fill in fills:
+        for trip in by_truck.get(fill.truck_id, ()):
+            # A trip still on the road has no delivered_at; it owns everything
+            # from its start onwards.
+            end = trip.delivered_at
+            if trip.started_at <= fill.filled_at and (end is None or fill.filled_at <= end):
+                fill.trip_id = trip.id
+                linked += 1
+                break
+
+    await db.commit()
+    print(f"  fuel → trip: {linked}/{len(fills)} ta quyish reysga bog'landi")
+
+
 async def seed_maintenance(db, trucks: list[Truck]) -> None:
     today = date.today()
     intervals = records = 0
@@ -864,6 +907,7 @@ async def main(reset: bool, password: str) -> None:
         await seed_fuel(db, trucks, km_by_truck)
         await seed_maintenance(db, trucks)
         trips = await seed_trips(db, org, trucks, drivers)
+        await link_fuel_to_trips(db, org)
         await seed_driver_expenses(db, trips)
         await seed_trip_reports(db, org, trucks, drivers, trips)
         await seed_shifts(db, trucks, drivers)

@@ -16,6 +16,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.drivers import Driver, DriverAssignment
+from app.models.enums import TripStatus
 from app.models.trips import Trip
 from app.models.trucks import Truck
 
@@ -47,6 +48,33 @@ async def require_assigned_truck(db: AsyncSession, driver_id: uuid.UUID) -> Truc
     if truck is None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No truck currently assigned")
     return truck
+
+
+async def active_trip(db: AsyncSession, driver_id: uuid.UUID) -> Optional[Trip]:
+    """The trip this driver is currently running, if any.
+
+    Used to attach a fuel fill or an expense to the load it was spent on.
+    Without that link the cost exists but belongs to nothing: ``compute_trip_pnl``
+    sums ``FuelLog.trip_id == trip.id``, so an unlinked fill leaves the trip
+    reporting zero fuel cost and a margin near 100%. For freight, where fuel is
+    the largest single cost, that is not a rounding error — it is the whole
+    answer.
+
+    "Currently running" is this driver's newest trip that has been neither
+    delivered nor cancelled. A driver runs one load at a time, so newest is
+    unambiguous in practice. If they have none open the cost is still recorded,
+    just without a trip: the money did leave, and refusing to record it would
+    lose the fact entirely.
+    """
+    res = await db.execute(
+        select(Trip)
+        .where(
+            Trip.driver_id == driver_id,
+            Trip.status.notin_((TripStatus.delivered, TripStatus.cancelled)),
+        )
+        .order_by(desc(Trip.created_at))
+    )
+    return res.scalars().first()
 
 
 async def own_trip_or_404(db: AsyncSession, trip_id: uuid.UUID, driver: Driver) -> Trip:

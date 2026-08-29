@@ -241,3 +241,4 @@ export const usersApi = {
     api<OrgUser>(`/api/auth/users/${userId}`, { method: 'PATCH', body }),
   remove: (userId: string) => api<void>(`/api/auth/users/${userId}`, { method: 'DELETE' }),
 };
+

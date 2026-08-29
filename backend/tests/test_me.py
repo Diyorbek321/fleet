@@ -188,3 +188,131 @@ async def test_push_token_unregister_cannot_touch_another_users_device(
             await db.execute(select(PushToken).where(PushToken.token == token))
         ).scalar_one_or_none()
     assert still_there is not None
+
+
+# ── Costs must find their trip ───────────────────────────────────────────────
+#
+# `compute_trip_pnl` sums fuel and expenses by `trip_id`. Nothing ever set one:
+# the schema accepted the field, both handlers dropped it, and the demo data
+# happened to wire expenses directly in SQL. So every trip in production
+# reported zero fuel cost and a margin near 100% — on freight, where fuel is
+# the largest single cost. The per-trip profit figure, which is the product's
+# headline number, was empty and looked healthy.
+
+async def _trip_for_driver(client: AsyncClient, admin_headers, driver_id: str) -> str:
+    res = await client.post(
+        "/api/trips",
+        headers=admin_headers,
+        json={"driver_id": driver_id, "rate": 10_000_000},
+    )
+    assert res.status_code == 200, res.text
+    return res.json()["id"]
+
+
+async def test_fuel_log_attaches_to_the_running_trip(
+    client: AsyncClient, admin_headers, driver_login
+):
+    h = driver_login["headers"]
+    await _assign_truck(client, admin_headers, driver_login["driver_id"])
+    trip_id = await _trip_for_driver(client, admin_headers, driver_login["driver_id"])
+
+    res = await client.post(
+        "/api/me/fuel-logs",
+        headers=h,
+        json={"liters": 500, "cost_per_liter": 13800, "mileage_at_fill": 120000},
+    )
+    assert res.status_code == 201, res.text
+    assert res.json()["trip_id"] == trip_id
+
+
+async def test_expense_attaches_to_the_running_trip(
+    client: AsyncClient, admin_headers, driver_login
+):
+    h = driver_login["headers"]
+    await _assign_truck(client, admin_headers, driver_login["driver_id"])
+    trip_id = await _trip_for_driver(client, admin_headers, driver_login["driver_id"])
+
+    res = await client.post(
+        "/api/me/expenses",
+        headers=h,
+        json={"category": "food", "amount": 85_000, "note": "tushlik"},
+    )
+    assert res.status_code == 201, res.text
+    assert res.json()["trip_id"] == trip_id
+
+
+async def test_trip_pnl_now_counts_the_fuel(client: AsyncClient, admin_headers, driver_login):
+    """The number the whole fix exists for."""
+    h = driver_login["headers"]
+    await _assign_truck(client, admin_headers, driver_login["driver_id"])
+    trip_id = await _trip_for_driver(client, admin_headers, driver_login["driver_id"])
+
+    await client.post(
+        "/api/me/fuel-logs", headers=h, json={"liters": 500, "cost_per_liter": 13800}
+    )
+    await client.post(
+        "/api/me/expenses", headers=h, json={"category": "toll", "amount": 200_000}
+    )
+
+    pnl = (await client.get(f"/api/trips/{trip_id}/pnl", headers=admin_headers)).json()
+    assert pnl["fuel_cost"] == 500 * 13800
+    assert pnl["expense_cost"] == 200_000
+    assert pnl["profit"] == 10_000_000 - 500 * 13800 - 200_000
+    # And no longer the near-100% margin an unattributed cost produced.
+    assert pnl["margin_pct"] < 50
+
+
+async def test_fuel_without_a_running_trip_is_still_recorded(
+    client: AsyncClient, admin_headers, driver_login
+):
+    """The money left the account whether or not a load was open."""
+    h = driver_login["headers"]
+    await _assign_truck(client, admin_headers, driver_login["driver_id"])
+
+    res = await client.post(
+        "/api/me/fuel-logs", headers=h, json={"liters": 100, "cost_per_liter": 13800}
+    )
+    assert res.status_code == 201, res.text
+    assert res.json()["trip_id"] is None
+
+
+async def test_a_delivered_trip_stops_collecting_costs(
+    client: AsyncClient, admin_headers, driver_login
+):
+    """Otherwise a finished load keeps absorbing next week's fuel."""
+    h = driver_login["headers"]
+    await _assign_truck(client, admin_headers, driver_login["driver_id"])
+    trip_id = await _trip_for_driver(client, admin_headers, driver_login["driver_id"])
+
+    for status_name in ("en_route", "delivered"):
+        res = await client.post(
+            f"/api/trips/{trip_id}/advance",
+            headers=admin_headers,
+            json={"to_status": status_name},
+        )
+        assert res.status_code == 200, res.text
+
+    res = await client.post(
+        "/api/me/fuel-logs", headers=h, json={"liters": 100, "cost_per_liter": 13800}
+    )
+    assert res.status_code == 201
+    assert res.json()["trip_id"] is None
+
+
+async def test_a_client_supplied_trip_must_be_the_drivers_own(
+    client: AsyncClient, admin_headers, driver_login
+):
+    other = await client.post(
+        "/api/drivers", headers=admin_headers,
+        json={"name": "Someone Else", "license_number": "LIC-OTHER-1"},
+    )
+    assert other.status_code == 200, other.text
+    foreign_trip = await _trip_for_driver(client, admin_headers, other.json()["id"])
+
+    await _assign_truck(client, admin_headers, driver_login["driver_id"])
+    res = await client.post(
+        "/api/me/fuel-logs",
+        headers=driver_login["headers"],
+        json={"liters": 100, "cost_per_liter": 13800, "trip_id": foreign_trip},
+    )
+    assert res.status_code == 404
