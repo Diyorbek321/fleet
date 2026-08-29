@@ -80,6 +80,35 @@ npm run gen:api
 
 ---
 
+## Tests
+
+```bash
+cd backend  && pytest              # 200+ unit/integration tests, needs Postgres on :5434
+cd frontend && npm run test:run    # unit tests (fetch is mocked)
+cd frontend && npm run test:e2e    # end-to-end, real browser + real API
+cd mobile   && npm test
+```
+
+The E2E suite starts everything it needs — `frontend/playwright.config.ts`
+launches `backend/e2e_server.py`, which rebuilds a throwaway `*_e2e` database
+from the migration chain and seeds one admin, then serves the production
+frontend build against it. Nothing touches the dev database.
+
+It exists because the unit suites cannot catch a broken contract: the frontend
+mocks `fetch` and the backend tests never render a page, so a renamed field or
+a changed status code passes both and reaches production intact.
+
+Two suites are excluded from a default run and are opt-in:
+
+```bash
+cd backend && pytest -m live       # hits the live CarGoRuqsat registry
+```
+
+Run that after touching the border-queue scraper, and periodically — it is the
+only thing that notices the external site changing shape.
+
+---
+
 ## First account (multi-tenant onboarding)
 
 The platform is multi-tenant — each fleet customer is an isolated `organization`.

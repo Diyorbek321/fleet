@@ -21,6 +21,11 @@ export default defineConfig(({ mode }) => ({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    // Unit tests only. The e2e/ specs import @playwright/test, which vitest
+    // cannot collect — without this they fail the run while every actual
+    // assertion passes, which reads as a broken suite.
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    exclude: ["e2e/**", "node_modules/**", "dist/**"],
     coverage: {
       provider: "v8",
       reporter: ["text", "html"],

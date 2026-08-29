@@ -282,22 +282,35 @@ export default function TripsPage() {
           >
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>{t('trips.shipper')}</Label>
-                <Input value={form.shipper} onChange={(e) => setForm({ ...form, shipper: e.target.value })} />
+                <Label htmlFor="trip-shipper">{t('trips.shipper')}</Label>
+                <Input
+                  id="trip-shipper"
+                  value={form.shipper}
+                  onChange={(e) => setForm({ ...form, shipper: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
-                <Label>{t('trips.consignee')}</Label>
-                <Input value={form.consignee} onChange={(e) => setForm({ ...form, consignee: e.target.value })} />
+                <Label htmlFor="trip-consignee">{t('trips.consignee')}</Label>
+                <Input
+                  id="trip-consignee"
+                  value={form.consignee}
+                  onChange={(e) => setForm({ ...form, consignee: e.target.value })}
+                />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>{t('trips.origin')}</Label>
-                <Input value={form.originName} onChange={(e) => setForm({ ...form, originName: e.target.value })} />
+                <Label htmlFor="trip-origin">{t('trips.origin')}</Label>
+                <Input
+                  id="trip-origin"
+                  value={form.originName}
+                  onChange={(e) => setForm({ ...form, originName: e.target.value })}
+                />
               </div>
               <div className="space-y-2">
-                <Label>{t('trips.destination')}</Label>
+                <Label htmlFor="trip-destination">{t('trips.destination')}</Label>
                 <Input
+                  id="trip-destination"
                   value={form.destinationName}
                   onChange={(e) => setForm({ ...form, destinationName: e.target.value })}
                 />
@@ -340,16 +353,18 @@ export default function TripsPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>{t('trips.cargo')}</Label>
+              <Label htmlFor="trip-cargo">{t('trips.cargo')}</Label>
               <Input
+                id="trip-cargo"
                 value={form.cargoDescription}
                 onChange={(e) => setForm({ ...form, cargoDescription: e.target.value })}
               />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>{t('trips.rate')}</Label>
+                <Label htmlFor="trip-rate">{t('trips.rate')}</Label>
                 <Input
+                  id="trip-rate"
                   type="number"
                   min={0}
                   value={form.rate}
@@ -379,8 +394,12 @@ export default function TripsPage() {
               {t('trips.reeferCargo')}
             </label>
             <div className="space-y-2">
-              <Label>{t('trips.notes')}</Label>
-              <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+              <Label htmlFor="trip-notes">{t('trips.notes')}</Label>
+              <Textarea
+                id="trip-notes"
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>

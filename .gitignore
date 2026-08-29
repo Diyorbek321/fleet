@@ -67,3 +67,9 @@ backend/.venv/
 
 # TypeScript incremental build cache (regenerable)
 frontend/*.tsbuildinfo
+
+# Playwright E2E artifacts (traces, screenshots, videos, HTML report)
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+frontend/.playwright/
