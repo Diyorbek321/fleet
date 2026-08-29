@@ -1,6 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, useLocation } from 'react-router-dom';
+
+import { prefetchRoute } from '@/routes/lazyPages';
 import {
   LayoutDashboard,
   Truck,
@@ -110,6 +112,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               <NavLink
                 key={item.path}
                 to={item.path}
+                // Start the route's chunk downloading before the click lands.
+                // A pointer resting on a link is the earliest honest signal
+                // that the user is going there, and on the connection this app
+                // is used over that head start is most of the wait. `onFocus`
+                // covers keyboard users, who would otherwise be the only ones
+                // still watching the loader.
+                onMouseEnter={() => prefetchRoute(item.path)}
+                onFocus={() => prefetchRoute(item.path)}
+                onTouchStart={() => prefetchRoute(item.path)}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
                   isActive

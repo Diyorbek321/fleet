@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
 import { cn } from '@/lib/utils';
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog';
 import { useAuth } from '@/contexts/AuthContext';
+import { schedulePrefetch } from '@/routes/lazyPages';
 
 export function DashboardLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -15,6 +16,13 @@ export function DashboardLayout() {
   // password must be stopped wherever it lands after signing in, not only if
   // it happens to visit Settings.
   const mustChangePassword = !!user?.must_change_password;
+
+  // Warm the money screens once the browser is idle. Hover prefetching only
+  // helps a user who reaches for the sidebar; this covers the first click of
+  // the session, which is otherwise the slowest one they make.
+  useEffect(() => {
+    schedulePrefetch();
+  }, []);
 
   return (
     <>

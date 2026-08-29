@@ -64,7 +64,11 @@ export default function GeofencesPage() {
   const { data: events = [] } = useQuery({
     queryKey: EVENTS_KEY,
     queryFn: () => geofencesApi.events(50),
-    refetchInterval: 15_000,
+    // Geofences are hand-drawn configuration, not telemetry: they change when
+    // someone edits them, which the mutation already invalidates. Polling them
+    // four times a minute only competed with the requests of whatever screen
+    // the user was actually on.
+    refetchInterval: 60_000,
   });
 
   const truckLabels = useMemo(() => {
