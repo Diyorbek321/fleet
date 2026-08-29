@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Truck, TrendingUp, Square, WifiOff, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTrucks } from '@/contexts/TruckContext';
@@ -79,6 +80,7 @@ function LoadingSkeleton() {
 }
 
 export function StatsCards() {
+  const { t } = useTranslation();
   const { stats, isLoading } = useTrucks();
 
   if (isLoading) {
@@ -88,26 +90,25 @@ export function StatsCards() {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-fade-in">
       <StatCard
-        title="Total Trucks"
+        title={t('dashboard.stats.totalTrucks')}
         value={stats.totalTrucks}
         icon={Truck}
         color="primary"
-        trend={{ value: 12, positive: true }}
       />
       <StatCard
-        title="Moving"
+        title={t('dashboard.stats.moving')}
         value={stats.movingTrucks}
         icon={TrendingUp}
         color="moving"
       />
       <StatCard
-        title="Stopped"
+        title={t('dashboard.stats.stopped')}
         value={stats.stoppedTrucks}
         icon={Square}
         color="stopped"
       />
       <StatCard
-        title="Offline"
+        title={t('dashboard.stats.offline')}
         value={stats.offlineTrucks}
         icon={WifiOff}
         color="offline"

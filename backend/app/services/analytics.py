@@ -8,8 +8,10 @@ mid-size fleet owner actually loses money on:
    (the classic side-job / siphoning signature).
 3. Idle burn — engine-on-but-not-moving time outside authorized locations.
 
-All computation is plain Python + haversine so it runs identically on Postgres
-and the SQLite test DB (no PostGIS dependency).
+All computation is plain Python + haversine (no PostGIS dependency), but the
+GPS scan is **streaming**: a fleet pinging every 15 seconds writes ~48k history
+rows per day per 20 trucks, so a 30-day window is millions of rows. Nothing here
+ever holds more than one batch of them in memory — see :func:`scan_tracks`.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.enums import TripStatus
 from app.models.geofences import Geofence
 from app.models.maintenance import FuelLog
@@ -39,6 +42,10 @@ MAX_TANK_LITERS = 1000.0          # a single fill above this can't fit one truck
 PRICE_OUTLIER_RATIO = 1.25        # cost/litre >125% of the truck's median = inflated receipt
 EXCESS_CONSUMPTION_L_PER_100 = 80.0  # implied burn between fills above this is implausible
 
+# Rows pulled from the server-side cursor per round-trip during a GPS scan.
+# Bounds peak memory (this many tuples) independently of the window size.
+SCAN_BATCH_ROWS = 2_000
+
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -48,15 +55,120 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * EARTH_RADIUS_KM * math.asin(math.sqrt(a))
 
 
+def effective_window_days(days: int) -> int:
+    """Clamp a requested window to the period raw GPS history is actually kept.
+
+    Two reasons, and the second one is a correctness bug, not a performance one:
+
+    * Retention purges points older than ``GPS_HISTORY_RETENTION_DAYS``, so a
+      365-day request scans a table that only holds 90 days anyway.
+    * :func:`fuel_anomalies` divides *fuel logged in the window* by *distance
+      driven in the window*. Fuel logs are never purged. Left unclamped, a
+      365-day request would put 365 days of litres over 90 days of kilometres
+      and report a burn rate ~4x reality — flagging honest drivers as thieves.
+
+    Clamping keeps both halves of every ratio measured over the same period.
+    """
+    retention = settings.gps_history_retention_days
+    if retention <= 0:  # retention disabled — history is complete, trust the caller
+        return days
+    return min(days, retention)
+
+
 @dataclass
-class _TruckTrack:
+class _Stop:
+    """A maximal run of consecutive points at or below ``STOP_SPEED_KMH``."""
+
+    started_at: datetime
+    ended_at: datetime
+    latitude: float
+    longitude: float
+    duration_minutes: float
+
+
+@dataclass
+class TruckTrack:
+    """Everything the leakage layer needs from one truck's GPS history.
+
+    Deliberately *not* the raw points: only the distance total and the stops
+    that already passed the ``MIN_STOP_MINUTES`` threshold survive the scan.
+    A truck makes a handful of long stops a day, so this stays kilobytes
+    regardless of how many million points were streamed to produce it.
+    """
+
     distance_km: float = 0.0
-    points: list = field(default_factory=list)  # (recorded_at, lat, lng, speed)
+    stops: list[_Stop] = field(default_factory=list)
 
 
-async def _load_tracks(db: AsyncSession, start: datetime, end: datetime, org_id) -> dict[str, _TruckTrack]:
+class _TrackBuilder:
+    """Incremental per-truck accumulator driven by the streaming scan."""
+
+    def __init__(self) -> None:
+        self.track = TruckTrack()
+        self._prev_lat: float | None = None
+        self._prev_lon: float | None = None
+        # Open stop run, if the previous point was stopped.
+        self._run_start: datetime | None = None
+        self._run_lat = 0.0
+        self._run_lon = 0.0
+        self._run_last: datetime | None = None
+
+    def add(self, recorded_at: datetime, lat: float, lon: float, speed: float) -> None:
+        if self._prev_lat is not None:
+            self.track.distance_km += _haversine_km(self._prev_lat, self._prev_lon, lat, lon)
+        self._prev_lat, self._prev_lon = lat, lon
+
+        if speed <= STOP_SPEED_KMH:
+            if self._run_start is None:
+                # Anchor the stop at its first point, matching how a dispatcher
+                # reads it: "the truck stopped *here*, then sat for 40 minutes".
+                self._run_start, self._run_lat, self._run_lon = recorded_at, lat, lon
+            self._run_last = recorded_at
+        else:
+            self.close_run()
+
+    def close_run(self) -> None:
+        """End the open stop run and keep it if it lasted long enough."""
+        if self._run_start is None or self._run_last is None:
+            self._run_start = self._run_last = None
+            return
+        duration_min = (self._run_last - self._run_start).total_seconds() / 60.0
+        if duration_min >= MIN_STOP_MINUTES:
+            self.track.stops.append(
+                _Stop(
+                    started_at=self._run_start,
+                    ended_at=self._run_last,
+                    latitude=self._run_lat,
+                    longitude=self._run_lon,
+                    duration_minutes=duration_min,
+                )
+            )
+        self._run_start = self._run_last = None
+
+
+async def scan_tracks(
+    db: AsyncSession, start: datetime, end: datetime, org_id
+) -> dict[str, TruckTrack]:
+    """Stream one org's GPS history and fold it into per-truck aggregates.
+
+    Uses a server-side cursor (``AsyncSession.stream`` + ``yield_per``) and only
+    the five columns the maths needs, so peak memory is ``SCAN_BATCH_ROWS``
+    tuples plus one small :class:`TruckTrack` per truck — *not* one ORM object
+    per GPS point. A 30-day window over a 20-truck fleet is ~1.4M rows; the
+    previous implementation materialised all of them and would exhaust the
+    worker long before the request finished.
+
+    Ordering by ``(truck_id, recorded_at)`` matches the table's index, so
+    Postgres streams this without a sort.
+    """
     stmt = (
-        select(TruckLocationHistory)
+        select(
+            TruckLocationHistory.truck_id,
+            TruckLocationHistory.latitude,
+            TruckLocationHistory.longitude,
+            TruckLocationHistory.speed,
+            TruckLocationHistory.recorded_at,
+        )
         .join(Truck, Truck.id == TruckLocationHistory.truck_id)
         .where(
             TruckLocationHistory.recorded_at >= start,
@@ -64,19 +176,29 @@ async def _load_tracks(db: AsyncSession, start: datetime, end: datetime, org_id)
             Truck.org_id == org_id,
         )
         .order_by(TruckLocationHistory.truck_id, TruckLocationHistory.recorded_at)
+        .execution_options(yield_per=SCAN_BATCH_ROWS)
     )
-    tracks: dict[str, _TruckTrack] = {}
-    prev_tid = None
-    prev_lat = prev_lon = None
-    for row in (await db.execute(stmt)).scalars():
-        tid = str(row.truck_id)
-        track = tracks.setdefault(tid, _TruckTrack())
-        lat, lon = float(row.latitude), float(row.longitude)
-        if tid == prev_tid and prev_lat is not None:
-            track.distance_km += _haversine_km(prev_lat, prev_lon, lat, lon)
-        track.points.append((row.recorded_at, lat, lon, float(row.speed or 0)))
-        prev_tid, prev_lat, prev_lon = tid, lat, lon
-    return tracks
+
+    builders: dict[str, _TrackBuilder] = {}
+    current_tid: str | None = None
+    current: _TrackBuilder | None = None
+
+    result = await db.stream(stmt)
+    async for truck_id, lat, lon, speed, recorded_at in result:
+        tid = str(truck_id)
+        if tid != current_tid:
+            # Rows are grouped by truck, so a change of id ends the previous
+            # truck's history — close whatever stop run it left open.
+            if current is not None:
+                current.close_run()
+            current = builders.setdefault(tid, _TrackBuilder())
+            current_tid = tid
+        current.add(recorded_at, float(lat), float(lon), float(speed or 0))
+
+    if current is not None:
+        current.close_run()
+
+    return {tid: b.track for tid, b in builders.items()}
 
 
 def _point_in_any_fence(lat: float, lon: float, fences: list[tuple[float, float, float]]) -> bool:
@@ -86,13 +208,22 @@ def _point_in_any_fence(lat: float, lon: float, fences: list[tuple[float, float,
     return False
 
 
-async def fuel_anomalies(db: AsyncSession, days: int, org_id) -> dict:
-    """Per-truck fuel efficiency vs. fleet baseline; flags + estimated waste cost."""
+async def fuel_anomalies(
+    db: AsyncSession, days: int, org_id, *, tracks: dict[str, TruckTrack] | None = None
+) -> dict:
+    """Per-truck fuel efficiency vs. fleet baseline; flags + estimated waste cost.
+
+    ``tracks`` lets a caller that already scanned the window (see
+    :func:`leakage_summary`) reuse it instead of paying for a second full scan.
+    """
+    days = effective_window_days(days)
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=days)
-    tracks = await _load_tracks(db, start, end, org_id)
+    if tracks is None:
+        tracks = await scan_tracks(db, start, end, org_id)
 
-    # Fuel litres + spend per truck in the window (this org only).
+    # Fuel litres + spend per truck in the window (this org only). Bounded to the
+    # same window as the distance scan — see effective_window_days.
     fuel_rows = (
         await db.execute(
             select(
@@ -149,6 +280,7 @@ async def fuel_anomalies(db: AsyncSession, days: int, org_id) -> dict:
         )
     anomalies.sort(key=lambda x: (not x["flagged"], -x["estimated_waste_cost"]))
     return {
+        "window_days": days,
         "baseline_l_per_100km": round(baseline, 1),
         "flagged_count": sum(1 for a in anomalies if a["flagged"]),
         "estimated_waste_cost": round(total_waste_cost, 2),
@@ -156,11 +288,15 @@ async def fuel_anomalies(db: AsyncSession, days: int, org_id) -> dict:
     }
 
 
-async def unauthorized_stops(db: AsyncSession, days: int, org_id) -> dict:
+async def unauthorized_stops(
+    db: AsyncSession, days: int, org_id, *, tracks: dict[str, TruckTrack] | None = None
+) -> dict:
     """Stops longer than MIN_STOP_MINUTES outside every active geofence."""
+    days = effective_window_days(days)
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=days)
-    tracks = await _load_tracks(db, start, end, org_id)
+    if tracks is None:
+        tracks = await scan_tracks(db, start, end, org_id)
 
     fences = [
         (float(f.center_lat), float(f.center_lng), float(f.radius_m))
@@ -175,39 +311,29 @@ async def unauthorized_stops(db: AsyncSession, days: int, org_id) -> dict:
     stops = []
     total_idle_minutes = 0.0
     for tid, track in tracks.items():
-        i = 0
-        pts = track.points
-        n = len(pts)
-        while i < n:
-            ts0, lat0, lon0, spd0 = pts[i]
-            if spd0 > STOP_SPEED_KMH:
-                i += 1
+        for stop in track.stops:
+            # Idle time counts every long stop; only the ones outside a known
+            # depot/customer become an actionable "unauthorized" row.
+            total_idle_minutes += stop.duration_minutes
+            if _point_in_any_fence(stop.latitude, stop.longitude, fences):
                 continue
-            j = i
-            while j + 1 < n and pts[j + 1][3] <= STOP_SPEED_KMH:
-                j += 1
-            ts_start, ts_end = pts[i][0], pts[j][0]
-            duration_min = (ts_end - ts_start).total_seconds() / 60.0
-            if duration_min >= MIN_STOP_MINUTES:
-                total_idle_minutes += duration_min
-                if not _point_in_any_fence(lat0, lon0, fences):
-                    t = trucks.get(tid)
-                    stops.append(
-                        {
-                            "truck_id": tid,
-                            "truck_name": t.name if t else "—",
-                            "plate_number": t.plate_number if t else "—",
-                            "latitude": round(lat0, 5),
-                            "longitude": round(lon0, 5),
-                            "started_at": ts_start,
-                            "ended_at": ts_end,
-                            "duration_minutes": round(duration_min, 1),
-                        }
-                    )
-            i = j + 1
+            t = trucks.get(tid)
+            stops.append(
+                {
+                    "truck_id": tid,
+                    "truck_name": t.name if t else "—",
+                    "plate_number": t.plate_number if t else "—",
+                    "latitude": round(stop.latitude, 5),
+                    "longitude": round(stop.longitude, 5),
+                    "started_at": stop.started_at,
+                    "ended_at": stop.ended_at,
+                    "duration_minutes": round(stop.duration_minutes, 1),
+                }
+            )
 
     stops.sort(key=lambda x: x["duration_minutes"], reverse=True)
     return {
+        "window_days": days,
         "unauthorized_stop_count": len(stops),
         "total_idle_hours": round(total_idle_minutes / 60.0, 1),
         "stops": stops,
@@ -238,6 +364,9 @@ async def fuel_fraud_events(db: AsyncSession, days: int, org_id) -> dict:
 
     Heuristic and conservative by design — every event is a *prompt to check the
     receipt/CCTV*, not a conviction.
+
+    Reads only fuel logs (never GPS history), so it is not clamped to the GPS
+    retention window: the full requested period is genuinely available here.
     """
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=days)
@@ -317,12 +446,18 @@ async def fuel_fraud_events(db: AsyncSession, days: int, org_id) -> dict:
 
 
 async def leakage_summary(db: AsyncSession, days: int, org_id) -> dict:
-    """Top-line money view: what leaked, and the trip-level health behind it."""
-    fuel = await fuel_anomalies(db, days, org_id)
-    stops = await unauthorized_stops(db, days, org_id)
+    """Top-line money view: what leaked, and the trip-level health behind it.
 
+    Scans the GPS window **once** and feeds both sub-reports from it; they used
+    to run a full scan each, doubling the cost of the dashboard's headline call.
+    """
+    days = effective_window_days(days)
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=days)
+
+    tracks = await scan_tracks(db, start, end, org_id)
+    fuel = await fuel_anomalies(db, days, org_id, tracks=tracks)
+    stops = await unauthorized_stops(db, days, org_id, tracks=tracks)
 
     active_trips = (
         await db.execute(

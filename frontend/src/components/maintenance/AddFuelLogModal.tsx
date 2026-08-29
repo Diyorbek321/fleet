@@ -112,7 +112,7 @@ export function AddFuelLogModal({ open, onOpenChange }: AddFuelLogModalProps) {
               <Input
                 id="mileage"
                 type="number"
-                placeholder="e.g., 50000"
+                placeholder="e.g., 240000"
                 value={formData.mileage}
                 onChange={(e) => setFormData(prev => ({ ...prev, mileage: e.target.value }))}
               />
@@ -121,24 +121,24 @@ export function AddFuelLogModal({ open, onOpenChange }: AddFuelLogModalProps) {
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="gallons">Gallons *</Label>
+              <Label htmlFor="gallons">Litres *</Label>
               <Input
                 id="gallons"
                 type="number"
                 step="0.1"
-                placeholder="e.g., 85.5"
+                placeholder="e.g., 320"
                 value={formData.gallons}
                 onChange={(e) => setFormData(prev => ({ ...prev, gallons: e.target.value }))}
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="pricePerGallon">Price/Gallon ($) *</Label>
+              <Label htmlFor="pricePerGallon">Price per litre (UZS) *</Label>
               <Input
                 id="pricePerGallon"
                 type="number"
                 step="0.01"
-                placeholder="e.g., 3.45"
+                placeholder="e.g., 12500"
                 value={formData.pricePerGallon}
                 onChange={(e) => setFormData(prev => ({ ...prev, pricePerGallon: e.target.value }))}
               />
@@ -149,7 +149,7 @@ export function AddFuelLogModal({ open, onOpenChange }: AddFuelLogModalProps) {
             <Label htmlFor="location">Location (optional)</Label>
             <Input
               id="location"
-              placeholder="e.g., Truck Stop on I-95"
+              placeholder="e.g., UZGASTRADE, Toshkent"
               value={formData.location}
               onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
             />
@@ -159,7 +159,7 @@ export function AddFuelLogModal({ open, onOpenChange }: AddFuelLogModalProps) {
           <div className="p-3 rounded-lg bg-muted/50 border border-border">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Calculated Total</span>
-              <span className="text-xl font-bold text-foreground">${totalCost}</span>
+              <span className="text-xl font-bold text-foreground">{totalCost} UZS</span>
             </div>
           </div>
           

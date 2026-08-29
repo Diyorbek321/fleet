@@ -34,14 +34,6 @@ const REPORT_LANGUAGES: ReportLanguage[] = ['en', 'ru', 'uz'];
 
 const WINDOW_OPTIONS = [7, 14, 30, 90, 180, 365] as const;
 
-function formatMoney(value: number): string {
-  return new Intl.NumberFormat(undefined, {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
 function formatNumber(value: number, fractionDigits = 0): string {
   return new Intl.NumberFormat(undefined, {
     maximumFractionDigits: fractionDigits,
@@ -160,13 +152,25 @@ export default function ReportsPage() {
         <SummaryCard
           icon={<Fuel className="h-5 w-5" />}
           label={t('reports.fuelCost')}
-          value={summary ? formatMoney(summary.totalFuelCost) : '—'}
-          secondary={summary ? `${formatNumber(summary.totalFuelLiters, 0)} L` : undefined}
+          value={
+            summary
+              ? `${formatNumber(summary.totalFuelCost)} ${t('common.currency')}`
+              : '—'
+          }
+          secondary={
+            summary
+              ? `${formatNumber(summary.totalFuelLiters, 0)} ${t('common.liters')}`
+              : undefined
+          }
         />
         <SummaryCard
           icon={<Wrench className="h-5 w-5" />}
           label={t('reports.maintenanceCost')}
-          value={summary ? formatMoney(summary.totalMaintenanceCost) : '—'}
+          value={
+            summary
+              ? `${formatNumber(summary.totalMaintenanceCost)} ${t('common.currency')}`
+              : '—'
+          }
         />
       </div>
 
@@ -327,7 +331,7 @@ export default function ReportsPage() {
                     {formatNumber(r.entryCount)}
                   </TableCell>
                   <TableCell className="text-right font-mono font-semibold">
-                    {formatNumber(r.total)} {t('reports.currencySuffix')}
+                    {formatNumber(r.total)} {t('common.currency')}
                   </TableCell>
                 </TableRow>
               ))}

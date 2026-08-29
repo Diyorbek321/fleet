@@ -9,6 +9,7 @@ import { MaintenanceProvider } from "@/contexts/MaintenanceContext";
 import { TruckProvider } from "@/contexts/TruckContext";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { RoleRoute } from "@/components/RoleRoute";
 import { PageLoader } from "@/components/PageLoader";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import LoginPage from "@/pages/LoginPage";
@@ -32,6 +33,8 @@ const TripDetailPage = lazy(() => import("@/pages/TripDetailPage"));
 const TripReportPrintPage = lazy(() => import("@/pages/TripReportPrintPage"));
 const LeakagePage = lazy(() => import("@/pages/LeakagePage"));
 const BorderQueuePage = lazy(() => import("@/pages/BorderQueuePage"));
+const OrganizationsPage = lazy(() => import("@/pages/OrganizationsPage"));
+const UsersPage = lazy(() => import("@/pages/UsersPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();
@@ -68,6 +71,14 @@ const App = () => (
                       <Route path="/devices" element={<DevicesPage />} />
                       <Route path="/reports" element={<ReportsPage />} />
                       <Route path="/settings" element={<SettingsPage />} />
+                      {/* Platform console: only we (the vendor) see other companies. */}
+                      <Route element={<RoleRoute allow={["superadmin"]} />}>
+                        <Route path="/organizations" element={<OrganizationsPage />} />
+                      </Route>
+                      {/* A company's own admin managing its staff accounts. */}
+                      <Route element={<RoleRoute allow={["admin"]} />}>
+                        <Route path="/users" element={<UsersPage />} />
+                      </Route>
                     </Route>
                   </Route>
                   <Route path="*" element={<NotFound />} />

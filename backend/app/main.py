@@ -17,6 +17,7 @@ from app.services.scheduler import shutdown_scheduler, start_scheduler
 from app.services.telegram import register_webhook
 
 from app.routers.auth import router as auth_router
+from app.routers.organizations import router as organizations_router
 from app.routers.trucks import router as trucks_router
 from app.routers.drivers import router as drivers_router
 from app.routers.maintenance import router as maintenance_router
@@ -141,6 +142,7 @@ async def health_db():
 
 # Include routers
 app.include_router(auth_router)
+app.include_router(organizations_router)
 app.include_router(trucks_router)
 app.include_router(drivers_router)
 app.include_router(maintenance_router)

@@ -44,18 +44,29 @@ Then edit the **Content-Security-Policy** header in `render.yaml` (line marked
 your real `fleetwatch-api` origin, commit, and push. Without this the browser
 blocks API/WebSocket calls.
 
-## 4. Seed the first admin
+## 4. Seed the platform superadmin
 
 In the `fleetwatch-api` service shell (Render → Shell):
 
 ```bash
-SEED_ADMIN_EMAIL=admin@yourcompany.uz \
-SEED_ADMIN_PASSWORD='<strong-password>' \
-python seed.py
+SEED_SUPERADMIN_EMAIL=you@yourcompany.uz \
+SEED_SUPERADMIN_PASSWORD='<strong-password>' \
+python seed.py --superadmin-only
 ```
 
-Registration via `POST /api/auth/register` also creates an org + admin if you
-prefer self-serve onboarding.
+That creates the platform operator's login inside an organization named
+`Platform`. It is idempotent: if the email already exists the seeder prints a
+notice and changes nothing. (The older `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD`
+pair still seeds a demo fleet org and is optional.)
+
+Then log in as the superadmin and onboard each customer company from the
+`/organizations` page — or via `POST /api/organizations`, which creates the org
+and its first admin in one transaction.
+
+Do **not** rely on `POST /api/auth/register`: `ALLOW_PUBLIC_REGISTRATION`
+defaults to `false` in production, so it returns
+`403 {"detail":"Public registration is disabled"}`. Set it to `true` only on a
+demo or staging deployment where anyone may mint a tenant.
 
 ## 5. Mobile app
 

@@ -5,7 +5,10 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  // Build and tooling artifacts, not source. `coverage/` in particular ships
+  // vendored istanbul scripts that fail every rule here and buried the three
+  // real errors this config was catching.
+  { ignores: ["dist", "coverage", "node_modules"] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],

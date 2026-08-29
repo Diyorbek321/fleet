@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.models.organizations import Organization
 from app.models.users import User
 from app.models.enums import UserRole
 
@@ -17,6 +18,18 @@ async def get_current_user(
     creds: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: AsyncSession = Depends(get_db),
 ) -> User:
+    """Resolve the caller from the bearer token and reject suspended tenants.
+
+    The organization is loaded with an inner join in the *same* query that already
+    fetches the user, not as a second round-trip: this runs on every authenticated
+    request, so an extra SELECT here would be an extra SELECT platform-wide.
+
+    A suspended organization (``is_active = False`` — unpaid invoice, offboarded
+    customer) gets 403 rather than 401 so the client can tell "your company is
+    switched off" apart from "your session expired" and stop retrying the login.
+    Superadmins are exempt: suspending the "Platform" org must not lock the
+    operator out of the very endpoint needed to un-suspend a customer.
+    """
     if creds is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     token = creds.credentials
@@ -34,10 +47,18 @@ async def get_current_user(
     except (ValueError, TypeError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
 
-    res = await db.execute(select(User).where(User.id == user_id))
-    user = res.scalar_one_or_none()
-    if not user:
+    res = await db.execute(
+        select(User, Organization.is_active)
+        .join(Organization, Organization.id == User.org_id)
+        .where(User.id == user_id)
+    )
+    row = res.first()
+    if row is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+
+    user, org_is_active = row
+    if not org_is_active and user.role is not UserRole.superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Organization is suspended")
     return user
 
 def require_role(*roles: UserRole):

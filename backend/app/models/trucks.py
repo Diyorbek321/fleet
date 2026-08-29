@@ -48,8 +48,12 @@ class TruckLocationHistory(Base):
     # Hot read path: history/report/analytics queries filter by truck and order
     # by time. Without this composite index they full-scan a table that grows
     # unbounded with GPS volume.
+    # The retention purge filters on recorded_at alone; the composite index
+    # above starts with truck_id and so cannot serve it, leaving the purge to
+    # seq-scan the largest table in the database on every run.
     __table_args__ = (
         Index("ix_truck_location_history_truck_recorded", "truck_id", "recorded_at"),
+        Index("ix_truck_location_history_recorded_at", "recorded_at"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

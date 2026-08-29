@@ -26,6 +26,17 @@ class ServiceStatus(str, enum.Enum):
     completed = "completed"
 
 class UserRole(str, enum.Enum):
+    """Who a user is inside the product.
+
+    ``superadmin`` is the platform operator (us — the company selling FleetWatch
+    to logistics firms), not a customer role. It is deliberately NOT a wildcard:
+    a superadmin still belongs to exactly one organization (its own "Platform"
+    org) and ``get_org_id`` keeps returning that org, so a superadmin sees no
+    fleet data from customer tenants. Cross-company management happens only
+    through ``/api/organizations/*``. Keeping it this way means every existing
+    tenant-scoping test stays valid and the blast radius of the role is small.
+    """
+    superadmin = "superadmin"
     admin = "admin"
     manager = "manager"
     operator = "operator"

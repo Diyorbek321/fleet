@@ -26,6 +26,7 @@ from app.models.maintenance import ServiceInterval
 from app.models.trucks import Truck
 from app.services.cgr import get_cgr_client
 from app.services.daily_updates import send_daily_trip_updates
+from app.services.gps_retention import purge_expired_history
 from app.services.maintenance import refresh_service_statuses
 from app.services.queue import poll_active_watches
 from app.services.reminders import check_document_expiries
@@ -187,6 +188,22 @@ async def poll_queue_watches() -> None:
         logger.exception("queue_poll_failed")
 
 
+async def purge_gps_history() -> None:
+    """Delete raw position history past the retention window.
+
+    ``truck_location_history`` is the only unbounded table in the schema — one
+    row per ping, ~2 400 per truck per driving day. Without this the droplet's
+    disk is the deadline. Batched and idempotent: whatever a run doesn't finish
+    is picked up by the next one.
+    """
+    try:
+        async with SessionLocal() as db:
+            removed = await purge_expired_history(db)
+            logger.info("gps_retention_done", rows_removed=removed)
+    except Exception:  # noqa: BLE001 — never let a job crash the scheduler
+        logger.exception("gps_retention_failed")
+
+
 _scheduler: AsyncIOScheduler | None = None
 
 
@@ -223,6 +240,9 @@ def start_scheduler() -> AsyncIOScheduler | None:
 
     async def _queue_poll_job() -> None:
         await _run_locked("poll_queue_watches", poll_queue_watches)
+
+    async def _gps_retention_job() -> None:
+        await _run_locked("purge_gps_history", purge_gps_history)
 
     async def _daily_updates_job() -> None:
         # The job itself self-gates on the configured hour of day, so it's
@@ -261,6 +281,17 @@ def start_scheduler() -> AsyncIOScheduler | None:
         trigger="interval",
         minutes=max(interval, 5),  # border-queue status shifts on the order of minutes
         id="poll_queue_watches",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _gps_retention_job,
+        trigger="interval",
+        # Six-hourly: retention is measured in days, so there is nothing to gain
+        # from running it often, and each run is the heaviest write job here.
+        minutes=max(interval, 360),
+        id="purge_gps_history",
         max_instances=1,
         coalesce=True,
         replace_existing=True,

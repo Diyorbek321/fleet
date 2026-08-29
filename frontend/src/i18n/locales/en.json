@@ -15,7 +15,36 @@
     "logout": "Logout",
     "geofences": "Geofences",
     "trips": "Trips",
-    "leakage": "Leakage"
+    "leakage": "Leakage",
+    "organizations": "Organizations",
+    "users": "Users"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Fleet performance and status overview",
+    "stats": {
+      "totalTrucks": "Total trucks",
+      "moving": "Moving",
+      "stopped": "Stopped",
+      "offline": "Offline"
+    },
+    "fuel": {
+      "title": "Fuel & efficiency",
+      "window": "last {{days}} days",
+      "noData": "No fuel data yet.",
+      "totalCost": "Total fuel cost",
+      "litersBurned": "Fuel burned",
+      "fleetConsumption": "Fleet consumption",
+      "avgLiterPrice": "Avg. price per litre",
+      "topPerformers": "Most efficient trucks",
+      "worstTruck": "Highest consumption: {{name}}",
+      "worstTruckHint": "check the engine and tyres",
+      "baseline": "baseline {{value}} L/100km"
+    },
+    "activity": "Fleet activity (24h)",
+    "recent": "Recent activity",
+    "viewAll": "View all",
+    "noDriver": "No driver assigned"
   },
   "queue": {
     "title": "Border Queue",
@@ -53,7 +82,12 @@
     "loginFailed": "Login failed",
     "invalidCredentials": "Invalid email or password.",
     "backendUnreachable": "Cannot reach the backend. Is the API running?",
-    "genericError": "Something went wrong. Please try again."
+    "genericError": "Something went wrong. Please try again.",
+    "highlights": {
+      "gps": "Live GPS tracking of every truck",
+      "fuel": "Fuel and cost control in so'm",
+      "telegram": "Telegram updates for cargo owners"
+    }
   },
   "common": {
     "save": "Save",
@@ -65,7 +99,11 @@
     "loading": "Loading…",
     "language": "Language",
     "profile": "Profile",
-    "settings": "Settings"
+    "settings": "Settings",
+    "currency": "UZS",
+    "liters": "L",
+    "km": "km",
+    "lPer100km": "L/100km"
   },
   "trucks": {
     "status": {
@@ -164,8 +202,7 @@
     "entries": "Entries",
     "total": "Total",
     "highest": "Highest",
-    "lowest": "Lowest",
-    "currencySuffix": "UZS"
+    "lowest": "Lowest"
   },
   "geofences": {
     "title": "Geofences",
@@ -380,5 +417,77 @@
     "last7": "Last 7 days",
     "last30": "Last 30 days",
     "last90": "Last 90 days"
+  },
+  "organizations": {
+    "title": "Organizations",
+    "subtitle": "Customer companies on the platform",
+    "add": "Add company",
+    "searchPlaceholder": "Search by name",
+    "name": "Company name",
+    "contactName": "Contact person",
+    "contactPhone": "Contact phone",
+    "notes": "Internal notes",
+    "notesHint": "Visible only to the platform operator",
+    "status": "Status",
+    "active": "Active",
+    "suspended": "Suspended",
+    "createdAt": "Created",
+    "userCount": "Users",
+    "truckCount": "Trucks",
+    "driverCount": "Drivers",
+    "tripCount": "Trips",
+    "adminSection": "First administrator",
+    "adminSectionHint": "This account will manage the company",
+    "adminEmail": "Administrator email",
+    "adminPassword": "Administrator password",
+    "passwordHint": "At least 8 characters",
+    "empty": "No companies yet",
+    "created": "Company created",
+    "updated": "Company updated",
+    "deleted": "Company deleted",
+    "suspend": "Suspend",
+    "activate": "Activate",
+    "suspendHint": "A suspended company’s users cannot log in",
+    "deleteTitle": "Delete company",
+    "deleteWarning": "All of this company’s data will be permanently deleted. This cannot be undone.",
+    "deleteConfirmLabel": "Type the company name to confirm",
+    "deleteConfirmMismatch": "The name does not match",
+    "manageUsers": "Users",
+    "addUser": "Add user",
+    "noUsers": "This company has no users yet",
+    "userCreated": "User created",
+    "loadFailed": "Failed to load companies",
+    "saveFailed": "Failed to save",
+    "deleteFailed": "Failed to delete"
+  },
+  "users": {
+    "title": "Users",
+    "subtitle": "Manage your company’s staff accounts",
+    "add": "Add user",
+    "email": "Email",
+    "password": "Password",
+    "newPassword": "New password",
+    "passwordHint": "At least 8 characters",
+    "role": "Role",
+    "you": "You",
+    "empty": "No users yet",
+    "created": "User created",
+    "updated": "User updated",
+    "deleted": "User deleted",
+    "changePassword": "Change password",
+    "confirmDelete": "Delete this user?",
+    "cannotEditSelf": "You cannot change your own role",
+    "cannotDeleteSelf": "You cannot delete your own account",
+    "driverHint": "Drivers are managed on the Drivers page",
+    "loadFailed": "Failed to load users",
+    "saveFailed": "Failed to save",
+    "deleteFailed": "Failed to delete",
+    "roles": {
+      "superadmin": "Platform operator",
+      "admin": "Administrator",
+      "manager": "Manager",
+      "operator": "Operator",
+      "driver": "Driver"
+    }
   }
 }

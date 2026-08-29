@@ -16,17 +16,33 @@ if str(BACKEND_DIR) not in sys.path:
 
 from app.core.config import settings
 from app.core.database import Base
-from app.models import (  # noqa: F401
-    trucks, drivers, maintenance, users, devices, driver_app, geofences, trips,
-)
+# Import the models package as a whole rather than naming modules one by one:
+# a per-module list silently goes stale when a new model file is added, and a
+# model missing from `target_metadata` is invisible to `--autogenerate`, which
+# is exactly how a table drifts away from its migrations.
+import app.models  # noqa: F401
 
 config = context.config
 fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
 
+# Placeholder shipped in alembic.ini. Anything else means the caller supplied a
+# real DSN programmatically (Config.set_main_option) and means it — the test
+# suite relies on this to migrate its own throwaway database instead of
+# whatever DATABASE_URL happens to point at.
+_URL_PLACEHOLDER = "driver://user:pass@localhost/dbname"
+
+
+def _database_url() -> str:
+    """DSN for this migration run: explicit config override, else settings."""
+    configured = (config.get_main_option("sqlalchemy.url") or "").strip()
+    if configured and configured != _URL_PLACEHOLDER:
+        return configured
+    return settings.database_url
+
 def run_migrations_offline():
-    url = settings.database_url.replace("+asyncpg", "")
+    url = _database_url().replace("+asyncpg", "")
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -49,7 +65,7 @@ def do_run_migrations(connection: Connection):
 async def run_migrations_online():
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    connectable = create_async_engine(settings.database_url, poolclass=pool.NullPool)
+    connectable = create_async_engine(_database_url(), poolclass=pool.NullPool)
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()

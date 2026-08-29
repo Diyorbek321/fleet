@@ -5,7 +5,8 @@ interface AuthContextType {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /** Resolves with the signed-in user so callers can route by role without waiting for state. */
+  login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
 }
 
@@ -38,6 +39,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     tokenStorage.set(tokens.access_token, tokens.refresh_token);
     const me = await authApi.me();
     setUser(me);
+    return me;
   }, []);
 
   const logout = useCallback(async () => {

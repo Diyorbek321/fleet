@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Fuel, TrendingUp, DollarSign, Gauge } from 'lucide-react';
+import { Plus, Fuel, TrendingUp, Banknote, Gauge } from 'lucide-react';
 import { format } from 'date-fns';
 import { AddFuelLogModal } from './AddFuelLogModal';
+import { formatAmount, formatKm, formatL100km, formatLiters } from '@/lib/format';
 
 export function FuelTracking() {
   const { fuelLogs, calculateFuelStats, getFuelLogsByTruck } = useMaintenance();
@@ -65,8 +66,8 @@ export function FuelTracking() {
                 <Fuel className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Gallons</p>
-                <p className="text-2xl font-bold text-foreground">{stats.totalGallons.toLocaleString()}</p>
+                <p className="text-sm text-muted-foreground">Total Litres</p>
+                <p className="text-2xl font-bold text-foreground">{formatLiters(stats.totalGallons)} L</p>
               </div>
             </div>
           </CardContent>
@@ -76,12 +77,12 @@ export function FuelTracking() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-status-stopped/10">
-                <DollarSign className="h-5 w-5 text-status-stopped" />
+                <Banknote className="h-5 w-5 text-status-stopped" />
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Spent</p>
                 <p className="text-2xl font-bold text-foreground">
-                  ${stats.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  {formatAmount(stats.totalCost)} UZS
                 </p>
               </div>
             </div>
@@ -95,8 +96,8 @@ export function FuelTracking() {
                 <Gauge className="h-5 w-5 text-status-moving" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Avg. MPG</p>
-                <p className="text-2xl font-bold text-foreground">{stats.avgMpg}</p>
+                <p className="text-sm text-muted-foreground">Avg. Consumption</p>
+                <p className="text-2xl font-bold text-foreground">{formatL100km(stats.avgMpg)} L/100km</p>
               </div>
             </div>
           </CardContent>
@@ -109,8 +110,8 @@ export function FuelTracking() {
                 <TrendingUp className="h-5 w-5 text-amber-500" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Avg. Price/Gal</p>
-                <p className="text-2xl font-bold text-foreground">${stats.avgPricePerGallon}</p>
+                <p className="text-sm text-muted-foreground">Avg. Price/Litre</p>
+                <p className="text-2xl font-bold text-foreground">{formatAmount(stats.avgPricePerGallon)} UZS</p>
               </div>
             </div>
           </CardContent>
@@ -134,10 +135,10 @@ export function FuelTracking() {
                 <TableRow className="bg-muted/50">
                   <TableHead>Date</TableHead>
                   {selectedTruck === 'all' && <TableHead>Truck</TableHead>}
-                  <TableHead className="text-right">Gallons</TableHead>
-                  <TableHead className="text-right">Price/Gal</TableHead>
+                  <TableHead className="text-right">Litres</TableHead>
+                  <TableHead className="text-right">Price/L</TableHead>
                   <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Mileage</TableHead>
+                  <TableHead className="text-right">Odometer</TableHead>
                   <TableHead className="hidden md:table-cell">Location</TableHead>
                 </TableRow>
               </TableHeader>
@@ -164,10 +165,10 @@ export function FuelTracking() {
                           </div>
                         </TableCell>
                       )}
-                      <TableCell className="text-right">{log.gallons}</TableCell>
-                      <TableCell className="text-right">${log.pricePerGallon.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-medium">${log.totalCost.toFixed(2)}</TableCell>
-                      <TableCell className="text-right">{log.mileage.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{formatLiters(log.gallons, 1)} L</TableCell>
+                      <TableCell className="text-right">{formatAmount(log.pricePerGallon)} UZS</TableCell>
+                      <TableCell className="text-right font-medium">{formatAmount(log.totalCost)} UZS</TableCell>
+                      <TableCell className="text-right">{formatKm(log.mileage)} km</TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground">
                         {log.location || '-'}
                       </TableCell>

@@ -64,3 +64,6 @@ keystore.properties
 # Backend virtualenv (regenerable)
 backend/venv/
 backend/.venv/
+
+# TypeScript incremental build cache (regenerable)
+frontend/*.tsbuildinfo

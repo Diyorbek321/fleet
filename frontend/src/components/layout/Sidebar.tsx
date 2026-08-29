@@ -16,10 +16,13 @@ import {
   MapPin,
   Package,
   TrendingDown,
-  ListChecks
+  ListChecks,
+  Building2,
+  UserCog
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import type { UserRole } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
@@ -28,7 +31,16 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-const navItems = [
+// `roles` narrows an entry to specific roles; entries without it are for everyone.
+// This only hides links — the routes and the API enforce the same rules for real.
+interface NavItem {
+  icon: typeof LayoutDashboard;
+  labelKey: string;
+  path: string;
+  roles?: readonly UserRole[];
+}
+
+const navItems: readonly NavItem[] = [
   { icon: LayoutDashboard, labelKey: 'nav.dashboard', path: '/dashboard' },
   { icon: TrendingDown, labelKey: 'nav.leakage', path: '/leakage' },
   { icon: Package, labelKey: 'nav.trips', path: '/trips' },
@@ -41,12 +53,15 @@ const navItems = [
   { icon: Radio, labelKey: 'nav.devices', path: '/devices' },
   { icon: FileText, labelKey: 'nav.reports', path: '/reports' },
   { icon: Settings, labelKey: 'nav.settings', path: '/settings' },
-] as const;
+  { icon: UserCog, labelKey: 'nav.users', path: '/users', roles: ['admin'] },
+  { icon: Building2, labelKey: 'nav.organizations', path: '/organizations', roles: ['superadmin'] },
+];
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { t } = useTranslation();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
+  const visibleItems = navItems.filter((item) => !item.roles || (user && item.roles.includes(user.role)));
 
   return (
     <aside
@@ -89,7 +104,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {/* Navigation */}
         <nav className="flex-1 space-y-1 p-3">
-          {navItems.map((item) => {
+          {visibleItems.map((item) => {
             const isActive = location.pathname === item.path;
             const linkContent = (
               <NavLink
