@@ -16,6 +16,36 @@ export const tokenStorage = {
   },
 };
 
+/**
+ * The customer a platform operator is currently looking at, if any.
+ *
+ * sessionStorage, not localStorage: a support session is a thing you are doing
+ * right now, and it should not still be open in a tab you reopen next week.
+ * Every request made while it is set carries the header, so the backend can
+ * refuse the writes and record the reads.
+ */
+const SUPPORT_ORG_KEY = 'fleet_support_org';
+
+export interface SupportSession {
+  orgId: string;
+  orgName: string;
+}
+
+export const supportSession = {
+  get: (): SupportSession | null => {
+    try {
+      const raw = sessionStorage.getItem(SUPPORT_ORG_KEY);
+      return raw ? (JSON.parse(raw) as SupportSession) : null;
+    } catch {
+      return null;
+    }
+  },
+  set: (session: SupportSession): void => {
+    sessionStorage.setItem(SUPPORT_ORG_KEY, JSON.stringify(session));
+  },
+  clear: (): void => sessionStorage.removeItem(SUPPORT_ORG_KEY),
+};
+
 export class ApiError extends Error {
   constructor(public status: number, public detail: string) {
     super(detail);
@@ -56,11 +86,19 @@ export interface ApiOptions extends Omit<RequestInit, 'body'> {
 export async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   const { body, auth = true, headers, ...rest } = opts;
 
-  const buildHeaders = (accessToken: string | null): HeadersInit => ({
-    'Content-Type': 'application/json',
-    ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    ...(headers as Record<string, string> | undefined),
-  });
+  const buildHeaders = (accessToken: string | null): HeadersInit => {
+    // Sent on every request while a support session is open, including the
+    // writes the backend will refuse. That refusal is the point: an operator
+    // must not be able to change a customer's data by accident, and a header
+    // applied selectively by the client would be a rule the client enforces.
+    const support = supportSession.get();
+    return {
+      'Content-Type': 'application/json',
+      ...(auth && accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      ...(support ? { 'X-Support-Org': support.orgId } : {}),
+      ...(headers as Record<string, string> | undefined),
+    };
+  };
 
   const doFetch = (accessToken: string | null): Promise<Response> =>
     fetch(`${BASE_URL}${path}`, {
@@ -230,7 +268,38 @@ export const organizationsApi = {
   listUsers: (orgId: string) => api<OrgUser[]>(`/api/organizations/${orgId}/users`),
   createUser: (orgId: string, body: OrgUserCreate) =>
     api<OrgUser>(`/api/organizations/${orgId}/users`, { method: 'POST', body }),
+
+  /** Totals across every customer. Aggregate only — no one company's data. */
+  platformStats: () => api<PlatformStats>('/api/organizations/platform/stats'),
+
+  /** What the operator has done, newest first. Optionally about one customer. */
+  auditLog: (orgId?: string) =>
+    api<AuditEvent[]>(
+      `/api/organizations/platform/audit${orgId ? `?org_id=${orgId}` : ''}`,
+    ),
 };
+
+export interface PlatformStats {
+  organizations: number;
+  active_organizations: number;
+  suspended_organizations: number;
+  users: number;
+  drivers: number;
+  trucks: number;
+  trips: number;
+  trips_last_30d: number;
+  gps_points: number;
+}
+
+export interface AuditEvent {
+  id: string;
+  actor_email: string;
+  action: string;
+  target_org_id: string | null;
+  target_org_name: string | null;
+  detail: string | null;
+  created_at: string;
+}
 
 // ---- Org-scoped user management (a company's own admin) ----
 

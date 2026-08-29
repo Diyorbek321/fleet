@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Ban, Pencil, Play, Trash2, Users } from 'lucide-react';
+import { Ban, Eye, Pencil, Play, Trash2, Users } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { Organization } from '@/lib/api';
+import { startSupportSession } from '@/components/SupportSessionBanner';
 
 interface OrganizationsTableProps {
   organizations: Organization[];
@@ -99,6 +100,19 @@ export function OrganizationsTable({
                 </Badge>
               </TableCell>
               <TableCell className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  // Only for a customer, never for the operator's own
+                  // organization: "view as support" on yourself is the screens
+                  // you are already looking at, and the audit row it writes
+                  // would be noise.
+                  disabled={org.id === currentOrgId}
+                  title={t('support.viewHint')}
+                  onClick={() => startSupportSession(org.id, org.name)}
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"

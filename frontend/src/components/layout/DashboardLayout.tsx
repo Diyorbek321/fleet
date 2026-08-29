@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
 import { cn } from '@/lib/utils';
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog';
+import { SupportSessionBanner } from '@/components/SupportSessionBanner';
 import { useAuth } from '@/contexts/AuthContext';
 import { schedulePrefetch } from '@/routes/lazyPages';
 
@@ -27,6 +28,9 @@ export function DashboardLayout() {
   return (
     <>
       <ChangePasswordDialog open={mustChangePassword} onOpenChange={() => {}} forced />
+      {/* Above everything, on every screen: what is behind it belongs to
+          somebody else. */}
+      <SupportSessionBanner />
       <div className="min-h-screen bg-background">
         {/* Sidebar - hidden on mobile */}
         <div className="hidden lg:block">

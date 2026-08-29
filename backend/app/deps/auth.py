@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -73,21 +73,92 @@ async def get_current_user(
     return user
 
 def require_role(*roles: UserRole):
+    """Gate an endpoint on the caller's role.
+
+    A superadmin satisfies every requirement. Roles answer "is this the kind of
+    work you do here"; the question of *whose* data you touch is answered
+    separately by ``get_org_id``, and that is the boundary protecting customers.
+    Without it a platform operator could pass every role check and still see
+    nothing but their own empty Platform organization.
+
+    This is what lets the audited support path reach the screens support calls
+    are actually about — a customer reporting a wrong fuel figure is reporting
+    it about analytics, which is gated on the tenant roles. Reaching those
+    screens still requires the ``X-Support-Org`` header, still refuses anything
+    but a safe method, and is still written to the audit log.
+    """
+    allowed = frozenset(roles) | {UserRole.superadmin}
+
     async def _dep(user: User = Depends(get_current_user)) -> User:
-        if user.role not in roles:
+        if user.role not in allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return user
     return _dep
 
 
-async def get_org_id(user: User = Depends(get_current_user)) -> uuid.UUID:
-    """The signed-in user's organization id.
+# Header a platform operator sets to look at one customer's data while helping
+# them. Named for what it is: nothing else in the API reads it, and it appears
+# in the audit log under exactly this name.
+SUPPORT_ORG_HEADER = "X-Support-Org"
 
-    Every tenant-scoped query filters on this. Read from the DB-loaded user
-    record (the source of truth), never trusted from a request body, so a user
-    can only ever touch their own organization's data.
+# Methods a support session may use. Reading a customer's screen is how you
+# answer "my leakage page is wrong"; writing into their tenant is how you
+# become the reason their numbers changed. The operator has POST
+# /api/organizations/{id}/users for the one write they legitimately need.
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+
+async def get_org_id(
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> uuid.UUID:
+    """The organization whose data this request may touch.
+
+    Normally the signed-in user's own, read from the DB-loaded record and never
+    from anything in the request — which is what keeps one customer out of
+    another's data across all sixty-odd call sites.
+
+    A superadmin may override it with the ``X-Support-Org`` header to read one
+    customer while helping them. That is a deliberate hole in the isolation
+    boundary, so it is fenced on every side: superadmin only, safe methods
+    only, the organization must exist, and every session is written to the
+    audit log. A customer who asks "who looked at my data" gets an answer.
     """
-    return user.org_id
+    requested = request.headers.get(SUPPORT_ORG_HEADER)
+    if not requested:
+        return user.org_id
+
+    if user.role is not UserRole.superadmin:
+        # 403, not "ignore the header": a tenant user sending this is either
+        # probing the boundary or running a client that believes it can cross
+        # it. Silently serving their own data would hide both.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Support access is restricted to platform operators",
+        )
+
+    if request.method.upper() not in _SAFE_METHODS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Support access is read-only",
+        )
+
+    try:
+        target_id = uuid.UUID(requested)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid organization id")
+
+    org = (
+        await db.execute(select(Organization).where(Organization.id == target_id))
+    ).scalar_one_or_none()
+    if org is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+
+    from app.services.audit import record_support_read
+
+    await record_support_read(db, actor=user, org=org, path=request.url.path)
+    return org.id
 
 
 async def get_current_driver(user: User = Depends(get_current_user)) -> "Driver":

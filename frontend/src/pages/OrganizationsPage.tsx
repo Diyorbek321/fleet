@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { CreateOrganizationDialog } from '@/components/organizations/CreateOrganizationDialog';
+import { PlatformOverview } from '@/components/organizations/PlatformOverview';
 import { DeleteOrganizationDialog } from '@/components/organizations/DeleteOrganizationDialog';
 import { EditOrganizationDialog } from '@/components/organizations/EditOrganizationDialog';
 import { OrganizationUsersDialog } from '@/components/organizations/OrganizationUsersDialog';
@@ -164,6 +165,8 @@ export default function OrganizationsPage() {
           </CardContent>
         </Card>
       )}
+
+      <PlatformOverview />
 
       <OrganizationsTable
         organizations={orgsQuery.data ?? []}

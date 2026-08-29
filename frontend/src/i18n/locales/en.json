@@ -523,5 +523,31 @@
   "settings": {
     "security": "Security",
     "securityDescription": "Your sign-in credentials"
+  },
+  "support": {
+    "viewing": "Support session —",
+    "readOnly": "read-only",
+    "exit": "Exit",
+    "view": "View as support",
+    "viewHint": "Open this customer’s screens read-only. The visit is recorded."
+  },
+  "platform": {
+    "title": "Platform",
+    "organizations": "Companies",
+    "active": "Active",
+    "suspended": "Suspended",
+    "users": "Users",
+    "drivers": "Drivers",
+    "trucks": "Trucks",
+    "trips": "Trips",
+    "trips30": "Trips (30d)",
+    "gpsPoints": "GPS points",
+    "audit": "Audit log",
+    "auditEmpty": "Nothing recorded yet",
+    "actor": "Who",
+    "action": "What",
+    "target": "Company",
+    "when": "When",
+    "detail": "Detail"
   }
 }

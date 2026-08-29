@@ -523,5 +523,31 @@
   "settings": {
     "security": "Xavfsizlik",
     "securityDescription": "Tizimga kirish ma’lumotlaringiz"
+  },
+  "support": {
+    "viewing": "Qo‘llab-quvvatlash —",
+    "readOnly": "faqat o‘qish",
+    "exit": "Chiqish",
+    "view": "Support sifatida ko‘rish",
+    "viewHint": "Bu mijoz ekranlarini faqat o‘qish uchun ochadi. Kirish yozib qo‘yiladi."
+  },
+  "platform": {
+    "title": "Platforma",
+    "organizations": "Kompaniyalar",
+    "active": "Faol",
+    "suspended": "To‘xtatilgan",
+    "users": "Foydalanuvchi",
+    "drivers": "Haydovchi",
+    "trucks": "Mashina",
+    "trips": "Reys",
+    "trips30": "Reys (30 kun)",
+    "gpsPoints": "GPS nuqta",
+    "audit": "Audit jurnali",
+    "auditEmpty": "Hali yozuv yo‘q",
+    "actor": "Kim",
+    "action": "Nima",
+    "target": "Kompaniya",
+    "when": "Qachon",
+    "detail": "Tafsilot"
   }
 }

@@ -14,3 +14,4 @@ from app.models.trip_reports import TripExpenseReport, TripFuelRow, TripCountryE
 # `op.drop_table('devices')` into the next migration — which would wipe every GPS
 # tracker's imei + api_key_hash. See tests/test_schema_drift.py.
 from app.models.devices import Device  # noqa
+from app.models.audit import AuditEvent  # noqa

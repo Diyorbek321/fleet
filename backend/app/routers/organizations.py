@@ -13,21 +13,24 @@ paying, and — rarely — delete one.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
-from sqlalchemy import func, select
+from sqlalchemy import desc, func, select
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import hash_password
+from app.services import audit
 from app.deps.auth import require_role
+from app.models.audit import AuditEvent
 from app.models.drivers import Driver
 from app.models.enums import UserRole
 from app.models.organizations import Organization
 from app.models.trips import Trip
-from app.models.trucks import Truck
+from app.models.trucks import Truck, TruckLocationHistory
 from app.models.users import User
 from app.schemas.auth import UserOut
 from app.schemas.organizations import OrganizationCreate, OrganizationOut, OrganizationUpdate, OrgUserCreate
@@ -144,6 +147,13 @@ async def create_organization(
         role=UserRole.admin,
     )
     db.add(admin)
+    await audit.record(
+        db,
+        actor=_superadmin,
+        action=audit.ORG_CREATE,
+        org=org,
+        detail=f"first admin {data.admin_email}",
+    )
     await db.commit()
     await db.refresh(org)
 
@@ -186,9 +196,28 @@ async def update_organization(
     row = await _get_org_row(db, org_id)
     org: Organization = row[0]
 
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    was_active = org.is_active
+    for field, value in changes.items():
         setattr(org, field, value)
     org.updated_at = datetime.now(timezone.utc)
+
+    # Suspension is logged as its own action, not as a field edit. It is the
+    # one change a customer feels immediately, and it is the first thing they
+    # ask about — burying it in "fields changed: is_active" would mean reading
+    # every update event to find it.
+    if "is_active" in changes and changes["is_active"] != was_active:
+        action = audit.ORG_REACTIVATE if changes["is_active"] else audit.ORG_SUSPEND
+        await audit.record(db, actor=_superadmin, action=action, org=org)
+    other = sorted(k for k in changes if k != "is_active")
+    if other:
+        await audit.record(
+            db,
+            actor=_superadmin,
+            action=audit.ORG_UPDATE,
+            org=org,
+            detail="changed: " + ", ".join(other),
+        )
 
     await db.commit()
     return _to_out(await _get_org_row(db, org_id))
@@ -233,6 +262,17 @@ async def delete_organization(
     if confirm != org.name:
         raise HTTPException(status_code=400, detail="Confirmation does not match the organization name")
 
+    # Recorded before the delete, and with the name copied in: after the
+    # commit there is nothing left to describe what was removed. This is the
+    # event most worth keeping and the only one whose subject no longer exists.
+    await audit.record(
+        db,
+        actor=superadmin,
+        action=audit.ORG_DELETE,
+        org_id=org.id,
+        org_name=org.name,
+        detail="permanent, cascaded to all tenant data",
+    )
     await db.delete(org)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -278,6 +318,115 @@ async def create_organization_user(
         role=data.role,
     )
     db.add(user)
+    await audit.record(
+        db,
+        actor=_superadmin,
+        action=audit.ORG_USER_CREATE,
+        org_id=org_id,
+        detail=f"{data.email} as {data.role.value}",
+    )
     await db.commit()
     await db.refresh(user)
     return user
+
+
+# ── Platform overview ────────────────────────────────────────────────────────
+
+
+class PlatformStats(BaseModel):
+    """The whole book of business in one row.
+
+    The per-organization counts on the list above answer "how is this customer
+    doing"; nobody can answer "how are we doing" by adding up a paginated
+    table in their head.
+    """
+
+    organizations: int
+    active_organizations: int
+    suspended_organizations: int
+    users: int
+    drivers: int
+    trucks: int
+    trips: int
+    trips_last_30d: int
+    gps_points: int
+
+
+@router.get("/platform/stats", response_model=PlatformStats)
+async def platform_stats(
+    db: AsyncSession = Depends(get_db),
+    _superadmin: User = Depends(_SUPERADMIN),
+):
+    """Totals across every customer. Superadmin-only, and counts only.
+
+    Deliberately aggregate: this crosses the tenant boundary that the rest of
+    the API exists to hold, so it returns numbers no one customer's data can be
+    reconstructed from. Looking at an individual company's fleet goes through
+    the audited support path instead.
+
+    The Platform organization itself is excluded from the organization counts —
+    it holds no fleet and counting ourselves as a customer would overstate the
+    business by one on every screen it appears.
+    """
+    since = datetime.now(timezone.utc) - timedelta(days=30)
+
+    async def count(stmt) -> int:
+        return (await db.execute(stmt)).scalar() or 0
+
+    orgs_total = await count(
+        select(func.count(Organization.id)).where(Organization.id != _superadmin.org_id)
+    )
+    orgs_active = await count(
+        select(func.count(Organization.id)).where(
+            Organization.id != _superadmin.org_id, Organization.is_active.is_(True)
+        )
+    )
+
+    return PlatformStats(
+        organizations=orgs_total,
+        active_organizations=orgs_active,
+        suspended_organizations=orgs_total - orgs_active,
+        users=await count(select(func.count(User.id))),
+        drivers=await count(select(func.count(Driver.id))),
+        trucks=await count(select(func.count(Truck.id))),
+        trips=await count(select(func.count(Trip.id))),
+        trips_last_30d=await count(
+            select(func.count(Trip.id)).where(Trip.created_at >= since)
+        ),
+        gps_points=await count(select(func.count(TruckLocationHistory.id))),
+    )
+
+
+# ── Audit trail ──────────────────────────────────────────────────────────────
+
+
+class AuditEventOut(BaseModel):
+    id: uuid.UUID
+    actor_email: str
+    action: str
+    target_org_id: Optional[uuid.UUID]
+    target_org_name: Optional[str]
+    detail: Optional[str]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/platform/audit", response_model=list[AuditEventOut])
+async def audit_log(
+    db: AsyncSession = Depends(get_db),
+    _superadmin: User = Depends(_SUPERADMIN),
+    org_id: Optional[uuid.UUID] = Query(None, description="Only events about this customer"),
+    limit: int = Query(default=100, ge=1, le=500),
+):
+    """What the platform operator has done, newest first.
+
+    Read-only by design: there is no endpoint to edit or delete an event, and
+    the application never writes one. A log the subject can tidy afterwards
+    answers nothing.
+    """
+    stmt = select(AuditEvent).order_by(desc(AuditEvent.created_at)).limit(limit)
+    if org_id is not None:
+        stmt = stmt.where(AuditEvent.target_org_id == org_id)
+    return (await db.execute(stmt)).scalars().all()
