@@ -124,6 +124,11 @@ export interface AuthUser {
   org_id: string;
   email: string;
   role: UserRole;
+  /**
+   * True while this account is on a password an admin chose, and therefore
+   * still knows. The app blocks on a change-password prompt until it clears.
+   */
+  must_change_password: boolean;
 }
 
 export const authApi = {
@@ -132,6 +137,17 @@ export const authApi = {
   me: () => api<AuthUser>('/api/auth/me'),
   logout: (refresh_token: string) =>
     api<{ message: string }>('/api/auth/logout', { method: 'POST', body: { refresh_token }, auth: false }),
+  /**
+   * Changing your own password signs out every *other* session and re-issues
+   * this one, so the returned tokens must replace the stored pair — otherwise
+   * the caller invalidates itself and is bounced to the login screen for
+   * having done the right thing.
+   */
+  changePassword: (current_password: string, new_password: string) =>
+    api<TokenResponse>('/api/auth/change-password', {
+      method: 'POST',
+      body: { current_password, new_password },
+    }),
 };
 
 // ---- Organizations (superadmin-only platform console) ----

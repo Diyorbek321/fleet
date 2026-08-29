@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,8 +7,26 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import limiter
-from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
-from app.schemas.auth import RegisterIn, CreateUserIn, UpdateUserIn, LoginIn, TokenOut, UserOut, RefreshIn, LogoutIn
+from app.core.security import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    password_stamp,
+    token_predates_password_change,
+)
+from app.schemas.auth import (
+    RegisterIn,
+    CreateUserIn,
+    UpdateUserIn,
+    ChangePasswordIn,
+    LoginIn,
+    TokenOut,
+    UserOut,
+    RefreshIn,
+    LogoutIn,
+)
 from app.models.organizations import Organization
 from app.models.users import User
 from app.models.enums import UserRole
@@ -28,6 +47,10 @@ def _token_subject(user: User) -> dict:
         "orgId": str(user.org_id),
         "email": user.email,
         "role": user.role.value,
+        # Every token records which password it was minted under, so changing
+        # the password invalidates all of them at once. See
+        # ``app.core.security.token_predates_password_change``.
+        "pwdAt": password_stamp(user.password_changed_at),
     }
 
 
@@ -177,6 +200,14 @@ async def update_user(
 
     if payload.get("password"):
         target.password_hash = hash_password(payload["password"])
+        # Ends the target's existing sessions. Without this the reset is
+        # cosmetic: a refresh token issued before it stays valid for the full
+        # REFRESH_TOKEN_EXPIRE_DAYS, so resetting a compromised account's
+        # password does not actually lock anyone out.
+        target.password_changed_at = datetime.now(timezone.utc)
+        # The admin now knows this password. Flag the account so the client can
+        # make the user pick their own before doing anything else.
+        target.must_change_password = True
 
     await db.commit()
     await db.refresh(target)
@@ -268,6 +299,14 @@ async def refresh_token(data: RefreshIn, db: AsyncSession = Depends(get_db)):
     if row is None:
         raise HTTPException(status_code=401, detail="User not found")
     user, org_is_active = row
+
+    # The whole point of the stamp: this endpoint mints new tokens from an old
+    # one, so without the check here a refresh token issued before a password
+    # reset would keep renewing itself past it.
+    if token_predates_password_change(payload, user.password_changed_at):
+        await refresh_store.revoke(token)
+        raise HTTPException(status_code=401, detail="Password changed — please sign in again")
+
     if not org_is_active and user.role is not UserRole.superadmin:
         raise HTTPException(status_code=403, detail="Organization is suspended")
 
@@ -285,3 +324,47 @@ async def refresh_token(data: RefreshIn, db: AsyncSession = Depends(get_db)):
 async def logout(data: LogoutIn):
     await refresh_store.revoke(data.refresh_token)
     return {"message": "Logged out"}
+
+
+@router.post("/change-password", response_model=TokenOut)
+@limiter.limit("5/minute")
+async def change_password(
+    request: Request,
+    data: ChangePasswordIn = Body(...),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Change your own password.
+
+    Until now only an admin could set anyone's password, which meant every
+    password on the platform was one somebody else had chosen and still knew.
+
+    Requires the current password even though the caller is already
+    authenticated: an unlocked, unattended phone is the realistic threat here,
+    and re-typing the old password is what stops a stranger from taking the
+    account over outright.
+
+    Returns a fresh token pair. The change signs out every other device — which
+    is the point when someone changes a password on a stolen-handset hunch —
+    but signing out the device doing the changing would be a confusing way to
+    reward a good habit, so this one is re-issued instead.
+
+    Rate-limited: this endpoint verifies a password, so without a limit it is an
+    online guessing oracle against a token whose owner may have walked away.
+    """
+    if not verify_password(data.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    if verify_password(data.new_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="New password must be different")
+
+    user.password_hash = hash_password(data.new_password)
+    user.password_changed_at = datetime.now(timezone.utc)
+    user.must_change_password = False
+    await db.commit()
+    await db.refresh(user)
+
+    subject = _token_subject(user)
+    access = create_access_token(subject)
+    refresh = create_refresh_token(subject)
+    await refresh_store.put(refresh)
+    return TokenOut(access_token=access, refresh_token=refresh)

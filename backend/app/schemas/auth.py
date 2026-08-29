@@ -37,6 +37,16 @@ class UpdateUserIn(BaseModel):
     role: Optional[UserRole] = None
     password: Optional[str] = Field(default=None, min_length=8, max_length=128)
 
+class ChangePasswordIn(BaseModel):
+    """Change your own password.
+
+    The current password is required even though the request is already
+    authenticated — see the router for why.
+    """
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class LoginIn(BaseModel):
     email: EmailStr
     password: str
@@ -51,6 +61,9 @@ class UserOut(BaseModel):
     org_id: uuid.UUID
     email: str
     role: UserRole
+    # True while this account is using a password somebody else chose. Clients
+    # send the user to a change-password screen before anything else.
+    must_change_password: bool = False
 
     class Config:
         from_attributes = True

@@ -40,3 +40,28 @@ def create_refresh_token(subject: Dict[str, Any]) -> str:
 
 def decode_token(token: str) -> Dict[str, Any]:
     return jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+
+
+def password_stamp(changed_at: datetime) -> int:
+    """The value carried in a token's ``pwdAt`` claim.
+
+    Whole microseconds, not seconds: at second granularity a reset performed in
+    the same second a token was minted would compare equal, and the token that
+    the reset was meant to kill would survive. Not a float either — the claim
+    round-trips through JSON, and 1.7e9 seconds with microseconds is at the edge
+    of what a double represents exactly.
+    """
+    return int(changed_at.timestamp() * 1_000_000)
+
+
+def token_predates_password_change(payload: Dict[str, Any], changed_at: datetime) -> bool:
+    """Whether this token was issued before the account's current password.
+
+    A token with no ``pwdAt`` at all was minted before this mechanism existed
+    and is treated as stale, so the guarantee holds from the deploy onward
+    rather than from each user's next sign-in.
+    """
+    stamped = payload.get("pwdAt")
+    if not isinstance(stamped, int):
+        return True
+    return stamped < password_stamp(changed_at)

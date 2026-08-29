@@ -87,7 +87,16 @@
       "gps": "Har bir mashinani jonli GPS kuzatuv",
       "fuel": "Yoqilg‘i va xarajat nazorati — so‘mda",
       "telegram": "Yuk egasiga Telegram orqali xabar"
-    }
+    },
+    "changePassword": "Parolni o‘zgartirish",
+    "changePasswordHint": "Boshqa barcha qurilmalardan chiqarilasiz.",
+    "mustChangePassword": "Parolingizni administrator o‘rnatgan. Davom etish uchun o‘zingiznikini tanlang.",
+    "currentPassword": "Joriy parol",
+    "newPassword": "Yangi parol",
+    "confirmPassword": "Yangi parolni tasdiqlang",
+    "passwordsDoNotMatch": "Parollar mos kelmadi.",
+    "passwordChanged": "Parol o‘zgartirildi",
+    "otherDevicesSignedOut": "Boshqa barcha qurilmalardan chiqarildingiz."
   },
   "common": {
     "save": "Saqlash",
@@ -103,7 +112,9 @@
     "currency": "so‘m",
     "liters": "L",
     "km": "km",
-    "lPer100km": "L/100km"
+    "lPer100km": "L/100km",
+    "saving": "Saqlanmoqda…",
+    "errorOccurred": "Xatolik yuz berdi. Qayta urinib ko‘ring."
   },
   "trucks": {
     "status": {
@@ -489,5 +500,9 @@
       "operator": "Operator",
       "driver": "Haydovchi"
     }
+  },
+  "settings": {
+    "security": "Xavfsizlik",
+    "securityDescription": "Tizimga kirish ma’lumotlaringiz"
   }
 }

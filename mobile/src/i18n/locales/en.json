@@ -284,5 +284,18 @@
       "customs": "Customs",
       "other": "Other"
     }
+  },
+  "password": {
+    "title": "Password",
+    "change": "Change password",
+    "save": "Save password",
+    "current": "Current password",
+    "new": "New password",
+    "confirm": "Confirm new password",
+    "doNotMatch": "The two passwords do not match.",
+    "tooShort": "Use at least 8 characters.",
+    "changed": "Password changed",
+    "otherDevicesSignedOut": "Every other device has been signed out.",
+    "setByAdmin": "Your password was set by your dispatcher. Choose your own."
   }
 }

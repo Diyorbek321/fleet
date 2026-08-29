@@ -3,13 +3,22 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopNavbar } from './TopNavbar';
 import { cn } from '@/lib/utils';
+import { ChangePasswordDialog } from '@/components/ChangePasswordDialog';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function DashboardLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { user } = useAuth();
+
+  // Mounted at the layout, not on one page: an account still on an admin-set
+  // password must be stopped wherever it lands after signing in, not only if
+  // it happens to visit Settings.
+  const mustChangePassword = !!user?.must_change_password;
 
   return (
     <>
+      <ChangePasswordDialog open={mustChangePassword} onOpenChange={() => {}} forced />
       <div className="min-h-screen bg-background">
         {/* Sidebar - hidden on mobile */}
         <div className="hidden lg:block">

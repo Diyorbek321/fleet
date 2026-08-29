@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { meApi, type DriverProfile, type SafetyScore } from '../lib/me';
 import { formatDate } from '../lib/format';
 import { useAuth } from '../contexts/AuthContext';
+import { fetchAccount } from '../lib/authApi';
+import { ChangePassword } from '../components/ChangePassword';
 import { palette, radius, spacing, typography } from '../theme/theme';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { Screen } from '../components/Screen';
@@ -44,6 +46,7 @@ export function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<DriverProfile | null>(null);
   const [safety, setSafety] = useState<SafetyScore | null>(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -51,6 +54,11 @@ export function ProfileScreen() {
       const [p, s] = await Promise.all([meApi.profile(), meApi.safetyScore()]);
       setProfile(p);
       setSafety(s);
+      // Separate and non-fatal: the flag is a nudge, and failing to read it
+      // must not turn the whole profile screen into an error state.
+      fetchAccount()
+        .then((account) => setMustChangePassword(account.must_change_password))
+        .catch(() => setMustChangePassword(false));
     } catch (e) {
       setError(e instanceof Error ? e.message : t('common.error'));
     } finally {
@@ -147,6 +155,8 @@ export function ProfileScreen() {
           <EmptyState icon="shield-outline" title={t('safety.noData')} />
         )}
       </Card>
+
+      <ChangePassword required={mustChangePassword} />
 
       <Card>
         <LanguageSwitcher />

@@ -7,7 +7,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
-from app.core.security import decode_token
+from app.core.security import decode_token, token_predates_password_change
 from app.models.organizations import Organization
 from app.models.users import User
 from app.models.enums import UserRole
@@ -57,6 +57,17 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
 
     user, org_is_active = row
+
+    # A password change ends every session it did not create. The refresh store
+    # is keyed by token string and cannot be asked for "all of this user's
+    # tokens", so the check lives here: any token stamped before the account's
+    # current password is refused, on every device at once.
+    if token_predates_password_change(payload, user.password_changed_at):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Password changed — please sign in again",
+        )
+
     if not org_is_active and user.role is not UserRole.superadmin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Organization is suspended")
     return user

@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Bell, Palette, Languages } from 'lucide-react';
+import { Bell, Palette, Languages, KeyRound } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -12,6 +13,8 @@ import {
 } from '@/components/ui/select';
 import { useSettings, type UserSettings } from '@/hooks/use-settings';
 import { SUPPORTED_LANGUAGES, type LanguageCode } from '@/i18n';
+import { Button } from '@/components/ui/button';
+import { ChangePasswordDialog } from '@/components/ChangePasswordDialog';
 
 interface ToggleRow {
   key: keyof UserSettings;
@@ -30,7 +33,8 @@ const APPEARANCE_TOGGLES: ToggleRow[] = [
 ];
 
 export default function SettingsPage() {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [changingPassword, setChangingPassword] = useState(false);
   const { settings, updateSetting } = useSettings();
   const currentLanguage = (i18n.resolvedLanguage ?? i18n.language) as LanguageCode;
 
@@ -40,6 +44,22 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">Manage your account and preferences</p>
       </div>
+
+      <Card className="border-border/50 bg-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <KeyRound className="h-5 w-5" /> {t('settings.security')}
+          </CardTitle>
+          <CardDescription>{t('settings.securityDescription')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={() => setChangingPassword(true)}>
+            {t('auth.changePassword')}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <ChangePasswordDialog open={changingPassword} onOpenChange={setChangingPassword} />
 
       <Card className="border-border/50 bg-card">
         <CardHeader>

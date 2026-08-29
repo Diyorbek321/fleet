@@ -8,6 +8,8 @@ interface AuthContextType {
   /** Resolves with the signed-in user so callers can route by role without waiting for state. */
   login: (email: string, password: string) => Promise<AuthUser>;
   logout: () => Promise<void>;
+  /** Change your own password. Signs out every other device. */
+  changePassword: (current: string, next: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,6 +44,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return me;
   }, []);
 
+  const changePassword = useCallback(async (current: string, next: string) => {
+    const tokens = await authApi.changePassword(current, next);
+    // The server invalidates every token minted under the old password,
+    // including the one that made this very request, and hands back a
+    // replacement pair. Storing them is what keeps the caller signed in —
+    // skip this and the next request 401s and the user is thrown to the login
+    // screen for having changed their password.
+    tokenStorage.set(tokens.access_token, tokens.refresh_token);
+    setUser(await authApi.me());
+  }, []);
+
   const logout = useCallback(async () => {
     const refresh = tokenStorage.getRefresh();
     if (refresh) {
@@ -61,6 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         login,
         logout,
+        changePassword,
       }}
     >
       {children}

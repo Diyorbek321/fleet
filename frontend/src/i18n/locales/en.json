@@ -87,7 +87,16 @@
       "gps": "Live GPS tracking of every truck",
       "fuel": "Fuel and cost control in so'm",
       "telegram": "Telegram updates for cargo owners"
-    }
+    },
+    "changePassword": "Change password",
+    "changePasswordHint": "Signs you out on every other device.",
+    "mustChangePassword": "Your password was set by an administrator. Choose your own to continue.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "confirmPassword": "Confirm new password",
+    "passwordsDoNotMatch": "The two passwords do not match.",
+    "passwordChanged": "Password changed",
+    "otherDevicesSignedOut": "Every other device has been signed out."
   },
   "common": {
     "save": "Save",
@@ -103,7 +112,9 @@
     "currency": "UZS",
     "liters": "L",
     "km": "km",
-    "lPer100km": "L/100km"
+    "lPer100km": "L/100km",
+    "saving": "Saving…",
+    "errorOccurred": "Something went wrong. Please try again."
   },
   "trucks": {
     "status": {
@@ -489,5 +500,9 @@
       "operator": "Operator",
       "driver": "Driver"
     }
+  },
+  "settings": {
+    "security": "Security",
+    "securityDescription": "Your sign-in credentials"
   }
 }

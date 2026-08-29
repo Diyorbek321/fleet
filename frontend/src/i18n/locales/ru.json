@@ -87,7 +87,16 @@
       "gps": "Отслеживание каждой машины по GPS",
       "fuel": "Контроль топлива и расходов в сумах",
       "telegram": "Уведомления владельцу груза в Telegram"
-    }
+    },
+    "changePassword": "Сменить пароль",
+    "changePasswordHint": "Вы выйдете из системы на всех других устройствах.",
+    "mustChangePassword": "Ваш пароль задал администратор. Выберите свой, чтобы продолжить.",
+    "currentPassword": "Текущий пароль",
+    "newPassword": "Новый пароль",
+    "confirmPassword": "Подтвердите новый пароль",
+    "passwordsDoNotMatch": "Пароли не совпадают.",
+    "passwordChanged": "Пароль изменён",
+    "otherDevicesSignedOut": "Вы вышли из системы на всех других устройствах."
   },
   "common": {
     "save": "Сохранить",
@@ -103,7 +112,9 @@
     "currency": "сум",
     "liters": "л",
     "km": "км",
-    "lPer100km": "л/100км"
+    "lPer100km": "л/100км",
+    "saving": "Сохранение…",
+    "errorOccurred": "Что-то пошло не так. Попробуйте ещё раз."
   },
   "trucks": {
     "status": {
@@ -489,5 +500,9 @@
       "operator": "Оператор",
       "driver": "Водитель"
     }
+  },
+  "settings": {
+    "security": "Безопасность",
+    "securityDescription": "Данные для входа в систему"
   }
 }

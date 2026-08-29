@@ -284,5 +284,18 @@
       "customs": "Bojxona",
       "other": "Boshqa"
     }
+  },
+  "password": {
+    "title": "Parol",
+    "change": "Parolni o‘zgartirish",
+    "save": "Parolni saqlash",
+    "current": "Joriy parol",
+    "new": "Yangi parol",
+    "confirm": "Yangi parolni tasdiqlang",
+    "doNotMatch": "Parollar mos kelmadi.",
+    "tooShort": "Kamida 8 ta belgi kiriting.",
+    "changed": "Parol o‘zgartirildi",
+    "otherDevicesSignedOut": "Boshqa barcha qurilmalardan chiqarildingiz.",
+    "setByAdmin": "Parolingizni dispetcher o‘rnatgan. O‘zingiznikini tanlang."
   }
 }
