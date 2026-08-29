@@ -36,6 +36,9 @@ DATABASE_URL = os.environ.setdefault(
 # Not a .test or .example domain: pydantic's EmailStr rejects reserved TLDs,
 # so the tidier-looking address fails validation at the login endpoint.
 EMAIL = os.environ.setdefault("E2E_EMAIL", "e2e@fleetwatch-e2e.com")
+# The platform operator, sharing the password. Only the E2E database holds
+# this account, and that database is dropped and rebuilt on every boot.
+SUPERADMIN_EMAIL = os.environ.setdefault("E2E_SUPERADMIN_EMAIL", "ops@fleetwatch-e2e.com")
 PASSWORD = os.environ.setdefault("E2E_PASSWORD", "e2e-password-123")
 PORT = int(os.environ.setdefault("E2E_PORT", "8001"))
 
@@ -103,6 +106,13 @@ def _migrate() -> None:
 
 
 async def _seed() -> None:
+    """One customer with an admin, plus the platform operator.
+
+    The superadmin is written straight to the database because no endpoint
+    mints one — adding such an endpoint would be the escalation hole the whole
+    role design avoids. The E2E suite needs one anyway: the operator console,
+    support access and the audit trail cannot be exercised without it.
+    """
     from app.core.database import SessionLocal
     from app.core.security import hash_password
     from app.models.enums import UserRole
@@ -121,6 +131,18 @@ async def _seed() -> None:
                 role=UserRole.admin,
             )
         )
+
+        platform = Organization(name="Platform")
+        db.add(platform)
+        await db.flush()
+        db.add(
+            User(
+                org_id=platform.id,
+                email=SUPERADMIN_EMAIL,
+                password_hash=hash_password(PASSWORD),
+                role=UserRole.superadmin,
+            )
+        )
         await db.commit()
 
 
@@ -132,12 +154,21 @@ def main() -> None:
     asyncio.run(_recreate(url))
     print("[e2e] migrating", flush=True)
     _migrate()
-    print(f"[e2e] seeding admin {EMAIL}", flush=True)
+    print(f"[e2e] seeding {EMAIL} + {SUPERADMIN_EMAIL}", flush=True)
     asyncio.run(_seed())
+
+    # The suite signs in on nearly every test, and login is rate-limited to
+    # 10/minute per address — from one machine, one address, that trips partway
+    # through a full run and every later spec fails at the login form for a
+    # reason that looks nothing like rate limiting. pytest's conftest disables
+    # the limiter for the same reason; this is the E2E equivalent.
+    from app.core.rate_limit import limiter
+
+    limiter.enabled = False
 
     import uvicorn
 
-    print(f"[e2e] serving on :{PORT}", flush=True)
+    print(f"[e2e] serving on :{PORT} (rate limiting off)", flush=True)
     uvicorn.run("app.main:app", host="127.0.0.1", port=PORT, log_level="warning")
 
 

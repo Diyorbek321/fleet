@@ -18,6 +18,9 @@ const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 4173);
 export const E2E_API_URL = `http://127.0.0.1:${API_PORT}`;
 export const E2E_EMAIL = process.env.E2E_EMAIL ?? 'e2e@fleetwatch-e2e.com';
 export const E2E_PASSWORD = process.env.E2E_PASSWORD ?? 'e2e-password-123';
+// The platform operator. Seeded straight into the throwaway E2E database by
+// e2e_server.py, since no endpoint mints a superadmin.
+export const E2E_SUPERADMIN = process.env.E2E_SUPERADMIN_EMAIL ?? 'ops@fleetwatch-e2e.com';
 
 export default defineConfig({
   testDir: './e2e',
@@ -59,7 +62,12 @@ export default defineConfig({
       timeout: 120_000,
       stdout: 'pipe',
       stderr: 'pipe',
-      env: { E2E_PORT: String(API_PORT), E2E_EMAIL, E2E_PASSWORD },
+      env: {
+        E2E_PORT: String(API_PORT),
+        E2E_EMAIL,
+        E2E_PASSWORD,
+        E2E_SUPERADMIN_EMAIL: E2E_SUPERADMIN,
+      },
     },
     {
       // `preview` serves the production build, so these test the bundle that

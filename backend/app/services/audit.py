@@ -28,8 +28,17 @@ SUPPORT_READ = "support.read"
 
 # A superadmin opening one customer screen fires half a dozen requests, and a
 # support session would otherwise bury the deliberate actions under hundreds of
-# near-identical rows. One entry per operator per customer per window keeps the
-# log answerable by a human, which is the only reason it exists.
+# near-identical rows. Collapsing them to about one entry per operator per
+# customer per window keeps the log answerable by a human, which is the only
+# reason it exists.
+#
+# "About" is honest: the check reads before it writes, so requests a screen
+# fires in parallel can all miss the same existing row and each insert one. A
+# session therefore leaves two or three entries rather than exactly one. That
+# is a tidiness limit, not a correctness one — the guarantee that matters is
+# that an access is never *missing* from the log, and duplicates cannot cause
+# that. Making it exact would need a unique index on a time bucket, which is
+# more machinery than the readability it buys.
 SUPPORT_READ_WINDOW = timedelta(minutes=10)
 
 
@@ -72,7 +81,7 @@ async def record(
 async def record_support_read(
     db: AsyncSession, *, actor: User, org: Organization, path: str
 ) -> None:
-    """Note that the operator looked at a customer's data, at most once a window.
+    """Note that the operator looked at a customer's data, roughly once a window.
 
     Committed on its own rather than left to the request's session. The
     requests this fires on are reads, and a read handler has no commit of its

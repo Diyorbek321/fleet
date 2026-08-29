@@ -69,7 +69,19 @@ export default function OrganizationsPage() {
 
   const usersQueryKey = [ORGS_KEY, usersTarget?.id, 'users'] as const;
 
-  const invalidateOrgs = () => queryClient.invalidateQueries({ queryKey: [ORGS_KEY] });
+  /**
+   * Refresh the company list *and* the platform panel above it.
+   *
+   * Every mutation here changes both: onboarding moves the company count and
+   * writes an audit row, suspending moves the active/suspended split, deleting
+   * moves everything. Invalidating only the list left the overview and the
+   * audit log showing the state from before the action that was just taken —
+   * the operator's own screen disagreeing with what they had just done.
+   */
+  const invalidateOrgs = () => {
+    void queryClient.invalidateQueries({ queryKey: ['platform'] });
+    return queryClient.invalidateQueries({ queryKey: [ORGS_KEY] });
+  };
 
   /** Every failure surfaces the server's own detail — a silent no-op here would
    *  leave the operator believing a customer was provisioned when it wasn't. */

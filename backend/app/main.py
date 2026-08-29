@@ -124,7 +124,22 @@ if origins:
         allow_origins=origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-IMEI"],
+        # X-Support-Org is how a platform operator asks to read one customer's
+        # screens. Left off this list the browser strips it before the request
+        # is sent, and support access silently does nothing — the operator sees
+        # their own empty organization and concludes the feature is broken.
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-API-Key",
+            "X-IMEI",
+            "X-Support-Org",
+        ],
+        # Cross-origin JavaScript can only read the response headers named
+        # here. Without it `Content-Disposition` is invisible to the SPA, and
+        # every download — the monthly report, the AI report — is saved under
+        # the client's fallback name instead of the dated one the server chose.
+        expose_headers=["Content-Disposition"],
     )
 
 
