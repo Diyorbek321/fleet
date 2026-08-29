@@ -26,7 +26,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fleetwatch.driver",
       "infoPlist": {
-        "UIBackgroundModes": ["location"]
+        "UIBackgroundModes": [
+          "location"
+        ]
       }
     },
     "plugins": [
@@ -45,8 +47,12 @@
       "expo-notifications"
     ],
     "extra": {
-      "_apiUrl_note": "LOCAL DEV ONLY. Shipped builds (development/preview/production) get their HTTPS backend host from EXPO_PUBLIC_API_URL in eas.json — this value is the fallback for `npm start`. Android emulator reaches the host via 10.0.2.2; for a real phone on the same Wi-Fi use http://<your-LAN-IP>:8000. NEVER put a production URL here.",
+      "_apiUrl_note": "LOCAL DEV ONLY. Shipped builds (development/preview/production) get their HTTPS backend host from EXPO_PUBLIC_API_URL in eas.json \u2014 this value is the fallback for `npm start`. Android emulator reaches the host via 10.0.2.2; for a real phone on the same Wi-Fi use http://<your-LAN-IP>:8000. NEVER put a production URL here.",
       "apiUrl": "http://10.0.2.2:8000"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
     }
   }
 }

@@ -73,3 +73,7 @@ frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
 frontend/.playwright/
+
+# Exported web build + recorded walkthrough video (regenerable, and large)
+mobile/dist/
+mobile/demo-video/
