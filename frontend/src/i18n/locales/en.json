@@ -378,7 +378,9 @@
         "groceries": "Groceries",
         "parkingPaperwork": "Parking paperwork",
         "taxi": "Taxi",
-        "carwash": "Carwash"
+        "carwash": "Carwash",
+        "fuel": "Fuel (GSM)",
+        "insurance": "Insurance"
       }
     },
     "footer": {
@@ -522,7 +524,17 @@
   },
   "settings": {
     "security": "Security",
-    "securityDescription": "Your sign-in credentials"
+    "securityDescription": "Your sign-in credentials",
+    "rates": {
+      "title": "Exchange rates",
+      "description": "Needed to compare a trip's spending across the three countries.",
+      "kzt": "Tenge",
+      "rub": "Rouble",
+      "uzs": "So'm",
+      "hint": "Leave empty and expenses show in their own currency only. Trips whose form records an exchange use their own rate.",
+      "saved": "Rates saved",
+      "saveFailed": "Could not save the rates"
+    }
   },
   "support": {
     "viewing": "Support session —",
@@ -549,5 +561,53 @@
     "target": "Company",
     "when": "When",
     "detail": "Detail"
+  },
+  "countryExpenses": {
+    "title": "Trip spending by country",
+    "subtitle": "Every round trip split across Uzbekistan, Kazakhstan and Russia — how much, and on what",
+    "grandTotal": "Total (USD)",
+    "tripCount": "{{count}} trips",
+    "tabSummary": "Summary",
+    "tabTrips": "Trips",
+    "allTrucks": "All trucks",
+    "download": "Excel",
+    "downloadFailed": "Could not download the file",
+    "empty": "No trip reports were filled in for this period.",
+    "noTrips": "No trips found for this period.",
+    "category": "Spent on",
+    "amount": "Amount",
+    "liters": "Litres",
+    "share": "Share",
+    "total": "Total",
+    "totalUsd": "Total (USD)",
+    "trip": "Trip",
+    "truck": "Truck",
+    "date": "Date",
+    "km": "km",
+    "fuelLiters": "{{liters}} L of fuel",
+    "shareOfTotal": "{{percent}}% of total",
+    "rateNote": "1 USD = {{rate}} {{currency}} ({{source}})",
+    "noRate": "No rate set — USD not calculated",
+    "missingRate": "No exchange rate for {{countries}}, so the USD total is incomplete.",
+    "setRates": "Set rates",
+    "partialTotal": "Total is incomplete — no rate",
+    "cardsTitle": "Card fuel",
+    "cardsHint": "DOHA and E1 are settled centrally, so they are not part of any country total.",
+    "card": {
+      "title": "Card",
+      "doha": "DOHA",
+      "e1card": "E1 card"
+    },
+    "rateSource": {
+      "trip": "trip's own rate",
+      "org": "company rate",
+      "mixed": "mixed rate"
+    },
+    "range": {
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "last90": "Last 90 days",
+      "thisYear": "This year"
+    }
   }
 }

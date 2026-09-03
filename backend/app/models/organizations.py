@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, String, DateTime, Text, func, true
+from sqlalchemy import Boolean, Numeric, String, DateTime, Text, func, true
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -51,6 +51,16 @@ class Organization(Base):
     # Internal notes for the platform operator (billing quirks, onboarding state).
     # Never exposed to the customer's own admins — only /api/organizations/* reads it.
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # How many units of each currency one US dollar buys, for comparing a trip's
+    # Kazakh, Russian and Uzbek spending on one scale. NULL means "not set": the
+    # report then shows native amounts only and says so, rather than converting
+    # at a rate nobody chose. A trip that recorded its own exchange (dollars
+    # handed over, tenge received) overrides these — see
+    # ``app.services.country_expenses.resolve_rates``.
+    usd_to_kzt: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
+    usd_to_rub: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
+    usd_to_uzs: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

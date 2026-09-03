@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Truck, Users, Gauge, Wrench, Fuel, Download, Loader2, Sparkles, Wallet } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { CountryExpenseReportCard } from '@/components/reports/CountryExpenseReportCard';
 import { PeriodReportCard } from '@/components/reports/PeriodReportCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -137,6 +138,10 @@ export default function ReportsPage() {
       {/* The closing document, above the rolling-window figures: it is what
           someone comes to this page to produce. */}
       <PeriodReportCard />
+
+      {/* Directly under it: the same money, cut by where it was spent rather
+          than by when. A cross-border fleet asks both questions. */}
+      <CountryExpenseReportCard />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <SummaryCard

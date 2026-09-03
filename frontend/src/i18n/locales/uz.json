@@ -378,7 +378,9 @@
         "groceries": "Oziq-ovqat",
         "parkingPaperwork": "To‘xtash rasmiylashtirish",
         "taxi": "Taksi",
-        "carwash": "Moyka"
+        "carwash": "Moyka",
+        "fuel": "Yoqilg‘i (GSM)",
+        "insurance": "Sug‘urta"
       }
     },
     "footer": {
@@ -522,7 +524,17 @@
   },
   "settings": {
     "security": "Xavfsizlik",
-    "securityDescription": "Tizimga kirish ma’lumotlaringiz"
+    "securityDescription": "Tizimga kirish ma’lumotlaringiz",
+    "rates": {
+      "title": "Valyuta kurslari",
+      "description": "Reys xarajatlarini uch davlat bo‘yicha solishtirish uchun kerak.",
+      "kzt": "Tenge",
+      "rub": "Rubl",
+      "uzs": "So‘m",
+      "hint": "Bo‘sh qoldirsangiz — xarajatlar faqat o‘z valyutasida ko‘rsatiladi. Yo‘l varaqasida valyuta almashuvi yozilgan reyslar o‘z kursidan foydalanadi.",
+      "saved": "Kurslar saqlandi",
+      "saveFailed": "Kurslarni saqlab bo‘lmadi"
+    }
   },
   "support": {
     "viewing": "Qo‘llab-quvvatlash —",
@@ -549,5 +561,53 @@
     "target": "Kompaniya",
     "when": "Qachon",
     "detail": "Tafsilot"
+  },
+  "countryExpenses": {
+    "title": "Davlatlar bo‘yicha reys xarajatlari",
+    "subtitle": "Har bir reys O‘zbekiston, Qozog‘iston va Rossiya bo‘yicha alohida — qancha va nimaga sarflangani",
+    "grandTotal": "Jami (USD)",
+    "tripCount": "{{count}} ta reys",
+    "tabSummary": "Xulosa",
+    "tabTrips": "Reyslar",
+    "allTrucks": "Barcha mashinalar",
+    "download": "Excel",
+    "downloadFailed": "Faylni yuklab bo‘lmadi",
+    "empty": "Bu davrda to‘ldirilgan yo‘l varaqasi yo‘q.",
+    "noTrips": "Bu davrda reys topilmadi.",
+    "category": "Nima uchun",
+    "amount": "Summa",
+    "liters": "Litr",
+    "share": "Ulushi",
+    "total": "Jami",
+    "totalUsd": "Jami (USD)",
+    "trip": "Reys",
+    "truck": "Mashina",
+    "date": "Sana",
+    "km": "km",
+    "fuelLiters": "{{liters}} litr yoqilg‘i",
+    "shareOfTotal": "jamining {{percent}}%",
+    "rateNote": "1 USD = {{rate}} {{currency}} ({{source}})",
+    "noRate": "Kurs kiritilmagan — USD hisoblanmadi",
+    "missingRate": "{{countries}} uchun valyuta kursi yo‘q, shuning uchun USD jami to‘liq emas.",
+    "setRates": "Kursni kiritish",
+    "partialTotal": "Kurs yo‘qligi sababli jami to‘liq emas",
+    "cardsTitle": "Kartadagi yoqilg‘i",
+    "cardsHint": "DOHA va E1 kartalari markazdan to‘lanadi, shuning uchun davlat jamiga kirmaydi.",
+    "card": {
+      "title": "Karta",
+      "doha": "DOHA",
+      "e1card": "E1 karta"
+    },
+    "rateSource": {
+      "trip": "reys kursi",
+      "org": "tashkilot kursi",
+      "mixed": "aralash kurs"
+    },
+    "range": {
+      "thisMonth": "Bu oy",
+      "lastMonth": "O‘tgan oy",
+      "last90": "So‘nggi 90 kun",
+      "thisYear": "Bu yil"
+    }
   }
 }

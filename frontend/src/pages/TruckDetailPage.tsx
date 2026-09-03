@@ -21,6 +21,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CountryExpenseReportCard } from '@/components/reports/CountryExpenseReportCard';
 import { TruckFormModal } from '@/components/trucks/TruckFormModal';
 import { trucksApi } from '@/lib/trucks';
 import type { Truck } from '@/types';
@@ -232,6 +233,10 @@ export default function TruckDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* This lorry's own runs, split by country. Pinned to the truck, so the
+          page never shows a picker for a question already answered. */}
+      <CountryExpenseReportCard truckId={truck.id} />
 
       <TruckFormModal open={isEditOpen} onClose={() => setIsEditOpen(false)} truck={editTruck} />
     </div>

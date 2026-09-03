@@ -23,6 +23,11 @@ from app.services.ai_reports import (
     ReportType,
     generate_report,
 )
+from app.services.country_expense_xlsx import (
+    build_workbook as build_country_workbook,
+    filename_for as country_filename_for,
+)
+from app.services.country_expenses import build_country_expense_report, default_range
 from app.services.period_report_xlsx import build_workbook, filename_for
 from app.services.period_reports import PeriodKind, build_period_report, resolve_period
 
@@ -420,4 +425,180 @@ async def period_report_xlsx(
         content=build_workbook(report),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename_for(report)}"'},
+    )
+
+
+# ── Country expenses: where one truck's money went, per round trip ─────────
+
+
+class CategoryLineOut(BaseModel):
+    category: str
+    amount: float
+    amount_usd: Optional[float]
+    liters: Optional[float]
+
+
+class CountryBlockOut(BaseModel):
+    """One country's share of a trip (or of the whole range), itemised.
+
+    ``amount``/``total`` are in ``currency`` — the money as it was actually
+    spent. Only the ``*_usd`` figures may be compared or added across
+    countries, and they are ``None`` when no rate was available rather than
+    zero: nothing was converted, which is not the same as nothing was spent.
+    """
+    country: str
+    currency: str
+    lines: list[CategoryLineOut]
+    total: float
+    total_usd: Optional[float]
+    fuel_liters: float
+    rate: Optional[float]
+    # trip = the exchange this trip itself recorded, org = the organization's
+    # configured rate, mixed = several of the above across the aggregated trips.
+    rate_source: Optional[str]
+
+
+class CardFuelOut(BaseModel):
+    column: str
+    liters: float
+    amount: float
+
+
+class CountryExpenseTripOut(BaseModel):
+    trip_id: str
+    reference: str
+    truck_id: Optional[str]
+    truck_name: Optional[str]
+    plate_number: Optional[str]
+    driver_name: Optional[str]
+    trip_date: Optional[date]
+    route: Optional[str]
+    distance_km: Optional[float]
+    report_status: Optional[str]
+    countries: list[CountryBlockOut]
+    cards: list[CardFuelOut]
+    total_usd: Optional[float]
+    usd_partial: bool
+
+
+class CountryExpenseReportOut(BaseModel):
+    organization: str
+    start: date
+    end: date
+    generated_at: datetime
+    truck_id: Optional[str]
+    trips: list[CountryExpenseTripOut]
+    countries: list[CountryBlockOut]
+    cards: list[CardFuelOut]
+    total_usd: Optional[float]
+    usd_partial: bool
+    countries_missing_rate: list[str]
+
+
+def _block_out(block) -> CountryBlockOut:
+    return CountryBlockOut(
+        country=block.country,
+        currency=block.currency,
+        lines=[
+            CategoryLineOut(
+                category=l.category, amount=l.amount, amount_usd=l.amount_usd, liters=l.liters
+            )
+            for l in block.lines
+        ],
+        total=block.total,
+        total_usd=block.total_usd,
+        fuel_liters=block.fuel_liters,
+        rate=block.rate,
+        rate_source=block.rate_source,
+    )
+
+
+def _country_expenses_out(report) -> CountryExpenseReportOut:
+    return CountryExpenseReportOut(
+        organization=report.organization,
+        start=report.start,
+        end=report.end,
+        generated_at=report.generated_at,
+        truck_id=report.truck_id,
+        trips=[
+            CountryExpenseTripOut(
+                trip_id=t.trip_id,
+                reference=t.reference,
+                truck_id=t.truck_id,
+                truck_name=t.truck_name,
+                plate_number=t.plate_number,
+                driver_name=t.driver_name,
+                trip_date=t.trip_date,
+                route=t.route,
+                distance_km=t.distance_km,
+                report_status=t.report_status,
+                countries=[_block_out(b) for b in t.countries],
+                cards=[CardFuelOut(column=c.column, liters=c.liters, amount=c.amount) for c in t.cards],
+                total_usd=t.total_usd,
+                usd_partial=t.usd_partial,
+            )
+            for t in report.trips
+        ],
+        countries=[_block_out(b) for b in report.countries],
+        cards=[CardFuelOut(column=c.column, liters=c.liters, amount=c.amount) for c in report.cards],
+        total_usd=report.total_usd,
+        usd_partial=report.usd_partial,
+        countries_missing_rate=report.countries_missing_rate,
+    )
+
+
+# Explicit dates rather than a rolling `days=` window: a round trip to Moscow
+# and back takes three weeks, so the range a user wants is "August", or "this
+# truck since spring" — a window measured from today keeps sliding out from
+# under the trip they were looking at.
+_FROM = Query(default=None, alias="from", description="First day of the range (local date)")
+_TO = Query(default=None, alias="to", description="Last day of the range, inclusive")
+
+
+def _resolve_range(date_from: Optional[date], date_to: Optional[date]) -> tuple[date, date]:
+    start, end = default_range()
+    start = date_from or start
+    end = date_to or end
+    if start > end:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="'from' must not be later than 'to'",
+        )
+    return start, end
+
+
+@router.get("/country-expenses", response_model=CountryExpenseReportOut)
+async def country_expenses(
+    date_from: Optional[date] = _FROM,
+    date_to: Optional[date] = _TO,
+    truck_id: Optional[uuid.UUID] = Query(default=None, description="Limit to one truck"),
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+):
+    """Per-trip spending split by the country it happened in, itemised by what for.
+
+    One row per round trip that has a driver-filled report, each carrying an
+    Uzbek, Kazakh and Russian block; plus the same three blocks rolled up over
+    the whole range. Pass ``truck_id`` for one lorry's history.
+    """
+    start, end = _resolve_range(date_from, date_to)
+    report = await build_country_expense_report(db, org, start=start, end=end, truck_id=truck_id)
+    return _country_expenses_out(report)
+
+
+@router.get("/country-expenses.xlsx")
+async def country_expenses_xlsx(
+    date_from: Optional[date] = _FROM,
+    date_to: Optional[date] = _TO,
+    truck_id: Optional[uuid.UUID] = Query(default=None, description="Limit to one truck"),
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+) -> Response:
+    """The same breakdown as a spreadsheet, one sheet per way of reading it."""
+    start, end = _resolve_range(date_from, date_to)
+    report = await build_country_expense_report(db, org, start=start, end=end, truck_id=truck_id)
+    return Response(
+        content=build_country_workbook(report),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{country_filename_for(report)}"'},
     )

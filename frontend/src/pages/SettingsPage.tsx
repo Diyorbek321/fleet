@@ -15,6 +15,7 @@ import { useSettings, type UserSettings } from '@/hooks/use-settings';
 import { SUPPORTED_LANGUAGES, type LanguageCode } from '@/i18n';
 import { Button } from '@/components/ui/button';
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog';
+import { ExchangeRatesCard } from '@/components/settings/ExchangeRatesCard';
 
 interface ToggleRow {
   key: keyof UserSettings;
@@ -60,6 +61,8 @@ export default function SettingsPage() {
       </Card>
 
       <ChangePasswordDialog open={changingPassword} onOpenChange={setChangingPassword} />
+
+      <ExchangeRatesCard />
 
       <Card className="border-border/50 bg-card">
         <CardHeader>
