@@ -76,6 +76,19 @@ services:
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       TELEGRAM_DAILY_HOUR_UTC: ${TELEGRAM_DAILY_HOUR_UTC:-3}
+      # Owner alerts turn an in-app path into a link the owner can tap from
+      # Telegram. Empty drops the link rather than shipping a broken href, so
+      # alerts still work without it — they just lose the tap-through.
+      PUBLIC_WEB_URL: https://${APP_DOMAIN}
+      BRIEFING_HOUR_LOCAL: ${BRIEFING_HOUR_LOCAL:-7}
+      # Optional, and everything that uses it degrades to something useful when
+      # it is empty: the morning digest falls back to a plain templated one, the
+      # question agent and the receipt scanner answer "not configured". Note
+      # this also feeds the Reports page's AI generator, which never reached the
+      # container before because this line did not exist.
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
     volumes:
       - uploads:/data/uploads
     depends_on:
