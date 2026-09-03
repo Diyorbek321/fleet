@@ -36,6 +36,11 @@ from app.deps.auth import get_org_id, require_role
 from app.models.enums import UserRole
 from app.models.notifications import TripSubscription
 from app.models.trips import Trip
+from app.services.owner_alerts.commands import (
+    activate_owner_chat,
+    handle_owner_message,
+    parse_owner_start,
+)
 from app.services.telegram import (
     build_deep_link,
     extract_chat,
@@ -97,9 +102,28 @@ async def _handle_update(db: AsyncSession, update: dict[str, Any]) -> None:
     chat_id = str(chat["id"])
     text = extract_text(update)
 
+    # One bot serves two audiences, so the deep-link payload carries a
+    # namespace: ``owner_`` binds a company's own chat to its alert stream,
+    # ``trip_`` binds a cargo owner to one shipment. Checking the owner prefix
+    # first costs nothing — the parsers reject each other's payloads outright.
+    owner_token = parse_owner_start(text)
+    if owner_token:
+        username = chat.get("username") if isinstance(chat, dict) else None
+        reply = await activate_owner_chat(db, owner_token, chat_id, username)
+        await send_message(chat_id, reply)
+        return
+
     token = parse_start_command(text)
     if token:
         await _activate_subscription(db, token, chat_id, chat, text)
+        return
+
+    # An already-linked owner chat answers its own commands. ``None`` means the
+    # chat has no owner link at all, so everything below — the cargo owner's
+    # /stop and /settings — keeps behaving exactly as it did.
+    owner_reply = await handle_owner_message(db, chat_id, text)
+    if owner_reply is not None:
+        await send_message(chat_id, owner_reply)
         return
 
     stripped = text.strip().lower()

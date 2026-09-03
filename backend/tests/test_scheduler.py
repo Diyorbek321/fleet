@@ -22,6 +22,65 @@ def test_scheduler_skipped_under_test_env():
     assert start_scheduler() is None
 
 
+def _watcher_run_entry_points() -> dict[str, object]:
+    """Every ``app.services.owner_alerts`` module exposing the package's ``run(db)``.
+
+    Discovered by import rather than listed here on purpose — a list would have
+    to be edited by the same person who forgot the scheduler entry.
+    """
+    import importlib
+    import pkgutil
+
+    import app.services.owner_alerts as pkg
+
+    found: dict[str, object] = {}
+    for info in pkgutil.iter_modules(pkg.__path__):
+        module = importlib.import_module(f"{pkg.__name__}.{info.name}")
+        run = getattr(module, "run", None)
+        # Defined here, not imported from a sibling: re-exports are not watchers.
+        if callable(run) and getattr(run, "__module__", None) == module.__name__:
+            found[info.name] = run
+    return found
+
+
+async def test_every_owner_alert_watcher_is_actually_scheduled(monkeypatch):
+    """A watcher nothing calls is dead code that still passes its own tests.
+
+    All six shipped this way: each had a green suite driving ``run(db)`` directly
+    while no job registered them, so no owner would ever have received an alert.
+    Asserting against the started scheduler — not against the table feeding it —
+    is what makes this catch a watcher that is listed but never registered.
+    """
+    from app.core.config import settings
+    from app.services import scheduler as sched
+
+    watchers = _watcher_run_entry_points()
+    assert watchers, "discovered no watchers at all — this probe is broken, not the code"
+
+    listed = {run_fn for _, run_fn, _ in sched._OWNER_ALERT_WATCHES}
+    missing = {name for name, run in watchers.items() if run not in listed}
+    assert not missing, f"watchers written but never scheduled: {sorted(missing)}"
+
+    # The env gate above is the whole reason this needs lifting; leave the
+    # module-level handle clear so a real deployment's scheduler is untouched.
+    monkeypatch.setattr(settings, "env", "dev")
+    monkeypatch.setattr(settings, "scheduler_enabled", True)
+    monkeypatch.setattr(sched, "_scheduler", None)
+
+    scheduler = sched.start_scheduler()
+    try:
+        assert scheduler is not None
+        registered = {job.id for job in scheduler.get_jobs()}
+    finally:
+        sched.shutdown_scheduler()
+
+    for name, _, _ in sched._OWNER_ALERT_WATCHES:
+        assert name in registered, f"{name} is listed but no job runs it"
+    assert "prune_owner_alert_log" in registered, (
+        "notification_log is append-only; without the sweep it grows forever"
+    )
+
+
 async def test_maintenance_job_flags_overdue_interval(client: AsyncClient, admin_headers):
     # Create a truck whose mileage is already past a service interval threshold.
     truck = (

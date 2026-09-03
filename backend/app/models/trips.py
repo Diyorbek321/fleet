@@ -87,7 +87,15 @@ class TripEvent(Base):
     """A milestone in a trip's timeline (status change, border arrival, POD, note)."""
 
     __tablename__ = "trip_events"
-    __table_args__ = (Index("ix_trip_events_trip", "trip_id", "recorded_at"),)
+    __table_args__ = (
+        Index("ix_trip_events_trip", "trip_id", "recorded_at"),
+        # The owner-alert trip watcher asks "what changed since <cutoff>" across
+        # every organization on each scheduler tick. That is a leading filter on
+        # `recorded_at`, which the composite above cannot serve — it is keyed on
+        # `trip_id` first — so without this the tick sequentially scans a table
+        # that grows with every status change any customer ever makes.
+        Index("ix_trip_events_recorded_at", "recorded_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     trip_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("trips.id", ondelete="CASCADE"), nullable=False)

@@ -82,6 +82,17 @@ class Settings(BaseSettings):
     # five hours of business under the previous month.
     report_timezone: str = Field(default="Asia/Tashkent", alias="REPORT_TIMEZONE")
 
+    # Externally reachable base URL of the web panel, used to turn an alert's
+    # in-app path into a link an owner can tap from Telegram. Empty simply drops
+    # the link from the message rather than shipping a broken href, so a
+    # deployment that never sets it still gets working alerts.
+    public_web_url: str = Field(default="", alias="PUBLIC_WEB_URL")
+
+    # Local hour the owner's morning digest goes out. 07:00 Tashkent is before
+    # the working day rather than during it — the point is to be read over tea,
+    # not to interrupt.
+    briefing_hour_local: int = Field(default=7, ge=0, le=23, alias="BRIEFING_HOUR_LOCAL")
+
     # ---- Push notifications (Expo) ----
     # Expo's push endpoint accepts unauthenticated sends, so this is optional
     # and delivery works without it. Set it once a project switches on Expo's

@@ -13,6 +13,8 @@ idempotent — re-running it produces the same end state.
 from __future__ import annotations
 
 from datetime import date
+from functools import partial
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import select
@@ -28,6 +30,13 @@ from app.services.cgr import get_cgr_client
 from app.services.daily_updates import send_daily_trip_updates
 from app.services.gps_retention import purge_expired_history
 from app.services.maintenance import refresh_service_statuses
+from app.services.owner_alerts import prune_notification_log
+from app.services.owner_alerts import briefing as owner_briefing
+from app.services.owner_alerts import cash as owner_cash
+from app.services.owner_alerts import expiry as owner_expiry
+from app.services.owner_alerts import leakage as owner_leakage
+from app.services.owner_alerts import reports as owner_reports
+from app.services.owner_alerts import trips as owner_trips
 from app.services.queue import poll_active_watches
 from app.services.reminders import check_document_expiries
 
@@ -250,6 +259,61 @@ async def purge_gps_history() -> None:
         logger.exception("gps_retention_failed")
 
 
+async def _run_owner_watch(name: str, run_fn) -> None:
+    """Run one owner-alert watcher on its own session.
+
+    Every module in ``app.services.owner_alerts`` exposes the same
+    ``run(db) -> int`` entry point and already contains its own failures, so
+    one wrapper serves all of them rather than seven near-identical jobs. The
+    try/except is still here because "never raises" is a promise about the
+    watcher's own logic, not about the session it was handed — a connection
+    dropped mid-tick surfaces here, and must not take the scheduler with it.
+    """
+    try:
+        async with SessionLocal() as db:
+            sent = await run_fn(db)
+            logger.info("owner_alert_watch_done", watch=name, alerts_sent=sent)
+    except Exception:  # noqa: BLE001 — never let a job crash the scheduler
+        logger.exception("owner_alert_watch_failed", watch=name)
+
+
+async def prune_owner_alert_log() -> None:
+    """Drop dedupe rows too old to suppress anything.
+
+    ``notification_log`` gains a row per alert delivered and nothing else ever
+    removes one, so it is the second unbounded table here. A row older than
+    every TTL in use can no longer change a decision, which makes deleting it
+    free — and daily is often enough for a table that grows by alerts, not pings.
+    """
+    try:
+        async with SessionLocal() as db:
+            removed = await prune_notification_log(db)
+            logger.info("owner_alert_log_pruned", rows_removed=removed)
+    except Exception:  # noqa: BLE001 — never let a job crash the scheduler
+        logger.exception("owner_alert_log_prune_failed")
+
+
+# Every watcher and the floor on how often it is worth looking. The scheduler's
+# own interval still wins whenever it is coarser, so a deployment that ticks
+# hourly gets hourly watchers rather than a backlog of overlapping runs.
+_OWNER_ALERT_WATCHES: tuple[tuple[str, Any, int], ...] = (
+    # A load running late and a driver's cash not adding up are only ever found
+    # by looking, and the bus dedupes a repeat finding for free — so these three
+    # ride the plain tick.
+    ("owner_alert_trips", owner_trips.run, 0),
+    ("owner_alert_cash", owner_cash.run, 0),
+    ("owner_alert_leakage", owner_leakage.run, 0),
+    # Expiries move by the day, and the watcher's own scan is written for an
+    # hourly cadence.
+    ("owner_alert_expiry", owner_expiry.run, 60),
+    # Both self-gate on the clock/calendar and no-op otherwise, exactly like
+    # send_daily_trip_updates. A sub-hour tick is what leaves margin around the
+    # target hour, since a restart spanning it is the one way a day is missed.
+    ("owner_alert_briefing", owner_briefing.run, 15),
+    ("owner_alert_reports", owner_reports.run, 15),
+)
+
+
 _scheduler: AsyncIOScheduler | None = None
 
 
@@ -354,6 +418,38 @@ def start_scheduler() -> AsyncIOScheduler | None:
         coalesce=True,
         replace_existing=True,
     )
+
+    for watch_name, watch_run, floor_minutes in _OWNER_ALERT_WATCHES:
+        # Both loop variables are bound as defaults: a closure over them would
+        # leave all six jobs running whichever watcher the loop ended on.
+        async def _watch_job(name: str = watch_name, run_fn: Any = watch_run) -> None:
+            await _run_locked(name, partial(_run_owner_watch, name, run_fn))
+
+        scheduler.add_job(
+            _watch_job,
+            trigger="interval",
+            minutes=max(interval, floor_minutes),
+            id=watch_name,
+            max_instances=1,
+            coalesce=True,
+            replace_existing=True,
+        )
+
+    async def _owner_alert_prune_job() -> None:
+        await _run_locked("prune_owner_alert_log", prune_owner_alert_log)
+
+    scheduler.add_job(
+        _owner_alert_prune_job,
+        trigger="interval",
+        # Rows age out in days, so daily clears them long before the table
+        # matters — and keeps the delete off the ticks the watchers share.
+        minutes=max(interval, 1440),
+        id="prune_owner_alert_log",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+
     scheduler.start()
     _scheduler = scheduler
     logger.info("scheduler_started", interval_minutes=interval)

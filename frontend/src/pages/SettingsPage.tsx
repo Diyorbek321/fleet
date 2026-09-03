@@ -16,6 +16,7 @@ import { SUPPORTED_LANGUAGES, type LanguageCode } from '@/i18n';
 import { Button } from '@/components/ui/button';
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog';
 import { ExchangeRatesCard } from '@/components/settings/ExchangeRatesCard';
+import { TelegramAlertsCard } from '@/components/settings/TelegramAlertsCard';
 
 interface ToggleRow {
   key: keyof UserSettings;
@@ -63,6 +64,8 @@ export default function SettingsPage() {
       <ChangePasswordDialog open={changingPassword} onOpenChange={setChangingPassword} />
 
       <ExchangeRatesCard />
+
+      <TelegramAlertsCard />
 
       <Card className="border-border/50 bg-card">
         <CardHeader>

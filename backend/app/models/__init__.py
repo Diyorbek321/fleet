@@ -15,3 +15,4 @@ from app.models.trip_reports import TripExpenseReport, TripFuelRow, TripCountryE
 # tracker's imei + api_key_hash. See tests/test_schema_drift.py.
 from app.models.devices import Device  # noqa
 from app.models.audit import AuditEvent  # noqa
+from app.models.owner_alerts import TelegramAccount, NotificationLog  # noqa
