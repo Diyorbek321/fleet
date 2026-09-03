@@ -31,34 +31,95 @@ STAMP="$(date +%Y%m%d-%H%M)"
 
 say() { printf '\n\033[1m▸ %s\033[0m\n' "$1"; }
 
+# The link to this Droplet drops mid-transfer often enough that a single-shot
+# rsync of a 230 MB file is a coin flip — it broke at 75% on the first run of
+# this script. Keepalives make ssh notice a dead peer instead of hanging, and
+# every step below is written to be safe to re-run so a break costs only the
+# bytes still outstanding.
+SSH_OPTS="-o ServerAliveInterval=15 -o ServerAliveCountMax=4 -o ConnectTimeout=20"
+SSH="ssh $SSH_OPTS"
+# Steps already finished by an interrupted run can be skipped: FROM_STEP=4
+# resumes at the transfer, which is the only step likely to have failed.
+FROM_STEP="${FROM_STEP:-1}"
+step() { [ "$1" -ge "$FROM_STEP" ]; }
+
+if step 1; then
 say "1/7  Database backup (before any migration runs)"
-ssh "$HOST" "set -e
+# Skipped when a dump from the last two hours already exists: a resumed run
+# must not spend minutes re-dumping a database nothing has touched yet.
+$SSH "$HOST" "set -e
   cd $REMOTE_DIR && mkdir -p backups
-  $COMPOSE exec -T postgres pg_dump -U fleet fleet | gzip > backups/pre-owner-alerts-$STAMP.sql.gz
-  ls -lh backups/pre-owner-alerts-$STAMP.sql.gz"
+  recent=\$(find backups -name 'pre-owner-alerts-*.sql.gz' -mmin -120 | head -1)
+  if [ -n \"\$recent\" ]; then
+    echo \"    reusing \$recent\"
+  else
+    $COMPOSE exec -T postgres pg_dump -U fleet fleet | gzip > backups/pre-owner-alerts-$STAMP.sql.gz
+    ls -lh backups/pre-owner-alerts-$STAMP.sql.gz
+  fi"
+fi
 
 say "2/7  Recording the current schema version and tagging a rollback point"
-BEFORE=$(ssh "$HOST" "cd $REMOTE_DIR && $COMPOSE exec -T postgres psql -U fleet -d fleet -tAc 'select version_num from alembic_version;'" | tr -d '\r')
+BEFORE=$($SSH "$HOST" "cd $REMOTE_DIR && $COMPOSE exec -T postgres psql -U fleet -d fleet -tAc 'select version_num from alembic_version;'" | tr -d '\r')
 echo "    alembic_version before: $BEFORE"
-ssh "$HOST" "set -e
-  docker tag fleetwatch-api:latest fleetwatch-api:rollback-$STAMP
-  docker tag fleetwatch-web:latest fleetwatch-web:rollback-$STAMP
-  echo '    tagged rollback-$STAMP'"
+if step 2; then
+# Reuses today's tag if one exists. Re-tagging after `docker load` has already
+# run would point "rollback" at the release being rolled back from, which is
+# the one thing this tag must never mean.
+$SSH "$HOST" "set -e
+  existing=\$(docker images --format '{{.Tag}}' fleetwatch-api | grep '^rollback-' | sort | tail -1 || true)
+  if [ -n \"\$existing\" ]; then
+    echo \"    rollback point already exists: \$existing\"
+  else
+    docker tag fleetwatch-api:latest fleetwatch-api:rollback-$STAMP
+    docker tag fleetwatch-web:latest fleetwatch-web:rollback-$STAMP
+    echo '    tagged rollback-$STAMP'
+  fi"
+fi
 
+if step 3; then
 say "3/7  Copying docker-compose.prod.yml (new env vars live here)"
-scp docker-compose.prod.yml "$HOST:$REMOTE_DIR/docker-compose.prod.yml"
+scp $SSH_OPTS docker-compose.prod.yml "$HOST:$REMOTE_DIR/docker-compose.prod.yml"
+fi
 
-say "4/7  Shipping images (rsync --partial: a plain pipe breaks on this link)"
-rsync -avz --partial --progress "$IMAGES" "$HOST:$REMOTE_DIR/images.tar.gz"
+if step 4; then
+say "4/7  Shipping images (resumes where a broken pipe left off)"
+# --append-verify, not plain --partial: the source file is byte-identical
+# between attempts, so the bytes already on the far side are re-checksummed
+# once and the transfer picks up from there instead of starting over.
+# --timeout makes rsync give up on a stalled socket in a minute rather than
+# waiting out the TCP timeout, so a retry starts while the link is still worth
+# using.
+attempt=1
+until rsync -av --append-verify --partial --progress --timeout=60 \
+        -e "ssh $SSH_OPTS" "$IMAGES" "$HOST:$REMOTE_DIR/images.tar.gz"; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -gt 12 ]; then
+    echo "    giving up after 12 attempts — the link is down, not flaky" >&2
+    exit 1
+  fi
+  echo "    attempt $attempt (resuming)…"
+  sleep 5
+done
+fi
 
 say "5/7  Loading images"
-ssh "$HOST" "cd $REMOTE_DIR && gunzip -c images.tar.gz | docker load"
+# Compare sizes first. gunzip on a truncated archive fails loudly, but only
+# after `docker load` has already imported whatever layers did arrive — so the
+# cheap check comes first.
+LOCAL_BYTES=$(stat -c %s "$IMAGES")
+REMOTE_BYTES=$($SSH "$HOST" "stat -c %s $REMOTE_DIR/images.tar.gz" | tr -d '\r')
+echo "    local $LOCAL_BYTES bytes / remote $REMOTE_BYTES bytes"
+if [ "$LOCAL_BYTES" != "$REMOTE_BYTES" ]; then
+  echo "    transfer is incomplete — re-run with FROM_STEP=4" >&2
+  exit 1
+fi
+$SSH "$HOST" "cd $REMOTE_DIR && gunzip -c images.tar.gz | docker load"
 
 say "6/7  Restarting api + web"
-ssh "$HOST" "cd $REMOTE_DIR && $COMPOSE up -d --no-build api web && sleep 25 && $COMPOSE ps"
+$SSH "$HOST" "cd $REMOTE_DIR && $COMPOSE up -d --no-build api web && sleep 25 && $COMPOSE ps"
 
 say "7/7  Verifying"
-ssh "$HOST" "set -e
+$SSH "$HOST" "set -e
   cd $REMOTE_DIR
   echo '--- schema version ---'
   $COMPOSE exec -T postgres psql -U fleet -d fleet -tAc 'select version_num from alembic_version;'
@@ -89,12 +150,13 @@ d5e6f7a8b9c0.
 
 To roll back:
   ssh $HOST "cd $REMOTE_DIR && \\
-    docker tag fleetwatch-api:rollback-$STAMP fleetwatch-api:latest && \\
-    docker tag fleetwatch-web:rollback-$STAMP fleetwatch-web:latest && \\
+    tag=\$(docker images --format '{{.Tag}}' fleetwatch-api | grep '^rollback-' | sort | tail -1) && \\
+    docker tag fleetwatch-api:\$tag fleetwatch-api:latest && \\
+    docker tag fleetwatch-web:\$tag fleetwatch-web:latest && \\
     $COMPOSE up -d --no-build api web"
 
 The images roll back cleanly; the database does not. The three migrations in
 this release are additive (two new tables, three nullable columns, one index),
 so the previous image runs fine against the new schema — but if you need the
-old schema too, restore backups/pre-owner-alerts-$STAMP.sql.gz.
+old schema too, restore the newest backups/pre-owner-alerts-*.sql.gz.
 EOF
