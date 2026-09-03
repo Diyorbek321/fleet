@@ -1,7 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import * as ImagePicker from 'expo-image-picker';
 
+import { apiFetch } from '../lib/api';
+import { haptics } from '../lib/haptics';
 import {
   clearTripReportDraft,
   loadTripReportDraft,
@@ -61,6 +64,48 @@ const CATEGORY_I18N_KEY: Record<TripReportExpenseCategory, CategoryI18nKey> = {
   taxi: 'taxi',
   carwash: 'carwash',
 };
+
+/** One expense line suggested by `POST /api/me/receipts/scan`.
+ *
+ *  The endpoint stores nothing — this is a reading of a photo, not a record of
+ *  a payment — so it stays in component state until the driver applies it into
+ *  a field and saves the report the same way they save a typed one. */
+interface ReceiptReading {
+  country: TripReportCountry;
+  category: TripReportExpenseCategory;
+  amount: number;
+  currency: string;
+  vendor: string | null;
+  confidence: number;
+}
+
+/** Below this the reading is presented as one to check rather than one to
+ *  trust. The server already pins a self-contradicting reading (a currency
+ *  that isn't the country's own) to 0.4, so those always land on this side. */
+const CONFIDENCE_CHECK_BELOW = 0.7;
+
+/** The endpoint accepts JPEG/PNG/WebP only. `launchCameraAsync` writes a JPEG,
+ *  so the fallback is the normal case rather than a guess — the branches exist
+ *  for the day this button also offers a gallery pick. */
+function receiptImageType(uri: string, mimeType?: string): string {
+  const candidate = (mimeType || uri.split('.').pop() || '').toLowerCase();
+  if (candidate.includes('png')) return 'image/png';
+  if (candidate.includes('webp')) return 'image/webp';
+  return 'image/jpeg';
+}
+
+/** Ask the server to read a photographed receipt. Writes nothing anywhere. */
+function scanReceipt(asset: { uri: string; mimeType?: string; fileName?: string }) {
+  const form = new FormData();
+  const type = receiptImageType(asset.uri, asset.mimeType);
+  // RN's multipart file shape ({ uri, name, type }) isn't a web Blob — localized cast.
+  form.append('file', {
+    uri: asset.uri,
+    name: asset.fileName ?? 'receipt.jpg',
+    type,
+  } as unknown as Blob);
+  return apiFetch<ReceiptReading>('/api/me/receipts/scan', { method: 'POST', body: form });
+}
 
 function numOrNull(s: string): number | null {
   const trimmed = s.trim();
@@ -205,6 +250,22 @@ function countryKey(country: TripReportCountry, category: TripReportExpenseCateg
   return `${country}:${category}`;
 }
 
+/** The category to actually use for `country`, given a suggested one.
+ *
+ *  `TripReportExpenseCategory` is a flat superset — the paper form prints a
+ *  different set of rows under each country — so a scan can legitimately come
+ *  back as `uz` + `platon`. That pair has no input in this form and
+ *  `buildPayload` only walks `COUNTRY_CATEGORIES`, so accepting it as-is would
+ *  drop the driver's confirmed line at save time without a word. Landing on a
+ *  category the country really has keeps the amount visible and correctable. */
+function categoryForCountry(
+  country: TripReportCountry,
+  category: TripReportExpenseCategory,
+): TripReportExpenseCategory {
+  const allowed = COUNTRY_CATEGORIES[country];
+  return allowed.includes(category) ? category : allowed[0];
+}
+
 /** Everything the form needs to fully reconstruct its state — persisted to
  *  AsyncStorage so a driver's in-progress report survives an app kill,
  *  backgrounding, or a failed save/submit at a border crossing with no
@@ -272,6 +333,15 @@ export function TripReportForm({ tripId }: { tripId: string }) {
   // below. Null once everything is confirmed saved on the server.
   const [pendingAction, setPendingAction] = useState<TripReportPendingAction>(null);
   const [draftRestored, setDraftRestored] = useState(false);
+
+  // A receipt the camera has read but the driver has not accepted yet. It is
+  // deliberately kept apart from `countryAmounts`: until they tap Apply nothing
+  // the model said is in the report, in the draft, or on the server.
+  const [scanning, setScanning] = useState(false);
+  const [scan, setScan] = useState<ReceiptReading | null>(null);
+  const [scanCountry, setScanCountry] = useState<TripReportCountry>('kz');
+  const [scanCategory, setScanCategory] = useState<TripReportExpenseCategory>('food');
+  const [scanAmount, setScanAmount] = useState('');
 
   // Guards the draft-autosave effect so it can't fire (and stomp a real
   // draft with blank defaults) before the initial load — server fetch plus
@@ -367,6 +437,76 @@ export function TripReportForm({ tripId }: { tripId: string }) {
   const setCountryAmount = useCallback((key: string, value: string) => {
     setCountryAmounts((prev) => ({ ...prev, [key]: value }));
   }, []);
+
+  // ── Receipt camera ──────────────────────────────────────────────────
+  //
+  // Photographing the paper is the only step here that isn't typing, and it is
+  // the step the whole country-expense report rests on today. What comes back
+  // is a suggestion: it lands in the confirm card below, where the driver can
+  // fix the country, the category and the total before any of it touches a
+  // field. Nothing is saved on their behalf at any point.
+
+  const captureReceipt = useCallback(async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      void haptics.warning();
+      Alert.alert(t('tripReport.scan.permTitle'), t('tripReport.scan.permBody'));
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.6,
+    });
+    if (result.canceled || result.assets.length === 0) return;
+    const asset = result.assets[0];
+
+    setScanning(true);
+    try {
+      const reading = await scanReceipt({
+        uri: asset.uri,
+        mimeType: asset.mimeType,
+        fileName: asset.fileName ?? undefined,
+      });
+      setScan(reading);
+      setScanCountry(reading.country);
+      setScanCategory(categoryForCountry(reading.country, reading.category));
+      setScanAmount(String(reading.amount));
+      void haptics.success();
+    } catch (e) {
+      // Every failure here — no key on the server, an unreadable photo, no
+      // signal at the border — has the same answer: type the line by hand,
+      // which is what the driver does today anyway. So it is a message, not a
+      // blocked form.
+      void haptics.error();
+      Alert.alert(t('tripReport.scan.failedTitle'), e instanceof Error ? e.message : '');
+    } finally {
+      setScanning(false);
+    }
+  }, [t]);
+
+  const chooseScanCountry = useCallback((country: TripReportCountry) => {
+    setScanCountry(country);
+    setScanCategory((current) => categoryForCountry(country, current));
+  }, []);
+
+  const applyScan = useCallback(
+    (mode: 'replace' | 'add') => {
+      const amount = numOrNull(scanAmount);
+      if (amount === null || amount < 0) {
+        Alert.alert(t('common.error'), t('tripReport.validation.invalidNumber'));
+        return;
+      }
+      const key = countryKey(scanCountry, scanCategory);
+      const existing = mode === 'add' ? numOrNull(countryAmounts[key] ?? '') ?? 0 : 0;
+      // Rounded because two two-decimal sums can otherwise land on
+      // 12500.000000000002, which the driver then has to read and trust.
+      setCountryAmount(key, String(Math.round((existing + amount) * 100) / 100));
+      setScan(null);
+      void haptics.success();
+    },
+    [scanAmount, scanCountry, scanCategory, countryAmounts, setCountryAmount, t],
+  );
 
   // Debounced local-draft autosave: fires on every field edit (after the
   // initial load has settled) so the driver's typed data lives somewhere
@@ -529,6 +669,14 @@ export function TripReportForm({ tripId }: { tripId: string }) {
     [status, t],
   );
 
+  // What is already in the cell a scan would land in. A trip collects several
+  // receipts per category, so when this is non-empty the confirm card offers
+  // "add" alongside "replace" — silently overwriting a hand-typed total is the
+  // one thing the camera must never do.
+  const scanTargetValue = scan
+    ? (countryAmounts[countryKey(scanCountry, scanCategory)] ?? '').trim()
+    : '';
+
   if (loading) return <Loading />;
 
   return (
@@ -636,6 +784,119 @@ export function TripReportForm({ tripId }: { tripId: string }) {
 
       {/* Per-country expenses */}
       <Text style={styles.section}>{t('tripReport.countries.title')}</Text>
+
+      {/* Receipt camera — reads the paper so the driver doesn't retype it.
+          The reading is never written anywhere until they tap Apply below. */}
+      <Button
+        label={t('tripReport.scan.button')}
+        icon="camera-outline"
+        variant="outline"
+        onPress={captureReceipt}
+        loading={scanning}
+      />
+      <Text style={styles.scanHint}>{t('tripReport.scan.hint')}</Text>
+
+      {scan && (
+        <View
+          style={[
+            styles.scanCard,
+            scan.confidence < CONFIDENCE_CHECK_BELOW && styles.scanCardCheck,
+          ]}
+        >
+          <Text style={styles.scanCardTitle}>{t('tripReport.scan.resultTitle')}</Text>
+          {scan.vendor ? <Text style={styles.scanVendor}>{scan.vendor}</Text> : null}
+          <Text
+            style={[
+              styles.scanConfidence,
+              scan.confidence < CONFIDENCE_CHECK_BELOW && styles.scanConfidenceCheck,
+            ]}
+          >
+            {scan.confidence < CONFIDENCE_CHECK_BELOW
+              ? t('tripReport.scan.checkThis', { percent: Math.round(scan.confidence * 100) })
+              : t('tripReport.scan.confidence', { percent: Math.round(scan.confidence * 100) })}
+          </Text>
+
+          <Text style={styles.scanLabel}>{t('tripReport.scan.country')}</Text>
+          <View style={styles.chipRow}>
+            {COUNTRIES.map((country) => {
+              const active = country === scanCountry;
+              return (
+                <Pressable
+                  key={country}
+                  onPress={() => chooseScanCountry(country)}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {t(`tripReport.countries.${country}`)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Text style={styles.scanLabel}>{t('tripReport.scan.category')}</Text>
+          <View style={styles.chipRow}>
+            {COUNTRY_CATEGORIES[scanCountry].map((category) => {
+              const active = category === scanCategory;
+              return (
+                <Pressable
+                  key={category}
+                  onPress={() => setScanCategory(category)}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {t(`tripReport.countries.category.${CATEGORY_I18N_KEY[category]}`)}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <NumericField
+            label={t('tripReport.scan.amount', { currency: scan.currency.toUpperCase() })}
+            value={scanAmount}
+            onChangeText={setScanAmount}
+          />
+
+          {scanTargetValue ? (
+            <Text style={styles.scanHint}>
+              {t('tripReport.scan.existing', { value: scanTargetValue })}
+            </Text>
+          ) : null}
+
+          <View style={styles.scanActions}>
+            {scanTargetValue ? (
+              <>
+                <Button
+                  label={t('tripReport.scan.add')}
+                  icon="add"
+                  onPress={() => applyScan('add')}
+                  style={styles.actionBtn}
+                />
+                <Button
+                  label={t('tripReport.scan.replace')}
+                  variant="outline"
+                  onPress={() => applyScan('replace')}
+                  style={styles.actionBtn}
+                />
+              </>
+            ) : (
+              <Button
+                label={t('tripReport.scan.apply')}
+                icon="checkmark"
+                onPress={() => applyScan('replace')}
+                style={styles.actionBtn}
+              />
+            )}
+          </View>
+          <Button
+            label={t('tripReport.scan.discard')}
+            variant="ghost"
+            onPress={() => setScan(null)}
+          />
+        </View>
+      )}
+
       {COUNTRIES.map((country) => (
         <View key={country} style={styles.countryBlock}>
           <Text style={styles.countryTitle}>{t(`tripReport.countries.${country}`)}</Text>
@@ -721,6 +982,36 @@ const styles = StyleSheet.create({
   actionBtn: { flex: 1 },
   inputError: { borderColor: palette.danger },
   fieldError: { ...typography.caption, color: palette.danger },
+  scanHint: { ...typography.caption, color: palette.muted },
+  scanCard: {
+    gap: spacing.xs,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.surfaceAlt,
+  },
+  // A reading the server is unsure about wears the warning colour, so a driver
+  // glancing at it knows to read the digits rather than tap through.
+  scanCardCheck: { borderColor: palette.warning, backgroundColor: palette.warningBg },
+  scanCardTitle: { ...typography.label, fontWeight: '700' },
+  scanVendor: { ...typography.caption, color: palette.inkSoft },
+  scanConfidence: { ...typography.caption, color: palette.muted },
+  scanConfidenceCheck: { color: palette.warning, fontWeight: '700' },
+  scanLabel: { ...typography.caption, fontWeight: '700', marginTop: spacing.xs },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
+  chip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
+    backgroundColor: palette.white,
+    borderWidth: 1,
+    borderColor: palette.line,
+  },
+  chipActive: { backgroundColor: palette.brand, borderColor: palette.brand },
+  chipText: { ...typography.caption, color: palette.inkSoft },
+  chipTextActive: { color: palette.white, fontWeight: '700' },
+  scanActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.xs },
   pendingBanner: {
     backgroundColor: palette.dangerBg,
     borderWidth: 1,

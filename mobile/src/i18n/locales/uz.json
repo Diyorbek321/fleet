@@ -158,6 +158,24 @@
     },
     "validation": {
       "invalidNumber": "Faqat raqam kiriting (harflar yoki ming ajratkichlarisiz)"
+    },
+    "scan": {
+      "button": "Chekni suratga olish",
+      "hint": "Chekni suratga oling — o'qilgani siz tasdiqlamaguningizcha faqat taklif.",
+      "permTitle": "Ruxsat kerak",
+      "permBody": "Chekni suratga olish uchun kameraga ruxsat bering.",
+      "failedTitle": "Chek o'qilmadi",
+      "resultTitle": "Suratdan o'qildi",
+      "confidence": "Ishonch {{percent}}%",
+      "checkThis": "Tekshiring — ishonch {{percent}}%",
+      "country": "Davlat",
+      "category": "Turi",
+      "amount": "Summa ({{currency}})",
+      "existing": "Bu maydonda allaqachon bor: {{value}}",
+      "apply": "Qo'yish",
+      "add": "Qo'shish",
+      "replace": "Almashtirish",
+      "discard": "Bekor qilish"
     }
   },
   "home": {

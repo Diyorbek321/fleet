@@ -158,6 +158,24 @@
     },
     "validation": {
       "invalidNumber": "Enter a plain number (no letters or thousands separators)"
+    },
+    "scan": {
+      "button": "Scan a receipt",
+      "hint": "Photograph the receipt — what it reads stays a suggestion until you apply it.",
+      "permTitle": "Permission needed",
+      "permBody": "Please allow camera access so you can photograph the receipt.",
+      "failedTitle": "Couldn't read the receipt",
+      "resultTitle": "Read from the photo",
+      "confidence": "Confidence {{percent}}%",
+      "checkThis": "Check this one — confidence {{percent}}%",
+      "country": "Country",
+      "category": "Category",
+      "amount": "Total ({{currency}})",
+      "existing": "Already in this field: {{value}}",
+      "apply": "Use it",
+      "add": "Add to it",
+      "replace": "Replace",
+      "discard": "Discard"
     }
   },
   "home": {
