@@ -88,6 +88,7 @@ from app.services.analytics import scan_tracks
 # in Asia/Tashkent, as UTC" is exactly the thing that drifts out of step and
 # leaves the digest reporting zero again.
 from app.services.owner_alerts.briefing import _day_bounds_utc
+from app.services.owner_alerts.leakage import WINDOW_DAYS as LEAKAGE_WINDOW_DAYS
 from app.services.period_reports import report_tz
 
 GPS_DAYS = 30           # how far back the location history reaches
@@ -496,9 +497,15 @@ async def seed_fuel(db, trucks: list[Truck], km_by_truck: dict[str, float]) -> N
         odometer = float(truck.mileage) - distance
         rows: list[dict] = []
         for f in range(fills):
-            # Spread across days 28→4 so every fill lands inside the 30-day
-            # analytics window (a fill exactly on the boundary gets dropped).
-            filled_at = now - timedelta(days=28 - f * (24 / max(fills - 1, 1)), hours=random.randint(0, 20))
+            # Spread across days 28→8, stopping clear of the last week.
+            # ``seed_yesterday`` owns days 7→0 and sizes its fills from the
+            # distance actually driven there; a fill from this pass landing
+            # inside that window adds litres sized against thirty days of
+            # driving to seven days of distance, which is what pushed the
+            # leakage alert's fleet baseline to an impossible 65 L/100 km.
+            filled_at = now - timedelta(
+                days=28 - f * (20 / max(fills - 1, 1)), hours=random.randint(0, 20)
+            )
             odometer += distance / fills
             rows.append({
                 "liters": round(per_fill * random.uniform(0.9, 1.1), 1),
@@ -952,7 +959,8 @@ async def align_live_positions(db, trips: list[Trip]) -> int:
 #   that truck already burns per kilometre, so L/100 km — and therefore which
 #   trucks the Leakage page flags — is exactly what it was before.
 
-YESTERDAY_TRUCKS = 4        # how many trucks worked yesterday
+RECENT_DAYS = 6             # how far back the "recent week" pass reaches
+RECENT_JOURNEYS = 3         # journeys per truck inside that week
 YESTERDAY_DELIVERIES = 3    # delivered trips re-timed into yesterday
 YESTERDAY_START_HOUR = 6    # local hour the working day begins
 
@@ -983,8 +991,17 @@ async def seed_yesterday(db, org: Organization, trucks: list[Truck], trips: list
     day, start = _yesterday_local()
     rates: dict[str, float] = {}
 
-    # ── Trucks that drove ─────────────────────────────────────────────────
-    for idx, truck in enumerate(trucks[:YESTERDAY_TRUCKS]):
+    # ── Every truck works the week, not just yesterday ────────────────────
+    #
+    # The owner's leakage alert divides litres by kilometres over a rolling
+    # **7-day** window (``leakage.WINDOW_DAYS``), while seed_gps stops five days
+    # back and seed_fuel four. Inside that window the fleet had bought fuel and
+    # barely moved, so the alert announced a truck at 265.7 L/100 km against a
+    # fleet baseline of 74.0 — both impossible, in the one message the demo
+    # leads with. Filling the week for every truck puts the baseline back at a
+    # real ~31 L/100 km, which is what makes the thirsty ones stand out instead
+    # of drowning in noise.
+    for idx, truck in enumerate(trucks):
         last = (
             await db.execute(
                 select(TruckLocationHistory)
@@ -996,16 +1013,43 @@ async def seed_yesterday(db, org: Organization, trucks: list[Truck], trips: list
         if last is None:
             continue
 
-        origin = (float(last.latitude), float(last.longitude))
-        dest_name, dest = _reachable_city(origin)
-        points = build_journey(origin, dest, start, depot_stop=False,
-                               long_stops=1 if idx in THIRSTY_TRUCKS else 0)
+        here = (float(last.latitude), float(last.longitude))
 
-        for ts, pos, speed in points:
-            db.add(TruckLocationHistory(
-                truck_id=truck.id, latitude=pos[0], longitude=pos[1],
-                speed=speed, heading=bearing(origin, dest), recorded_at=ts,
-            ))
+        # The chain has to begin *after* the truck's newest existing ping, not
+        # at a fixed six days back. seed_gps leaves off around five days ago, so
+        # a fixed start interleaved the new legs with the old tail: ordered by
+        # time the track then jumped between two cities and back on every ping,
+        # and the week's distance came out near 100 000 km — enough to overflow
+        # the litres column that is sized from it.
+        floor = last.recorded_at + timedelta(hours=2)
+        window_start = max(floor, start - timedelta(days=RECENT_DAYS))
+        span_h = (start + timedelta(hours=12) - window_start).total_seconds() / 3600.0
+        if span_h < 12:
+            continue
+        legs = max(1, min(RECENT_JOURNEYS, int(span_h // 14)))
+
+        for leg in range(legs):
+            # Evenly spaced, with the **last** leg pinned to yesterday morning.
+            # The week needs distance everywhere for the leakage ratio, but the
+            # morning digest reads one day only — spread the legs freely and
+            # yesterday comes out empty, which is how the digest went back to
+            # reporting 124 km and no fuel at all.
+            leg_start = (
+                start if leg == legs - 1
+                else window_start + timedelta(
+                    hours=(start - window_start).total_seconds() / 3600.0 * leg / max(legs - 1, 1)
+                )
+            )
+            dest_name, dest = _reachable_city(here)
+            points = build_journey(here, dest, leg_start, depot_stop=False,
+                                   long_stops=1 if idx in THIRSTY_TRUCKS else 0)
+            for ts, pos, speed in points:
+                db.add(TruckLocationHistory(
+                    truck_id=truck.id, latitude=pos[0], longitude=pos[1],
+                    speed=speed, heading=bearing(here, dest), recorded_at=ts,
+                ))
+            here = points[-1][1]
+
         # Its own consumption, not the fleet's, so a thirsty truck stays thirsty.
         rates[str(truck.id)] = THIRSTY_TRUCKS.get(idx) or random.uniform(*NORMAL_CONSUMPTION)
 
@@ -1019,31 +1063,70 @@ async def seed_yesterday(db, org: Organization, trucks: list[Truck], trips: list
     # and the digest prints both litres and kilometres on adjacent lines. Sized
     # the naive way they read as 58 L/100 km, which is the first arithmetic a
     # fleet owner in the room does and the first number that loses them.
-    start_utc, end_utc = _day_bounds_utc(day)
-    tracks = await scan_tracks(db, start_utc, end_utc, org.id)
+    now = datetime.now(timezone.utc)
+    week_start = now - timedelta(days=LEAKAGE_WINDOW_DAYS)
+    tracks = await scan_tracks(db, week_start, now, org.id)
+    # Yesterday measured on its own, so its fill can be sized from the distance
+    # the digest will report beside it. Splitting the week's litres evenly
+    # instead put a third of the fuel against a sixth of the kilometres, and the
+    # digest's two adjacent lines divided out to 75 L/100 km.
+    day_start_utc, day_end_utc = _day_bounds_utc(day)
+    day_tracks = await scan_tracks(db, day_start_utc, day_end_utc, org.id)
 
     driven_km = 0.0
     fills = 0
-    for truck in trucks[:YESTERDAY_TRUCKS]:
+    for truck in trucks:
         track = tracks.get(str(truck.id))
         km = float(track.distance_km) if track else 0.0
         if km <= 0:
             continue
         driven_km += km
 
-        liters = round(km * rates[str(truck.id)] / 100.0, 1)
-        price = float(random.randint(*D.DIESEL_PRICE_UZS))
+        rate = rates.get(str(truck.id)) or random.uniform(*NORMAL_CONSUMPTION)
+        day_track = day_tracks.get(str(truck.id))
+        day_km = min(km, float(day_track.distance_km) if day_track else 0.0)
         truck.mileage = float(truck.mileage) + km
-        db.add(FuelLog(
-            truck_id=truck.id,
-            liters=liters,
-            cost_per_liter=price,
-            total_cost=round(liters * price, 2),
-            mileage_at_fill=round(float(truck.mileage), 0),
-            fuel_station=random.choice(D.FUEL_STATIONS_UZ),
-            filled_at=start + timedelta(hours=random.uniform(1, 9)),
-        ))
-        fills += 1
+
+        # Two buckets, each sized from the distance it belongs to: yesterday's
+        # fill covers yesterday, the earlier fills cover the rest of the week.
+        day_liters = round(day_km * rate / 100.0, 1)
+        earlier_liters = max(0.0, (km - day_km) * rate / 100.0)
+        earlier_fills = max(1, RECENT_JOURNEYS - 1)
+
+        # Split across the week rather than one implausible tanker-sized fill:
+        # the fraud heuristics compare each row against the one before it, and a
+        # single weekly fill would look like the very anomaly this is not.
+        for n in range(RECENT_JOURNEYS):
+            is_yesterday = n == RECENT_JOURNEYS - 1
+            liters = (
+                day_liters if is_yesterday
+                else round(earlier_liters / earlier_fills * random.uniform(0.9, 1.1), 1)
+            )
+            if liters <= 0:
+                continue
+            price = float(random.randint(*D.DIESEL_PRICE_UZS))
+            db.add(FuelLog(
+                truck_id=truck.id,
+                liters=liters,
+                cost_per_liter=price,
+                total_cost=round(liters * price, 2),
+                mileage_at_fill=round(
+                    float(truck.mileage) - km * (RECENT_JOURNEYS - 1 - n) / RECENT_JOURNEYS, 0
+                ),
+                fuel_station=random.choice(D.FUEL_STATIONS_UZ),
+                # Newest fill lands on yesterday, for the same reason the last
+                # leg does: the digest totals one day, and a fleet that drove
+                # yesterday and bought no diesel reads as broken.
+                filled_at=(
+                    start + timedelta(hours=random.uniform(2, 10))
+                    if is_yesterday
+                    else now - timedelta(
+                        days=(LEAKAGE_WINDOW_DAYS - 2) * (RECENT_JOURNEYS - 1 - n) / RECENT_JOURNEYS,
+                        hours=random.uniform(1, 9),
+                    )
+                ),
+            ))
+            fills += 1
 
     # ── Loads that were signed for yesterday ──────────────────────────────
     #
@@ -1071,7 +1154,8 @@ async def seed_yesterday(db, org: Organization, trucks: list[Truck], trips: list
             ))
 
     await db.commit()
-    print(f"  kecha ({day.isoformat()}): {driven_km:,.0f} km, {fills} ta quyish, "
+    print(f"  oxirgi hafta: {driven_km:,.0f} km, {fills} ta quyish · "
+          f"kecha ({day.isoformat()}): "
           f"{len(delivered[:YESTERDAY_DELIVERIES])} ta yetkazilgan reys "
           f"({revenue/1_000_000:,.1f} mln so'm)")
 
