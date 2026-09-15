@@ -16,6 +16,7 @@ message through the real bus — nothing is faked, nothing is pre-recorded.
     python demo_fire.py owner trips            # kechikkan reyslar + holat o'zgarishi
     python demo_fire.py owner expiry           # hujjat va texkо'rik muddatlari
     python demo_fire.py owner cash             # kassa nomuvofiqligi
+    python demo_fire.py owner reports          # oylik yopilish — ikkita .xlsx
     python demo_fire.py owner all              # hammasi, ketma-ket
 
     python demo_fire.py customer daily         # yuk egalariga ertalabki xabar
@@ -62,9 +63,10 @@ from app.services.owner_alerts import briefing as owner_briefing
 from app.services.owner_alerts import cash as owner_cash
 from app.services.owner_alerts import expiry as owner_expiry
 from app.services.owner_alerts import leakage as owner_leakage
+from app.services.owner_alerts import reports as owner_reports
 from app.services.owner_alerts import trips as owner_trips
 from app.services.owner_alerts.bus import notify_owner
-from app.services.period_reports import report_tz
+from app.services.period_reports import report_tz, resolve_period
 from app.services.telegram import format_daily_update, format_status_change, send_message
 
 # Which dedupe rows a subcommand has to clear before its watcher can speak
@@ -174,6 +176,26 @@ async def cmd_owner_watcher(name: str) -> None:
         print(f"{label}: {cleared} ta eski yozuv tozalandi, tekshiruv ishga tushdi...")
         sent = await module.run(db)  # type: ignore[attr-defined]
     print(f"  → {sent} ta xabar yuborildi")
+
+
+async def cmd_owner_reports() -> None:
+    """Close last month's books now, instead of waiting for the 1st.
+
+    ``reports.run`` fires only on the closing day, and takes ``today`` for
+    exactly this reason. Handing it the first of *this* month resolves the
+    period to the last complete one — August on a day in September — which is
+    the month the workbooks should cover. Asking for the current month would
+    hand the owner a half-finished ledger.
+    """
+    require_telegram()
+    async with SessionLocal() as db:
+        org = await demo_org(db)
+        cleared = await clear_dedupe(db, org, ("report_ready",))
+        first_of_month = datetime.now(report_tz()).date().replace(day=1)
+        period = resolve_period("month", 1, today=first_of_month)
+        print(f"oylik yopilish ({period.label}): {cleared} ta eski yozuv tozalandi...")
+        sent = await owner_reports.run(db, today=first_of_month)
+    print(f"  → {sent} ta hujjat yuborildi")
 
 
 async def cmd_owner_briefing() -> None:
@@ -326,7 +348,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("status", help="Nima ulangani — yig'ilishdan oldin tekshiring")
 
     owner = sub.add_parser("owner", help="Avtopark egasiga xabar")
-    owner.add_argument("what", choices=["briefing", *WATCHERS, "all"])
+    owner.add_argument("what", choices=["briefing", *WATCHERS, "reports", "all"])
 
     customer = sub.add_parser("customer", help="Yuk egasiga xabar")
     customer_sub = customer.add_subparsers(dest="what", required=True)
@@ -346,10 +368,13 @@ async def dispatch(args: argparse.Namespace) -> None:
     elif args.group == "owner":
         if args.what == "briefing":
             await cmd_owner_briefing()
+        elif args.what == "reports":
+            await cmd_owner_reports()
         elif args.what == "all":
             await cmd_owner_briefing()
             for name in WATCHERS:
                 await cmd_owner_watcher(name)
+            await cmd_owner_reports()
         else:
             await cmd_owner_watcher(args.what)
     elif args.group == "customer":

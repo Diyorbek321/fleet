@@ -56,8 +56,11 @@ from app.services.owner_alerts import cash as owner_cash
 from app.services.owner_alerts import expiry as owner_expiry
 from app.services.owner_alerts import leakage as owner_leakage
 from app.services.owner_alerts import trips as owner_trips
-from app.services.owner_alerts.bus import render_alert
-from app.services.period_reports import report_tz
+from app.services.owner_alerts.bus import _send_document, render_alert
+from app.services import country_expense_xlsx, period_report_xlsx
+from app.services.country_expenses import build_country_expense_report
+from app.services.owner_alerts.reports import _country_caption, _period_caption
+from app.services.period_reports import build_period_report, report_tz, resolve_period
 from app.services.telegram import format_daily_update, format_status_change, send_message
 
 # Telegram throttles a single chat at roughly one message a second. A 31
@@ -254,6 +257,45 @@ def render_text(owner: list[dict], customer: list[dict]) -> None:
                 print()
 
 
+async def send_monthly_books(db, org, chat_id: str) -> int:
+    """Last month's two workbooks, delivered for review.
+
+    Straight to ``_send_document`` rather than through ``send_owner_document``:
+    the latter goes to whichever chats the org has linked and records the close
+    in the dedupe log, and a rehearsal that records the close is a rehearsal
+    that stops the real one from happening on the day.
+    """
+    period = resolve_period("month", 1, today=datetime.now(report_tz()).date().replace(day=1))
+
+    sent = 0
+    report = await build_period_report(db, org.id, period)
+    if report.trips_delivered:
+        result = await _send_document(
+            chat_id,
+            period_report_xlsx.filename_for(report),
+            period_report_xlsx.build_workbook(report),
+            _period_caption(report),
+        )
+        sent += 1 if result.ok else 0
+        await asyncio.sleep(SEND_GAP_S)
+
+    countries = await build_country_expense_report(
+        db, org.id, start=period.start, end=period.end
+    )
+    if countries.trips:
+        result = await _send_document(
+            chat_id,
+            country_expense_xlsx.filename_for(countries),
+            country_expense_xlsx.build_workbook(countries),
+            _country_caption(countries, period),
+        )
+        sent += 1 if result.ok else 0
+        await asyncio.sleep(SEND_GAP_S)
+
+    print(f"oylik hisobot ({period.label}): {sent} ta fayl")
+    return sent
+
+
 async def send_all(chat_id: str, owner: list[dict], customer: list[dict]) -> None:
     """Deliver every rendered message to one chat, for review.
 
@@ -302,6 +344,15 @@ async def main(want_owner: bool, want_customer: bool, as_json: bool,
 
     if send_to:
         await send_all(send_to, owner, customer)
+        async with SessionLocal() as db:
+            org = await demo_org(db)
+            await send_message(
+                send_to,
+                "\U0001F4C1 <b>OYLIK HISOBOTLAR</b>\nHar oyning 1-sanasida "
+                "avtopark egasining chatiga shu ikki fayl tushadi.",
+            )
+            await asyncio.sleep(SEND_GAP_S)
+            await send_monthly_books(db, org, send_to)
         return
 
     if as_json:

@@ -222,6 +222,38 @@ raqamlarni ayting, yashirmang.
 Aytadigan gap: *"Egasi panelga kirmasa ham bo'ladi. Ertalab choy ichayotganda
 telefoniga kechagi kun tushadi. Muhim narsa bo'lsa — darhol xabar keladi."*
 
+### Oylik hisobot — buxgalteriya uchun (2 daqiqa)
+
+Bu qism buxgalteri bor avtoparklarda eng kuchli ta'sir qiladi.
+
+```bash
+... exec -T api python demo_fire.py owner reports
+```
+
+Telefonga **ikkita Excel fayl** tushadi:
+
+| Fayl | Ichida nima bor |
+|------|-----------------|
+| Davr hisoboti | `Xulosa` · `Mashinalar` · `Haydovchilar` varaqlari |
+| Mamlakat xarajatlari | xalqaro reyslar bo'yicha davlatlarga ajratilgan xarajat |
+
+Demo ma'lumotida avgust oyi shunday chiqadi:
+
+```
+Yetkazilgan reyslar    48
+Daromad               669 813 746
+Yoqilg'i xarajati    -161 901 964
+Haydovchi xarajatlari -240 485 130
+Texnik xizmat          -28 018 805
+Jami xarajat          -430 405 899
+```
+
+Aytadigan gap: *"Har oyning 1-sanasida bu ikki fayl o'zi keladi. Buxgalter
+so'ramaydi, hech kim eslatmaydi — kelib turadi. Mashina va haydovchi kesimida
+ham bor, ya'ni qaysi mashina pul keltirgani, qaysi biri yegani ko'rinadi."*
+
+Panelda ham ko'rsatish mumkin: **Hisobotlar** → oy tanlab yuklab olish.
+
 Oxirida **Sozlamalar → Telegram xabarnomalari** ni ochib ko'rsating: ikkita
 chat ulangan — direktor hammasi, buxgalter faqat pulga oid xabarlar. Kimga
 nima borishini o'zi sozlaydi.
@@ -270,6 +302,7 @@ alias fw='ssh root@139.59.132.176 "cd /root/fleet && docker compose \
 | `fw demo_fire.py owner trips` | Egaga kechikkan reyslar |
 | `fw demo_fire.py owner expiry` | Egaga hujjat/texko'rik muddatlari |
 | `fw demo_fire.py owner cash` | Egaga kassa nomuvofiqligi |
+| `fw demo_fire.py owner reports` | O'tgan oyning ikkita .xlsx hisoboti |
 | `fw demo_fire.py owner all` | Hammasi ketma-ket |
 | `fw demo_fire.py customer daily` | Yuk egalariga ertalabki xabar |
 | `fw demo_fire.py customer status TR-2026-0021 --status at_border` | Bitta reys holati |
@@ -288,6 +321,7 @@ emas. Shuning uchun mijoz telefoningizni olib ko'rsa ham hammasi joyida.
 | `backend/seed_demo_driver.py` | Mobil ilova uchun haydovchi login |
 | `backend/seed_demo_telegram.py` | Yuk egasi obunalari + avtopark egasi chatlari |
 | `backend/demo_fire.py` | Xabarlarni qo'lda yuborish (prezentatsiya pulti) |
+| `backend/demo_preview.py` | Hamma xabarni ko'rish; `--send-to` bilan bitta chatga yuborish |
 | `backend/simulate_live.py` | Xaritadagi harakat |
 | `backend/demo_data_uz.py` | Ismlar, raqamlar, yo'nalishlar, narxlar — tahrirlash shu yerda |
 | `scripts/demo-setup.sh` | Yuqoridagilarni to'g'ri tartibda ishga tushiradi |
