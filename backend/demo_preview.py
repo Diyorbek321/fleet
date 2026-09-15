@@ -58,7 +58,12 @@ from app.services.owner_alerts import leakage as owner_leakage
 from app.services.owner_alerts import trips as owner_trips
 from app.services.owner_alerts.bus import render_alert
 from app.services.period_reports import report_tz
-from app.services.telegram import format_daily_update, format_status_change
+from app.services.telegram import format_daily_update, format_status_change, send_message
+
+# Telegram throttles a single chat at roughly one message a second. A 31
+# message review run without this gap comes back 429 partway through, and the
+# messages that go missing are the ones at the end of the list.
+SEND_GAP_S = 1.1
 
 # (module, human label, the org-selector attribute to neutralise)
 WATCHERS = [
@@ -149,6 +154,7 @@ async def owner_messages(db, org) -> list[dict]:
                 "kind": alert.kind.value,
                 "severity": alert.severity.value,
                 "text": to_plain(render_alert(alert)),
+                "html": render_alert(alert),
             })
 
     settings.telegram_bot_token = original_token
@@ -196,6 +202,7 @@ async def customer_messages(db, org) -> list[dict]:
             "trip": trip.reference,
             "contact": sub.contact_name,
             "text": to_plain(format_status_change(trip.reference, trip.status, lat, lng, None)),
+            "html": format_status_change(trip.reference, trip.status, lat, lng, None),
         })
         out.append({
             "group": "Ertalabki xabar (har kuni avtomatik)",
@@ -205,6 +212,10 @@ async def customer_messages(db, org) -> list[dict]:
                 trip.reference, trip.status, lat, lng, trip.destination_name,
                 speed, location.recorded_at if location else None,
             )),
+            "html": format_daily_update(
+                trip.reference, trip.status, lat, lng, trip.destination_name,
+                speed, location.recorded_at if location else None,
+            ),
         })
     return out
 
@@ -243,12 +254,55 @@ def render_text(owner: list[dict], customer: list[dict]) -> None:
                 print()
 
 
+async def send_all(chat_id: str, owner: list[dict], customer: list[dict]) -> None:
+    """Deliver every rendered message to one chat, for review.
+
+    Deliberately not through the subscriptions: binding a reviewer's chat to
+    the six cargo-owner rows would mean that during the demo itself the
+    dispatcher's click pushes the customer's update to the presenter instead of
+    the customer. This talks to one chat and leaves every binding untouched.
+    """
+    if not settings.telegram_configured:
+        raise SystemExit("TELEGRAM_BOT_TOKEN sozlanmagan — yuborib bo'lmaydi.")
+
+    sections = [
+        ("\U0001F4E6 <b>YUK MIJOZIGA BORADIGAN XABARLAR</b>\n"
+         "Quyidagilar yuk egasining telefoniga tushadi.", customer),
+        ("\U0001F4CA <b>AVTOPARK EGASIGA BORADIGAN XABARLAR</b>\n"
+         "Quyidagilar avtopark egasining telefoniga tushadi.", owner),
+    ]
+
+    sent = failed = 0
+    for heading, rows in sections:
+        if not rows:
+            continue
+        await send_message(chat_id, heading)
+        await asyncio.sleep(SEND_GAP_S)
+        for m in rows:
+            result = await send_message(chat_id, m["html"])
+            if result.ok:
+                sent += 1
+            else:
+                failed += 1
+                print(f"  ! yuborilmadi (HTTP {result.status_code}): {m['text'][:60]}")
+            # Telegram throttles a single chat at roughly one message a second;
+            # without this the tail of a 31-message run comes back 429 and the
+            # review is missing exactly the alerts at the end of the list.
+            await asyncio.sleep(SEND_GAP_S)
+
+    print(f"yuborildi: {sent} ta" + (f", yuborilmadi: {failed} ta" if failed else ""))
+
+
 async def main(want_owner: bool, want_customer: bool, as_json: bool,
-               out_path: str | None = None) -> None:
+               out_path: str | None = None, send_to: str | None = None) -> None:
     async with SessionLocal() as db:
         org = await demo_org(db)
         owner = await owner_messages(db, org) if want_owner else []
         customer = await customer_messages(db, org) if want_customer else []
+
+    if send_to:
+        await send_all(send_to, owner, customer)
+        return
 
     if as_json:
         payload = json.dumps({"owner": owner, "customer": customer},
@@ -272,6 +326,9 @@ if __name__ == "__main__":
     parser.add_argument("--owner", action="store_true", help="Faqat avtopark egasi xabarlari")
     parser.add_argument("--customer", action="store_true", help="Faqat yuk mijozi xabarlari")
     parser.add_argument("--json", action="store_true", help="JSON chiqarish")
+    parser.add_argument("--send-to", default=None, metavar="CHAT_ID",
+                        help="Hamma xabarni shu Telegram chatiga yuborish (ko'rib chiqish "
+                             "uchun). Obunalarga tegmaydi.")
     parser.add_argument("--out", default=None,
                         help="JSON'ni faylga yozish. stdout'ga structlog ham yozadi, "
                              "shuning uchun quvurga ulanganda shu bayroq kerak.")
@@ -279,4 +336,4 @@ if __name__ == "__main__":
 
     both = not (args.owner or args.customer)
     asyncio.run(main(args.owner or both, args.customer or both,
-                     args.json or bool(args.out), args.out))
+                     args.json or bool(args.out), args.out, args.send_to))
