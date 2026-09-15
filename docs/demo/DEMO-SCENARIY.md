@@ -232,6 +232,7 @@ nima borishini o'zi sozlaydi.
 
 | Muammo | Nima qilish |
 |--------|-------------|
+| **Xaritada birorta mashina yo'q** | Sahifani yangilang (F5). Seed mashinalarni yangi ID bilan qayta yaratadi, ochiq tab esa eski ID'lardagi lokatsiya keshini ushlab qoladi (`staleTime: Infinity`) — natijada birlashtirish ishlamaydi va hamma marker filtrlanib ketadi |
 | Telegram xabari kelmayapti | `demo_fire.py status` — havola ochilganmi? `faol` emas bo'lsa havolani qaytadan oching |
 | Xaritada mashina qimirlamayapti | `simulate_live.py` ishlayaptimi? Ishlamasa ham pozitsiyalar to'g'ri — shunchaki statik |
 | Mobil ilova kirmayapti | APK eski bo'lishi mumkin. Zaxira: brauzerdan `fleet.eduly.uz` ni telefonda oching |
@@ -242,6 +243,13 @@ nima borishini o'zi sozlaydi.
 **Redeploy'dan keyin:** demo skriptlari ishlab turgan konteynerga `docker cp`
 bilan ko'chiriladi, image'ga kirmaydi. Konteyner qayta yaratilsa ular
 yo'qoladi — `./scripts/demo-setup.sh` ni qayta ishga tushiring.
+
+**Demo kuni frontend'ni yolg'iz deploy qilmang.** Prod'dagi frontend va backend
+WebSocket autentifikatsiyasida `?token=` usulini ishlatadi. Repoda commit
+qilinmagan holda yangi usul — `Sec-WebSocket-Protocol` subprotocol'i — yozilgan,
+va u faqat yangi backend bilan ishlaydi. Faqat frontend deploy qilinsa, WS
+403 qaytaradi va xarita jonli yangilanishdan to'xtaydi. Ikkalasi birga
+chiqarilishi shart.
 
 ---
 
