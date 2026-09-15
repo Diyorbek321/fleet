@@ -211,3 +211,46 @@ CARGO = [
 ]
 
 DIESEL_PRICE_UZS = (13_000, 14_600)
+
+
+# --------------------------------------------------------------------------- #
+# Telegram personas                                                            #
+# --------------------------------------------------------------------------- #
+#
+# Two audiences, two bots' worth of behaviour out of one bot token:
+#
+# * the *cargo owner* (yuk egasi) subscribes to exactly one trip and hears
+#   where their load is — they have no account and never see the panel;
+# * the *fleet owner* (avtopark egasi) subscribes to the organization and
+#   hears what the fleet cost them today.
+#
+# Both are magic-link flows, so the seed can only mint the link; someone has
+# to open it in Telegram before a message can be delivered. The demo runbook
+# (docs/demo/DEMO-SCENARIY.md) covers who opens which.
+
+# Cargo owners, one per in-flight trip. These are the people the dispatcher
+# would phone today and text a tracking link to — a mix of retail chains,
+# manufacturers and freight forwarders, because a fleet's customer list is
+# never all one kind of company.
+#
+# (contact_name, phone, company)
+CARGO_OWNERS: list[tuple[str, str, str]] = [
+    ("Shoxrux Abdullayev", "+998 90 145 22 80", "Korzinka Distribution Center"),
+    ("Malika Yo'ldosheva", "+998 93 288 41 15", "Artel Electronics"),
+    ("Timur Nabiyev", "+998 91 604 73 29", "Uzum Market fulfilment"),
+    ("Gulnora Sattorova", "+998 94 312 55 06", "Global Textile Group"),
+    ("Doniyor Ashurov", "+998 97 725 18 43", "Akfa Group"),
+    ("Nigora Umarova", "+998 90 883 60 94", "Nestle Uzbekistan"),
+    ("Javlon Qosimov", "+998 99 471 09 62", "Makro Savdo MChJ"),
+    ("Ozoda Rashidova", "+998 91 536 87 21", "Wildberries UZ ombori"),
+]
+
+# The fleet owner's own chats. Separate rows rather than one, because the
+# people who want the numbers are not one person: the director wants
+# everything, the accountant only wants money moving.
+#
+# (label, muted_kinds)
+OWNER_CHATS: list[tuple[str, list[str]]] = [
+    ("Direktor — Sanjar Aliyev", []),
+    ("Buxgalteriya — Nodira Xolmatova", ["trip_status", "border_queue"]),
+]

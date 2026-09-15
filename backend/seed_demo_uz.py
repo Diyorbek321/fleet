@@ -15,15 +15,26 @@ story to tell:
 * three fuel fill-ups trip the fraud heuristics (oversized fill, inflated
   price, impossible consumption);
 * a handful of trips are still in flight (en route / at the border) so the live
-  map and the trips board are not all-green.
+  map and the trips board are not all-green, each one scheduled around *now* so
+  the board shows one genuinely late trip rather than a fleet weeks overdue;
+* every truck on a running trip sits on that trip's own route, at a speed its
+  status allows — see ``align_live_positions``;
+* yesterday is a real working day — deliveries, distance, fuel and driver
+  spending — because that single day is all the owner's morning digest reads.
+  See ``seed_yesterday``.
 
 **Scope**: every write is confined to this one organization. Other tenants —
 including the real "Default Fleet" data on production — are never read or
 touched, and ``--reset`` only deletes rows belonging to the demo org.
 
 Run (DEMO_PASSWORD is required — see ``demo_data_uz.py``):
-    DEMO_PASSWORD='...' python seed_demo_uz.py            # create/top-up the demo org
     DEMO_PASSWORD='...' python seed_demo_uz.py --reset    # wipe the demo org's rows first, then seed
+
+``--reset`` is not optional in practice: without it the first truck re-inserted
+collides with the plate already in the table. The two companion seeders —
+``seed_demo_driver.py`` (mobile login) and ``seed_demo_telegram.py`` (owner and
+cargo-owner chats) — run after this one; ``scripts/demo-setup.sh`` does all
+three in order.
 """
 from __future__ import annotations
 
@@ -34,7 +45,7 @@ import os
 import random
 import sys
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parent
@@ -64,11 +75,20 @@ from app.models.enums import (
 )
 from app.models.geofences import Geofence
 from app.models.maintenance import FuelLog, MaintenanceRecord, ServiceInterval
+from app.models.notifications import TripSubscription
 from app.models.organizations import Organization
+from app.models.owner_alerts import NotificationLog
 from app.models.trip_reports import TripCountryExpenseLine, TripExpenseReport, TripFuelRow
 from app.models.trips import Trip, TripEvent
 from app.models.trucks import Truck, TruckLocation, TruckLocationHistory
 from app.models.users import User
+from app.services.analytics import scan_tracks
+# Private on purpose, and imported anyway: ``seed_yesterday`` has to measure
+# the *same* window the digest reads, and a local re-derivation of "yesterday
+# in Asia/Tashkent, as UTC" is exactly the thing that drifts out of step and
+# leaves the digest reporting zero again.
+from app.services.owner_alerts.briefing import _day_bounds_utc
+from app.services.period_reports import report_tz
 
 GPS_DAYS = 30           # how far back the location history reaches
 TRIP_DAYS = 60          # how far back the trips board reaches
@@ -175,6 +195,22 @@ async def reset_org(db, org: Organization) -> None:
         await db.execute(delete(MaintenanceRecord).where(MaintenanceRecord.truck_id.in_(truck_ids)))
         await db.execute(delete(ServiceInterval).where(ServiceInterval.truck_id.in_(truck_ids)))
 
+    # Cargo-owner subscriptions die with their trip anyway (the FK cascades),
+    # but saying so here keeps this function's promise true on a database whose
+    # constraint was created without it.
+    await db.execute(delete(TripSubscription).where(TripSubscription.org_id == org.id))
+
+    # The alert dedupe log, on the other hand, is keyed on the *fact* and not
+    # on any row, so nothing cascades it away. Left behind it silences the new
+    # fleet: yesterday's "01 A 447 BC is overdue for service" is still the
+    # newest word on that plate, and the watcher declines to repeat itself.
+    #
+    # ``TelegramAccount`` is deliberately NOT cleared. It holds the chat id an
+    # owner produced by opening a magic link, and re-seeding the fleet is not a
+    # reason to make them do that again — least of all ten minutes before a
+    # presentation.
+    await db.execute(delete(NotificationLog).where(NotificationLog.org_id == org.id))
+
     await db.execute(delete(Trip).where(Trip.org_id == org.id))
     await db.execute(delete(Geofence).where(Geofence.org_id == org.id))
     await db.execute(delete(Driver).where(Driver.org_id == org.id))
@@ -207,9 +243,24 @@ async def seed_org(db) -> Organization:
 
 
 async def seed_users(db, org: Organization, password: str) -> None:
+    """Create the demo logins, or re-point the ones already there.
+
+    Re-hashing rather than skipping, which is what this used to do. Skipping
+    left the seeder telling the truth about everything except the one fact a
+    presenter needs: after a re-seed the accounts still carried whatever
+    password the *first* seed had used, so ``DEMO_PASSWORD`` set today opened
+    nothing and the failure surfaced at the login screen in front of a customer.
+    ``seed_demo_driver.py`` already re-points its account for the same reason.
+
+    Safe because the set is closed: ``DEMO_USERS`` is two @silkroad.uz
+    addresses in the demo org, never a real customer's login.
+    """
     for email, role in D.DEMO_USERS:
         existing = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
         if existing:
+            existing.org_id = org.id
+            existing.role = UserRole(role)
+            existing.password_hash = hash_password(password)
             continue
         db.add(User(
             org_id=org.id,
@@ -628,6 +679,17 @@ ACTIVE_TAIL = [
     TripStatus.planned,
 ]
 
+# How far into its own planned duration each running trip is, right now. One
+# entry per ``ACTIVE_TAIL`` slot.
+#
+# Spread on purpose: identical progress puts every marker at the same point of
+# its route and — because ``live_pose`` derives speed from progress — gives the
+# whole fleet one speed. The 1.18 is the deliberate exception: that trip is
+# 18% past its promised arrival and still moving, which is what gives the
+# trips board one genuinely late row and the owner-alert delay watcher one
+# true thing to report. A negative value means the trip has not started yet.
+TAIL_PROGRESS = [0.34, 0.61, 1.18, 0.55, 0.05, -0.12]
+
 
 async def seed_trips(db, org: Organization, trucks: list[Truck], drivers: list[Driver]) -> list[Trip]:
     now = datetime.now(timezone.utc)
@@ -637,19 +699,36 @@ async def seed_trips(db, org: Organization, trucks: list[Truck], drivers: list[D
     for idx, truck in enumerate(trucks):
         driver = drivers[idx] if idx < len(drivers) else random.choice(drivers)
         for j in range(random.randint(6, 9)):
-            origin_name, dest_name, distance_km, rate, international = random.choice(D.CORRIDORS)
-            origin, dest = D.CITIES[origin_name], D.CITIES[dest_name]
-            cargo, weight, reefer = random.choice(D.CARGO)
-
-            days_ago = random.randint(2, TRIP_DAYS)
-            scheduled_start = now - timedelta(days=days_ago, hours=random.randint(0, 12))
-            duration_h = distance_km / 55.0 + (18 if international else 4)
-            scheduled_end = scheduled_start + timedelta(hours=duration_h)
-
             # The last trip of the first six trucks is still running — so the
             # live map and the trips board are not uniformly "delivered".
             is_tail = (j == 2) and idx < len(ACTIVE_TAIL)
             status = ACTIVE_TAIL[idx] if is_tail else TripStatus.delivered
+
+            # Route is picked after the status, not before, because one status
+            # constrains it: a truck cannot be "at the border" on the Toshkent–
+            # Buxoro run. Left unconstrained the board shows a domestic trip
+            # waiting at customs, which is the first thing a fleet owner in the
+            # room notices and the last thing they forget.
+            pool = [c for c in D.CORRIDORS if c[4]] if status == TripStatus.at_border else D.CORRIDORS
+            origin_name, dest_name, distance_km, rate, international = random.choice(pool)
+            origin, dest = D.CITIES[origin_name], D.CITIES[dest_name]
+            cargo, weight, reefer = random.choice(D.CARGO)
+
+            duration_h = distance_km / 55.0 + (18 if international else 4)
+
+            if is_tail:
+                # A running trip is scheduled backwards from *now*, not from a
+                # random day in the past. Drawn from the same 2–60 day pool as
+                # the delivered ones, these came out forty days into a twelve
+                # hour run and still "en route" — every one of them weeks
+                # overdue on the board, and all of them pinned to the same
+                # clamp in ``live_pose`` so the fleet page showed three trucks
+                # at an identical 87.8 km/h.
+                scheduled_start = now - timedelta(hours=duration_h * TAIL_PROGRESS[idx])
+            else:
+                days_ago = random.randint(2, TRIP_DAYS)
+                scheduled_start = now - timedelta(days=days_ago, hours=random.randint(0, 12))
+            scheduled_end = scheduled_start + timedelta(hours=duration_h)
 
             started_at = None if status == TripStatus.planned else scheduled_start + timedelta(hours=random.uniform(0, 3))
             delivered_at = None
@@ -731,6 +810,270 @@ def _add_trip_events(db, trip: Trip, international: bool) -> None:
                          note="Yuk qabul qilindi, CMR imzolandi",
                          latitude=float(trip.destination_lat), longitude=float(trip.destination_lng),
                          recorded_at=trip.delivered_at))
+
+
+# --------------------------------------------------------------------------- #
+# Live pose — put each truck where its running trip says it is                  #
+# --------------------------------------------------------------------------- #
+#
+# ``seed_gps`` walks every truck through corridors chosen at random, and
+# ``seed_trips`` picks each trip's route independently. Both are fine on their
+# own and contradict each other the moment they meet on screen: a trip whose
+# status reads "chegarada" while its truck's marker sits in Yekaterinburg, or
+# one "yuklanmoqda" at 66 km/h in another country. The dispatcher board, the
+# live map and the cargo owner's Telegram message all read from that one
+# position, so the contradiction shows up three times in the first two minutes
+# of a demo.
+#
+# This runs last and reconciles them in the only direction that can't lose
+# information: the trip is the story, so the truck is moved to the trip.
+# History is deliberately left alone — the thirty days behind it are what the
+# fuel baseline and the leakage figures are computed from.
+
+# status → (truck status, speed range). A truck waiting to be loaded, or
+# sitting in a customs queue, is not doing 70 km/h.
+LIVE_POSE: dict[TripStatus, tuple[TruckStatus, tuple[float, float]]] = {
+    TripStatus.planned: (TruckStatus.idle, (0.0, 0.0)),
+    TripStatus.loading: (TruckStatus.stopped, (0.0, 0.0)),
+    TripStatus.en_route: (TruckStatus.moving, (58.0, 88.0)),
+    TripStatus.at_border: (TruckStatus.stopped, (0.0, 0.0)),
+}
+
+
+def crossing_for(origin: tuple[float, float], dest: tuple[float, float]) -> tuple[str, tuple[float, float]]:
+    """The border post that least detours the route.
+
+    Nearest-to-origin would put a Dushanbe run through a Qozog'iston post;
+    minimising the total detour picks Oybek for that one and Gishtko'prik for
+    Shymkent, which is what the paperwork would say.
+    """
+    return min(
+        D.BORDER_POSTS.items(),
+        key=lambda item: haversine_km(origin, item[1]) + haversine_km(item[1], dest),
+    )
+
+
+def live_pose(trip: Trip, now: datetime) -> tuple[tuple[float, float], float, str]:
+    """Where a truck on this trip is right now: (position, speed, address)."""
+    origin = (float(trip.origin_lat), float(trip.origin_lng))
+    dest = (float(trip.destination_lat), float(trip.destination_lng))
+
+    if trip.status == TripStatus.at_border:
+        name, coords = crossing_for(origin, dest)
+        return jitter(coords, 0.004), 0.0, f"{name} — navbatda"
+
+    if trip.status in (TripStatus.planned, TripStatus.loading):
+        label = "yuklanmoqda" if trip.status == TripStatus.loading else "jo'nashga tayyor"
+        return jitter(origin, 0.008), 0.0, f"{trip.origin_name} — {label}"
+
+    # En route: how far along the planned schedule the clock actually is.
+    # Clamped away from both ends so the marker reads as "on the road" rather
+    # than as a truck that has arrived but not been marked delivered.
+    planned = (trip.scheduled_end - trip.scheduled_start).total_seconds()
+    elapsed = (now - (trip.started_at or trip.scheduled_start)).total_seconds()
+    progress = min(0.82, max(0.18, elapsed / planned if planned > 0 else 0.5))
+
+    # Speed is derived from where the truck is, not drawn beside it. Three
+    # trucks sampled one after another out of the same fixed-seed generator
+    # came out at 86.7, 86.7 and 86.4 km/h — and a fixed seed means that
+    # coincidence is permanent, so the fleet page would show the same
+    # templated-looking column at every demo. Tying it to progress also earns
+    # its keep: a truck near either end of its run is slowing down.
+    _status, (low, high) = LIVE_POSE[trip.status]
+    ramp = min(1.0, 1.4 * min(progress, 1.0 - progress) + 0.35)
+    speed = round((low + (high - low) * ramp) * random.uniform(0.9, 1.04), 1)
+    return (
+        jitter(lerp(origin, dest, progress), 0.01),
+        min(high, speed),
+        f"{trip.origin_name} → {trip.destination_name} yo'nalishi",
+    )
+
+
+async def align_live_positions(db, trips: list[Trip]) -> int:
+    """Move every truck with a running trip onto that trip's route."""
+    now = datetime.now(timezone.utc)
+    running = [t for t in trips if t.status in LIVE_POSE and t.truck_id is not None]
+
+    for trip in running:
+        truck = (await db.execute(select(Truck).where(Truck.id == trip.truck_id))).scalar_one()
+        # A truck the seed parked in the workshop cannot also be out on a run.
+        # Let the trip win and say so, rather than leaving the fleet page
+        # claiming a maintenance truck is en route to Moskva.
+        truck.status = LIVE_POSE[trip.status][0]
+
+        pos, speed, address = live_pose(trip, now)
+        location = (
+            await db.execute(select(TruckLocation).where(TruckLocation.truck_id == truck.id))
+        ).scalar_one_or_none()
+        heading = bearing(
+            (float(trip.origin_lat), float(trip.origin_lng)),
+            (float(trip.destination_lat), float(trip.destination_lng)),
+        )
+        recorded = now - timedelta(minutes=random.randint(1, 6))
+        if location is None:
+            db.add(TruckLocation(
+                truck_id=truck.id, latitude=pos[0], longitude=pos[1],
+                speed=speed, heading=heading, address=address, recorded_at=recorded,
+            ))
+        else:
+            location.latitude, location.longitude = pos[0], pos[1]
+            location.speed = speed
+            location.heading = heading
+            location.address = address
+            location.recorded_at = recorded
+
+    await db.commit()
+    print(f"  jonli pozitsiya: {len(running)} ta mashina o'z reysi yo'nalishiga joylandi")
+    return len(running)
+
+
+# --------------------------------------------------------------------------- #
+# Yesterday — the one day the owner's morning digest actually reports on        #
+# --------------------------------------------------------------------------- #
+#
+# Every generator above spreads its rows across a window that stops short of
+# the present: GPS journeys land 30→5 days back, fuel fills 28→4, delivered
+# trips anywhere in 60 days. Each is reasonable alone, and together they leave
+# *yesterday* empty — which is the single day ``owner_alerts.briefing`` reads.
+# The digest that is supposed to close a presentation came out as five zeroes:
+# "kecha 0 ta yetkazildi, 0 km, 0 l, 0 so'm".
+#
+# Rather than widen four windows and re-tune the leakage figures they feed,
+# this runs last and gives yesterday one believable working day.
+#
+# Two invariants it is written around:
+#
+# * **No teleports.** Each added journey starts at that truck's most recent
+#   history point. ``scan_tracks`` measures distance by summing haversine over
+#   consecutive pings, so a journey starting anywhere else would bill the fleet
+#   for a jump across the map and inflate the 30-day distance the fuel baseline
+#   divides by.
+# * **Consumption is preserved.** Every added kilometre comes with the litres
+#   that truck already burns per kilometre, so L/100 km — and therefore which
+#   trucks the Leakage page flags — is exactly what it was before.
+
+YESTERDAY_TRUCKS = 4        # how many trucks worked yesterday
+YESTERDAY_DELIVERIES = 3    # delivered trips re-timed into yesterday
+YESTERDAY_START_HOUR = 6    # local hour the working day begins
+
+
+def _yesterday_local() -> tuple[date, datetime]:
+    """Yesterday's local date, and 06:00 local on it as an aware datetime."""
+    tz = report_tz()
+    day = datetime.now(tz).date() - timedelta(days=1)
+    return day, datetime.combine(day, time(YESTERDAY_START_HOUR, 0), tzinfo=tz)
+
+
+def _reachable_city(origin: tuple[float, float]) -> tuple[str, tuple[float, float]]:
+    """A city near enough to drive to between breakfast and bedtime.
+
+    Bounded above so the journey fits inside the day it is meant to fill: a
+    Moskva leg would run its pings past midnight and into a day the digest
+    does not look at.
+    """
+    candidates = [
+        (name, coords)
+        for name, coords in D.CITIES.items()
+        if 150.0 <= haversine_km(origin, coords) <= 620.0
+    ]
+    return random.choice(candidates) if candidates else ("Toshkent", D.CITIES["Toshkent"])
+
+
+async def seed_yesterday(db, org: Organization, trucks: list[Truck], trips: list[Trip]) -> None:
+    day, start = _yesterday_local()
+    rates: dict[str, float] = {}
+
+    # ── Trucks that drove ─────────────────────────────────────────────────
+    for idx, truck in enumerate(trucks[:YESTERDAY_TRUCKS]):
+        last = (
+            await db.execute(
+                select(TruckLocationHistory)
+                .where(TruckLocationHistory.truck_id == truck.id)
+                .order_by(TruckLocationHistory.recorded_at.desc())
+                .limit(1)
+            )
+        ).scalars().first()
+        if last is None:
+            continue
+
+        origin = (float(last.latitude), float(last.longitude))
+        dest_name, dest = _reachable_city(origin)
+        points = build_journey(origin, dest, start, depot_stop=False,
+                               long_stops=1 if idx in THIRSTY_TRUCKS else 0)
+
+        for ts, pos, speed in points:
+            db.add(TruckLocationHistory(
+                truck_id=truck.id, latitude=pos[0], longitude=pos[1],
+                speed=speed, heading=bearing(origin, dest), recorded_at=ts,
+            ))
+        # Its own consumption, not the fleet's, so a thirsty truck stays thirsty.
+        rates[str(truck.id)] = THIRSTY_TRUCKS.get(idx) or random.uniform(*NORMAL_CONSUMPTION)
+
+    await db.commit()
+
+    # ── The fuel those kilometres burned ──────────────────────────────────
+    #
+    # Sized from what ``scan_tracks`` measures, not from the ping distances
+    # summed above. The two differ — the analytics pass drops the near-zero
+    # speed clusters a parked truck emits, and this seed's raw sum does not —
+    # and the digest prints both litres and kilometres on adjacent lines. Sized
+    # the naive way they read as 58 L/100 km, which is the first arithmetic a
+    # fleet owner in the room does and the first number that loses them.
+    start_utc, end_utc = _day_bounds_utc(day)
+    tracks = await scan_tracks(db, start_utc, end_utc, org.id)
+
+    driven_km = 0.0
+    fills = 0
+    for truck in trucks[:YESTERDAY_TRUCKS]:
+        track = tracks.get(str(truck.id))
+        km = float(track.distance_km) if track else 0.0
+        if km <= 0:
+            continue
+        driven_km += km
+
+        liters = round(km * rates[str(truck.id)] / 100.0, 1)
+        price = float(random.randint(*D.DIESEL_PRICE_UZS))
+        truck.mileage = float(truck.mileage) + km
+        db.add(FuelLog(
+            truck_id=truck.id,
+            liters=liters,
+            cost_per_liter=price,
+            total_cost=round(liters * price, 2),
+            mileage_at_fill=round(float(truck.mileage), 0),
+            fuel_station=random.choice(D.FUEL_STATIONS_UZ),
+            filled_at=start + timedelta(hours=random.uniform(1, 9)),
+        ))
+        fills += 1
+
+    # ── Loads that were signed for yesterday ──────────────────────────────
+    #
+    # Re-timed rather than generated: these trips already exist, already have
+    # a rate, a truck and a driver, and already appear in the 60-day history.
+    # Only the moment they were delivered moves.
+    delivered = [t for t in trips if t.status == TripStatus.delivered and t.delivered_at]
+    delivered.sort(key=lambda t: t.delivered_at, reverse=True)
+    revenue = 0.0
+    for offset, trip in enumerate(delivered[:YESTERDAY_DELIVERIES]):
+        trip.delivered_at = start + timedelta(hours=9 + offset * 3, minutes=random.randint(0, 50))
+        revenue += float(trip.rate)
+
+        for _ in range(random.randint(2, 4)):
+            category = random.choice(list(ExpenseCategory))
+            low, high = EXPENSE_RANGES_UZS[category]
+            db.add(DriverExpense(
+                driver_id=trip.driver_id,
+                truck_id=trip.truck_id,
+                trip_id=trip.id,
+                category=category,
+                amount=round(random.uniform(low, high), 2),
+                note=f"{trip.origin_name} → {trip.destination_name} yo'lida",
+                spent_at=day,
+            ))
+
+    await db.commit()
+    print(f"  kecha ({day.isoformat()}): {driven_km:,.0f} km, {fills} ta quyish, "
+          f"{len(delivered[:YESTERDAY_DELIVERIES])} ta yetkazilgan reys "
+          f"({revenue/1_000_000:,.1f} mln so'm)")
 
 
 # --------------------------------------------------------------------------- #
@@ -911,6 +1254,13 @@ async def main(reset: bool, password: str) -> None:
         await seed_driver_expenses(db, trips)
         await seed_trip_reports(db, org, trucks, drivers, trips)
         await seed_shifts(db, trucks, drivers)
+        # Yesterday before the live pose: it appends GPS history, and the pose
+        # reads the *trip* rather than the history, so the order only matters
+        # for the mileage it bumps.
+        await seed_yesterday(db, org, trucks, trips)
+        # Last, because it overrides both the random truck status from
+        # seed_trucks and the random live position from seed_gps.
+        await align_live_positions(db, trips)
 
     print("\nTayyor. Kirish:")
     for email, role in D.DEMO_USERS:
