@@ -122,6 +122,14 @@
       "moving": "Harakatda",
       "stopped": "To‘xtagan",
       "offline": "Oflayn"
+    },
+    "popup": {
+      "speed": "Tezlik",
+      "location": "Joylashuv",
+      "updated": "Oxirgi ma’lumot",
+      "driver": "Haydovchi",
+      "model": "Model",
+      "close": "Yopish"
     }
   },
   "devices": {

@@ -85,10 +85,20 @@ export default function MapViewPage() {
 
   return (
     <div className="h-[calc(100vh-8rem)] relative animate-fade-in">
+      {/*
+        The z-0 is load-bearing, not decoration. Leaflet gives its own panes
+        z-index 200-1000 (tiles 200, markers 600, controls 1000) and leaves
+        .leaflet-container itself at z-index:auto — which does *not* open a
+        stacking context, so those panes compete directly with this map's
+        siblings. The overlays below sit at z-10 and lost every time, which is
+        why clicking a truck appeared to do nothing: the popup was rendering
+        behind the tiles. An explicit z-index on the positioned container traps
+        the panes inside it, and the overlays stack above the map as a whole.
+      */}
       <MapContainer
         center={UZBEKISTAN_CENTER}
         zoom={DEFAULT_ZOOM}
-        className="absolute inset-0 rounded-lg overflow-hidden shadow-elevated"
+        className="absolute inset-0 z-0 rounded-lg overflow-hidden shadow-elevated"
         style={{ background: '#0b1220' }}
       >
         <TileLayer

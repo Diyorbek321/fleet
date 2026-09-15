@@ -122,6 +122,14 @@
       "moving": "Moving",
       "stopped": "Stopped",
       "offline": "Offline"
+    },
+    "popup": {
+      "speed": "Speed",
+      "location": "Location",
+      "updated": "Last update",
+      "driver": "Driver",
+      "model": "Model",
+      "close": "Close"
     }
   },
   "devices": {

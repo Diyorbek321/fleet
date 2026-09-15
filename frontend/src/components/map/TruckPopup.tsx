@@ -3,9 +3,9 @@ import { X, MapPin, Gauge, Clock, User, Truck as TruckIcon } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useTranslation } from 'react-i18next';
 import { Truck } from '@/types';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
 
 interface TruckPopupProps {
   truck: Truck;
@@ -13,6 +13,8 @@ interface TruckPopupProps {
 }
 
 export function TruckPopup({ truck, onClose }: TruckPopupProps) {
+  const { t } = useTranslation();
+
   const statusBadgeClasses = {
     moving: 'bg-status-moving/20 text-status-moving border-status-moving/30',
     stopped: 'bg-status-stopped/20 text-status-stopped border-status-stopped/30',
@@ -44,10 +46,16 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
             </div>
             <div>
               <h3 className="font-semibold">{truck.plateNumber}</h3>
-              <p className="text-xs text-muted-foreground">{truck.id}</p>
+              <p className="text-xs text-muted-foreground">{truck.name}</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onClose}>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            aria-label={t('trucks.popup.close')}
+            onClick={onClose}
+          >
             <X className="h-4 w-4" />
           </Button>
         </div>
@@ -64,7 +72,7 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-current"></span>
               </span>
             )}
-            {truck.status}
+            {t(`trucks.status.${truck.status}`)}
           </Badge>
         </div>
 
@@ -72,13 +80,13 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
         <div className="space-y-3">
           <div className="flex items-center gap-3 text-sm">
             <Gauge className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Speed:</span>
+            <span className="text-muted-foreground">{t('trucks.popup.speed')}:</span>
             <span className="font-mono font-medium">{truck.speed} km/h</span>
           </div>
 
           <div className="flex items-center gap-3 text-sm">
             <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Location:</span>
+            <span className="text-muted-foreground">{t('trucks.popup.location')}:</span>
             <span className="font-mono text-xs">
               {truck.latitude.toFixed(5)}, {truck.longitude.toFixed(5)}
             </span>
@@ -86,14 +94,22 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
 
           <div className="flex items-center gap-3 text-sm">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">Updated:</span>
-            <span>{formatDistanceToNow(truck.lastUpdate, { addSuffix: true })}</span>
+            <span className="text-muted-foreground">{t('trucks.popup.updated')}:</span>
+            <span className="font-mono">
+              {truck.lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
           </div>
 
+          {/*
+            Hidden rather than shown as "unassigned" when absent: /api/trucks
+            carries no driver at all (only /api/trucks/{id} does), so every
+            truck on this map would claim to have nobody driving it — a
+            statement the fleet page contradicts one click away.
+          */}
           {truck.driverName && (
             <div className="flex items-center gap-3 text-sm">
               <User className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">Driver:</span>
+              <span className="text-muted-foreground">{t('trucks.popup.driver')}:</span>
               <span>{truck.driverName}</span>
             </div>
           )}
@@ -102,8 +118,8 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
         {/* Truck info */}
         <div className="mt-4 pt-4 border-t border-border/50">
           <div className="text-sm">
-            <span className="text-muted-foreground">Model: </span>
-            <span>{truck.name}</span>
+            <span className="text-muted-foreground">{t('trucks.popup.model')}: </span>
+            <span>{truck.model || '—'}</span>
           </div>
         </div>
       </CardContent>
