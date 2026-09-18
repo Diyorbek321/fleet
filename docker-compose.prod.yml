@@ -55,7 +55,6 @@ services:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-fleet}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fleet}
       REDIS_URL: redis://redis:6379/0
       CORS_ORIGINS: https://${APP_DOMAIN:?set APP_DOMAIN in .env.prod}
-      GPS_API_KEYS: ${GPS_API_KEYS:-}
       # Raw position history is purged past this age by a background job — the
       # only thing standing between the droplet's disk and unbounded GPS growth.
       # Also caps how far back a leakage report can look; see .env.prod.example.
@@ -89,6 +88,27 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
       AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
       AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+      # Reverse geocoding: the country + city shown in Telegram messages and
+      # on the live map. Defaults are the free OpenStreetMap endpoint, whose
+      # usage policy requires a User-Agent that identifies this deployment and
+      # at most one request per second — both enforced in app/services/geocoding.py.
+      # GEOCODING_ENABLED=false falls back to the bare map link everywhere.
+      GEOCODING_ENABLED: ${GEOCODING_ENABLED:-true}
+      GEOCODING_URL: ${GEOCODING_URL:-https://nominatim.openstreetmap.org/reverse}
+      GEOCODING_USER_AGENT: ${GEOCODING_USER_AGENT:-FleetWatchPro/1.0 (https://fleet.eduly.uz)}
+      GEOCODING_MIN_INTERVAL_S: ${GEOCODING_MIN_INTERVAL_S:-1.0}
+      GEOCODING_TIMEOUT_S: ${GEOCODING_TIMEOUT_S:-6.0}
+      GEOCODING_CACHE_TTL_DAYS: ${GEOCODING_CACHE_TTL_DAYS:-30}
+      GEOCODING_ZOOM: ${GEOCODING_ZOOM:-10}
+      # Order matters: the first language OSM has a name in wins. "uz,ru,en"
+      # keeps country names Uzbek and falls back to Russian for the districts
+      # OSM has no Uzbek name for; "uz,en,ru" keeps everything in Latin script.
+      GEOCODING_LANGUAGE: ${GEOCODING_LANGUAGE:-uz,ru,en}
+      # Registers the Telegram webhook on boot. Distinct from API_PUBLIC_URL
+      # (signed file links) — without it every deploy logs
+      # telegram_webhook_registration_skipped and relies on a webhook that was
+      # registered by hand, which breaks the day the bot token is rotated.
+      PUBLIC_API_URL: https://${API_DOMAIN}
     volumes:
       - uploads:/data/uploads
     depends_on:
@@ -129,8 +149,10 @@ services:
       - caddydata:/data
       - caddyconfig:/config
     depends_on:
-      - api
-      - web
+      api:
+        condition: service_healthy
+      web:
+        condition: service_started
 
 volumes:
   pgdata:

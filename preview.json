@@ -1,0 +1,192 @@
+{
+  "owner": [
+    {
+      "group": "Ertalabki xulosa",
+      "kind": "briefing",
+      "severity": "warning",
+      "text": "⚠️ Ertalabki xulosa · 14.09.2026\n\n🚚 Reyslar — kecha 3 ta yetkazildi, daromad 79 068 192 so'm. Hozir yo'lda 5 ta mashina bor.\n🛣 Yo'l — kecha 4 023 km bosib o'tildi.\n⛽ Yoqilg'i — 1 375 l quyildi, 18 717 523 so'm to'landi.\n💵 Xarajat — haydovchilar kecha 11 941 500 so'm sarfladi.\n⚠️ Diqqat — 2 ta ruxsatsiz to'xtash (3.2 soat bekor turish), 5 ta hujjat/xizmat muddati o'tgan, 0 ta muddati yaqinlashmoqda.\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Yo'qotishlar",
+      "kind": "leakage",
+      "severity": "warning",
+      "text": "⚠️ Shubhali yoqilg'i quyish — 01 B 774 GH\n\nSabab: bak hajmidan ortiq quyilgan, masofaga nisbatan sarf haqiqatga to'g'ri kelmaydi\n1180 L × 14 010 = 16 531 800\nSana: 13.09 03:29\nZapravka: Sardor Oil — Jizzax\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Yo'qotishlar",
+      "kind": "leakage",
+      "severity": "warning",
+      "text": "⚠️ Shubhali yoqilg'i quyish — 01 B 774 GH\n\nSabab: bak hajmidan ortiq quyilgan\n1023 L × 13 288 = 13 592 295\nSana: 11.09 22:15\nZapravka: UzGasTrade AGSh — Sergeli\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Yo'qotishlar",
+      "kind": "leakage",
+      "severity": "warning",
+      "text": "⚠️ Shubhali yoqilg'i quyish — 30 D 345 NP\n\nSabab: narx odatdagidan yuqori, masofaga nisbatan sarf haqiqatga to'g'ri kelmaydi\n520 L × 22 233 = 11 561 098\nSana: 13.09 21:39\nZapravka: Noma'lum AYoQSh — Guliston yo'li\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Yo'qotishlar",
+      "kind": "leakage",
+      "severity": "warning",
+      "text": "⚠️ Shubhali yoqilg'i quyish — 40 E 958 UV\n\nSabab: masofaga nisbatan sarf haqiqatga to'g'ri kelmaydi\n380 L × 13 242 = 5 031 960\nSana: 13.09 02:29\nZapravka: Neftgaz Servis — Guliston\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Yo'qotishlar",
+      "kind": "leakage",
+      "severity": "warning",
+      "text": "⚠️ Ortiqcha yoqilg'i sarfi — 01 B 774 GH\n\n76.1 L/100km — avtopark me'yori 32.4 L/100km\n7 kunda: 3 282 L / 4 310 km\nTaxminiy ortiqcha xarajat: 25 879 327\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Yo'qotishlar",
+      "kind": "leakage",
+      "severity": "warning",
+      "text": "⚠️ Yana 13 ta yo'qotish hodisasi aniqlandi\n\n• Ortiqcha yoqilg'i sarfi — 2 ta\n• Ruxsatsiz to'xtash — 11 ta\nQolganlari keyingi tekshiruvlarda yuboriladi.\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Reys holati va kechikishlar",
+      "kind": "trip_delay",
+      "severity": "warning",
+      "text": "⚠️ 01 B 108 EF - Bekzod To'xtayev - TR-2026-0021 Yekaterinburg (RF)ga 11 soat kechikdi\n\nReja: 15.09 01:09\nHolati: yo'lda\nYo'nalish: Toshkent → Yekaterinburg (RF)\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Hujjat va texnik ko'rik muddatlari",
+      "kind": "maintenance_overdue",
+      "severity": "critical",
+      "text": "🚨 Texnik xizmat muddati o'tgan — 01 F 264 WX\n\nMashina: Zarafshon 11 (01 F 264 WX)\nXizmat turi: Moy almashtirish\nRejalashtirilgan sana: 2026-08-16\nMuddati o'tgan: 30 kun\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Hujjat va texnik ko'rik muddatlari",
+      "kind": "maintenance_overdue",
+      "severity": "critical",
+      "text": "🚨 Texnik xizmat muddati o'tgan — 01 B 108 EF\n\nMashina: Yo'lbars 03 (01 B 108 EF)\nXizmat turi: Moy almashtirish\nRejalashtirilgan sana: 2026-08-27\nMuddati o'tgan: 19 kun\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Hujjat va texnik ko'rik muddatlari",
+      "kind": "maintenance_overdue",
+      "severity": "critical",
+      "text": "🚨 Texnik xizmat muddati o'tgan — 01 A 447 BC\n\nMashina: Yo'lbars 01 (01 A 447 BC)\nXizmat turi: Moy almashtirish\nRejalashtirilgan sana: 2026-08-29\nMuddati o'tgan: 17 kun\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Hujjat va texnik ko'rik muddatlari",
+      "kind": "maintenance_overdue",
+      "severity": "critical",
+      "text": "🚨 Texnik xizmat muddati o'tgan — 01 B 774 GH\n\nMashina: Yo'lbars 04 (01 B 774 GH)\nXizmat turi: Moy almashtirish\nRejalashtirilgan sana: 2026-10-06\nQolgan: 21 kun\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Hujjat va texnik ko'rik muddatlari",
+      "kind": "maintenance_overdue",
+      "severity": "critical",
+      "text": "🚨 Texnik xizmat muddati o'tgan — 10 C 891 LM\n\nMashina: Yo'lbars 06 (10 C 891 LM)\nXizmat turi: Moy almashtirish\nRejalashtirilgan sana: 2026-11-26\nQolgan: 72 kun\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Kassa nomuvofiqligi",
+      "kind": "cash_mismatch",
+      "severity": "warning",
+      "text": "⚠️ Kassa hisobi to'g'ri kelmadi — TR-2026-0001\n\n👤 Alisher Karimov\n🚛 01 A 447 BC\n\n• 474.04 USD hisobsiz qoldi\n• 1 440 572 UZS hisobsiz qoldi\n• 410 084 KZT ortiqcha sarflangan\n• 148 294 RUB ortiqcha sarflangan\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Kassa nomuvofiqligi",
+      "kind": "cash_mismatch",
+      "severity": "warning",
+      "text": "⚠️ Kassa hisobi to'g'ri kelmadi — TR-2026-0004\n\n👤 Alisher Karimov\n🚛 01 A 447 BC\n\n• 359.43 USD hisobsiz qoldi\n• 885 877 UZS ortiqcha sarflangan\n• 308 897 KZT ortiqcha sarflangan\n• 140 051 RUB ortiqcha sarflangan\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Kassa nomuvofiqligi",
+      "kind": "cash_mismatch",
+      "severity": "warning",
+      "text": "⚠️ Kassa hisobi to'g'ri kelmadi — TR-2026-0005\n\n👤 Alisher Karimov\n🚛 01 A 447 BC\n\n• 596.08 USD hisobsiz qoldi\n• 1 396 089 UZS hisobsiz qoldi\n• 258 130 KZT ortiqcha sarflangan\n• 83 966 RUB ortiqcha sarflangan\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Kassa nomuvofiqligi",
+      "kind": "cash_mismatch",
+      "severity": "warning",
+      "text": "⚠️ Kassa hisobi to'g'ri kelmadi — TR-2026-0010\n\n👤 Sherzod Rahimov\n🚛 01 A 512 CD\n\n• 2 023.30 USD hisobsiz qoldi\n• 825 757 UZS hisobsiz qoldi\n• 470 965 KZT ortiqcha sarflangan\n• 88 043 RUB ortiqcha sarflangan\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Kassa nomuvofiqligi",
+      "kind": "cash_mismatch",
+      "severity": "warning",
+      "text": "⚠️ Kassa hisobi to'g'ri kelmadi — TR-2026-0011\n\n👤 Sherzod Rahimov\n🚛 01 A 512 CD\n\n• 948.48 USD hisobsiz qoldi\n• 1 749 129 UZS ortiqcha sarflangan\n• 396 618 KZT ortiqcha sarflangan\n• 134 761 RUB ortiqcha sarflangan\n\n🔗 Panelda ochish"
+    },
+    {
+      "group": "Kassa nomuvofiqligi",
+      "kind": "cash_mismatch",
+      "severity": "warning",
+      "text": "⚠️ Kassa hisobi to'g'ri kelmadi — TR-2026-0015\n\n👤 Sherzod Rahimov\n🚛 01 A 512 CD\n\n• 396.08 USD hisobsiz qoldi\n• 1 782 286 UZS hisobsiz qoldi\n• 610 485 KZT ortiqcha sarflangan\n• 74 514 RUB ortiqcha sarflangan\n\n🔗 Panelda ochish"
+    }
+  ],
+  "customer": [
+    {
+      "group": "Holat o'zgardi (dispetcher tugmani bosganda)",
+      "trip": "TR-2026-0045",
+      "contact": "Shoxrux Abdullayev",
+      "text": "🚚 TR-2026-0045\nHolati: rejalashtirildi\n📍 xaritada ko'rish → 40.99388441,71.67226038"
+    },
+    {
+      "group": "Ertalabki xabar (har kuni avtomatik)",
+      "trip": "TR-2026-0045",
+      "contact": "Shoxrux Abdullayev",
+      "text": "🌅 Ertalabki xabar — TR-2026-0045\nHolati: rejalashtirildi\n📍 xaritada ko'rish → 40.99388441,71.67226038\n🎯 Manzil: Toshkent\n⏸ Yuk hozir to'xtab turibdi\n🕒 Oxirgi ma'lumot: 15.09 07:21 UTC"
+    },
+    {
+      "group": "Holat o'zgardi (dispetcher tugmani bosganda)",
+      "trip": "TR-2026-0037",
+      "contact": "Malika Yo'ldosheva",
+      "text": "🚚 TR-2026-0037\nHolati: yuklanmoqda\n📍 xaritada ko'rish → 41.3026066,69.23659943"
+    },
+    {
+      "group": "Ertalabki xabar (har kuni avtomatik)",
+      "trip": "TR-2026-0037",
+      "contact": "Malika Yo'ldosheva",
+      "text": "🌅 Ertalabki xabar — TR-2026-0037\nHolati: yuklanmoqda\n📍 xaritada ko'rish → 41.3026066,69.23659943\n🎯 Manzil: Urganch\n⏸ Yuk hozir to'xtab turibdi\n🕒 Oxirgi ma'lumot: 15.09 07:23 UTC"
+    },
+    {
+      "group": "Holat o'zgardi (dispetcher tugmani bosganda)",
+      "trip": "TR-2026-0012",
+      "contact": "Timur Nabiyev",
+      "text": "🚚 TR-2026-0012\nHolati: yo'lda\n📍 xaritada ko'rish → 41.11909717,70.75246059"
+    },
+    {
+      "group": "Ertalabki xabar (har kuni avtomatik)",
+      "trip": "TR-2026-0012",
+      "contact": "Timur Nabiyev",
+      "text": "🌅 Ertalabki xabar — TR-2026-0012\nHolati: yo'lda\n📍 xaritada ko'rish → 41.11909717,70.75246059\n🎯 Manzil: Toshkent\n🏃 Tezlik: 79 km/soat\n🕒 Oxirgi ma'lumot: 15.09 07:20 UTC"
+    },
+    {
+      "group": "Holat o'zgardi (dispetcher tugmani bosganda)",
+      "trip": "TR-2026-0003",
+      "contact": "Gulnora Sattorova",
+      "text": "🚚 TR-2026-0003\nHolati: yo'lda\n📍 xaritada ko'rish → 41.72456127,70.7025733"
+    },
+    {
+      "group": "Ertalabki xabar (har kuni avtomatik)",
+      "trip": "TR-2026-0003",
+      "contact": "Gulnora Sattorova",
+      "text": "🌅 Ertalabki xabar — TR-2026-0003\nHolati: yo'lda\n📍 xaritada ko'rish → 41.72456127,70.7025733\n🎯 Manzil: Bishkek (QG)\n🏃 Tezlik: 77 km/soat\n🕒 Oxirgi ma'lumot: 15.09 07:20 UTC"
+    },
+    {
+      "group": "Holat o'zgardi (dispetcher tugmani bosganda)",
+      "trip": "TR-2026-0028",
+      "contact": "Doniyor Ashurov",
+      "text": "🚚 TR-2026-0028\nHolati: chegarada\n📍 xaritada ko'rish → 41.18750774,69.06125884"
+    },
+    {
+      "group": "Ertalabki xabar (har kuni avtomatik)",
+      "trip": "TR-2026-0028",
+      "contact": "Doniyor Ashurov",
+      "text": "🌅 Ertalabki xabar — TR-2026-0028\nHolati: chegarada\n📍 xaritada ko'rish → 41.18750774,69.06125884\n🎯 Manzil: Qozon (RF)\n⏸ Yuk hozir to'xtab turibdi\n🕒 Oxirgi ma'lumot: 15.09 07:18 UTC"
+    },
+    {
+      "group": "Holat o'zgardi (dispetcher tugmani bosganda)",
+      "trip": "TR-2026-0021",
+      "contact": "Nigora Umarova",
+      "text": "🚚 TR-2026-0021\nHolati: yo'lda\n📍 xaritada ko'rish → 54.03844259,62.15286317"
+    },
+    {
+      "group": "Ertalabki xabar (har kuni avtomatik)",
+      "trip": "TR-2026-0021",
+      "contact": "Nigora Umarova",
+      "text": "🌅 Ertalabki xabar — TR-2026-0021\nHolati: yo'lda\n📍 xaritada ko'rish → 54.03844259,62.15286317\n🎯 Manzil: Yekaterinburg (RF)\n🏃 Tezlik: 68 km/soat\n🕒 Oxirgi ma'lumot: 15.09 07:23 UTC"
+    }
+  ]
+}
