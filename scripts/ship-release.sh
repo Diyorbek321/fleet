@@ -62,17 +62,25 @@ say "2/7  Recording the current schema version and tagging a rollback point"
 BEFORE=$($SSH "$HOST" "cd $REMOTE_DIR && $COMPOSE exec -T postgres psql -U fleet -d fleet -tAc 'select version_num from alembic_version;'" | tr -d '\r')
 echo "    alembic_version before: $BEFORE"
 if step 2; then
-# Reuses today's tag if one exists. Re-tagging after `docker load` has already
-# run would point "rollback" at the release being rolled back from, which is
-# the one thing this tag must never mean.
+# The tag must point at the image that is running right now. Reusing the newest
+# existing rollback- tag is only safe when it already names that image: on
+# 2026-09-23 it did not — a web-only deploy had moved :latest on without
+# re-tagging, so the "rollback point" was six days older than what was live and
+# predated a migration. Compare IDs, and tag afresh whenever they differ.
+# Re-tagging after `docker load` has run would point "rollback" at the release
+# being rolled back from, which is the one thing this tag must never mean — so
+# this step must stay ahead of step 5.
 $SSH "$HOST" "set -e
+  running=\$(docker images --no-trunc --format '{{.ID}}' fleetwatch-api:latest)
   existing=\$(docker images --format '{{.Tag}}' fleetwatch-api | grep '^rollback-' | sort | tail -1 || true)
-  if [ -n \"\$existing\" ]; then
-    echo \"    rollback point already exists: \$existing\"
+  tagged=''
+  [ -n \"\$existing\" ] && tagged=\$(docker images --no-trunc --format '{{.ID}}' fleetwatch-api:\$existing)
+  if [ -n \"\$existing\" ] && [ \"\$running\" = \"\$tagged\" ]; then
+    echo \"    rollback point already names the running image: \$existing\"
   else
     docker tag fleetwatch-api:latest fleetwatch-api:rollback-$STAMP
     docker tag fleetwatch-web:latest fleetwatch-web:rollback-$STAMP
-    echo '    tagged rollback-$STAMP'
+    echo '    tagged rollback-$STAMP at the currently running images'
   fi"
 fi
 
@@ -89,6 +97,20 @@ say "4/7  Shipping images (resumes where a broken pipe left off)"
 # --timeout makes rsync give up on a stalled socket in a minute rather than
 # waiting out the TCP timeout, so a retry starts while the link is still worth
 # using.
+# --append-verify resumes a partial transfer, but it cannot shrink one: if the
+# far side still holds a *larger* archive from an earlier release, rsync leaves
+# it alone and step 5 then fails the size check with nothing to show for the
+# transfer. Drop any leftover that is not a prefix of this one before starting.
+LOCAL_SIZE=$(stat -c %s "$IMAGES")
+$SSH "$HOST" "set -e
+  f=$REMOTE_DIR/images.tar.gz
+  [ -f \"\$f\" ] || exit 0
+  have=\$(stat -c %s \"\$f\")
+  if [ \"\$have\" -gt $LOCAL_SIZE ]; then
+    echo \"    discarding a larger leftover archive (\$have bytes) from an earlier release\"
+    rm -f \"\$f\"
+  fi"
+
 attempt=1
 until rsync -av --append-verify --partial --progress --timeout=60 \
         -e "ssh $SSH_OPTS" "$IMAGES" "$HOST:$REMOTE_DIR/images.tar.gz"; do
@@ -145,8 +167,8 @@ fi
 
 cat <<EOF
 
-Done. Schema moved from $BEFORE to whatever step 7 printed — it should be
-d5e6f7a8b9c0.
+Done. Schema moved from $BEFORE to whatever step 7 printed — compare that
+against \`alembic heads\` in the image you just shipped.
 
 To roll back:
   ssh $HOST "cd $REMOTE_DIR && \\
@@ -158,5 +180,5 @@ To roll back:
 The images roll back cleanly; the database does not. The three migrations in
 this release are additive (two new tables, three nullable columns, one index),
 so the previous image runs fine against the new schema — but if you need the
-old schema too, restore the newest backups/pre-owner-alerts-*.sql.gz.
+old schema too, restore the newest dump under backups/.
 EOF
