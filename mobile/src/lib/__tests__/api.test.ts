@@ -102,3 +102,48 @@ describe('apiFetch', () => {
     expect(headers['Content-Type']).toBe('application/json');
   });
 });
+
+describe('apiFetch on a response that is not JSON', () => {
+  beforeEach(() => {
+    mockGetToken.mockResolvedValue(null);
+    jest.clearAllMocks();
+  });
+
+  it('reports a gateway error as an ApiError, not a SyntaxError', async () => {
+    // A 502 from the reverse proxy arrives as an HTML page. JSON.parse threw
+    // here, and a SyntaxError is not an ApiError — so screens whose error
+    // branch checks `instanceof ApiError` fell straight through it and showed
+    // nothing at all. A failure has to look like a failure.
+    mockFetchOnce({
+      status: 502,
+      statusText: 'Bad Gateway',
+      body: '<html><body>502 Bad Gateway</body></html>',
+    });
+
+    await expect(apiFetch('/api/me/trips')).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('carries a usable message when the body explains nothing', async () => {
+    mockFetchOnce({ status: 500, statusText: '', body: 'not json' });
+
+    await expect(apiFetch('/api/me/trips')).rejects.toMatchObject({
+      status: 500,
+      message: 'HTTP 500',
+    });
+  });
+
+  it('rejects rather than returning garbage on a 200 that is not JSON', async () => {
+    mockFetchOnce({ status: 200, body: '<html>login page</html>' });
+
+    await expect(apiFetch('/api/me/trips')).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('still prefers the server-supplied detail when there is one', async () => {
+    mockFetchOnce({ status: 403, body: JSON.stringify({ detail: 'Нет доступа' }) });
+
+    await expect(apiFetch('/api/me/trips')).rejects.toMatchObject({
+      status: 403,
+      message: 'Нет доступа',
+    });
+  });
+});

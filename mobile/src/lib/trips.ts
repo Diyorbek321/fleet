@@ -15,6 +15,10 @@ export interface Trip {
   truck_id: string | null;
   driver_id: string | null;
   status: TripStatus;
+  current_stage: TripStage | null;
+  current_stage_place: StagePlace | null;
+  loaded_at: string | null;
+  eta_customs: string | null;
   shipper: string | null;
   consignee: string | null;
   origin_name: string | null;
@@ -35,22 +39,80 @@ export interface Trip {
 }
 
 export interface AdvanceInput {
-  to_status: TripStatus;
+  /** Optional: when a stage is given the server derives the status from it. */
+  to_status?: TripStatus;
+  stage?: TripStage;
+  stage_place?: StagePlace;
   note?: string | null;
   latitude?: number | null;
   longitude?: number | null;
 }
 
-/** The next status a driver can move a trip to (linear flow; null = terminal). */
-export const NEXT_STATUS: Record<TripStatus, TripStatus | null> = {
-  draft: 'planned',
-  planned: 'loading',
-  loading: 'en_route',
-  en_route: 'at_border',
-  at_border: 'delivered',
-  delivered: null,
-  cancelled: null,
-};
+/**
+ * The checkpoint the driver actually reports, finer than `TripStatus`.
+ *
+ * `TripStatus` stays the coarse lifecycle every report and alert is built on;
+ * this is what the cargo owner reads. The two are not parallel lists — the
+ * server derives the status from the stage, so a driver only ever picks one.
+ */
+export type TripStage =
+  | 'arrived_loading'
+  | 'loaded_waiting_docs'
+  | 'docs_received_en_route'
+  | 'arrived_border'
+  | 'crossed_border'
+  | 'arrived_customs'
+  | 'left_customs'
+  | 'arrived_unloading'
+  | 'unloaded';
+
+/** Where the stage happened: a country, or — at a border — the crossing itself. */
+export type StagePlace = 'uz' | 'kz' | 'ru' | 'uz_kz' | 'kz_ru';
+
+/** Display order: the order a UZ↔RU run normally goes through. */
+export const TRIP_STAGES: TripStage[] = [
+  'arrived_loading',
+  'loaded_waiting_docs',
+  'docs_received_en_route',
+  'arrived_border',
+  'crossed_border',
+  'arrived_customs',
+  'left_customs',
+  'arrived_unloading',
+  'unloaded',
+];
+
+const COUNTRIES: StagePlace[] = ['uz', 'kz', 'ru'];
+const CROSSINGS: StagePlace[] = ['uz_kz', 'kz_ru'];
+
+/**
+ * Which places a stage can carry.
+ *
+ * A border stage names the crossing ("УЗБ–КЗ"), not a single country: on a
+ * Tashkent–Tobolsk run the truck reaches a border twice, and only the crossing
+ * tells the two apart — for the customer's message and for the ETA.
+ */
+export function placesFor(stage: TripStage): StagePlace[] {
+  return stage === 'arrived_border' || stage === 'crossed_border' ? CROSSINGS : COUNTRIES;
+}
+
+/**
+ * Stages ordered with the likely next one first.
+ *
+ * Deliberately a suggestion, not a rule: real runs skip customs, reverse
+ * direction, or cross a border twice, and a driver who cannot report what
+ * actually happened stops reporting at all. The server accepts any stage.
+ */
+export function suggestedStages(current: TripStage | null): TripStage[] {
+  if (!current) return TRIP_STAGES;
+  const i = TRIP_STAGES.indexOf(current);
+  if (i < 0) return TRIP_STAGES;
+  // A border repeats, so after crossing one the next likely step is the next
+  // border, not the stage that merely follows it in the list.
+  const rest = TRIP_STAGES.slice(i + 1);
+  const wrap = TRIP_STAGES.slice(0, i + 1);
+  return [...rest, ...wrap];
+}
 
 export const tripsApi = {
   mine: () => apiFetch<Trip[]>('/api/me/trips'),

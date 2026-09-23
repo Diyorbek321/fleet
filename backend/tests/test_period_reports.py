@@ -157,7 +157,7 @@ class TestPeriodReportEndpoint:
         )
         assert res.status_code == 200
         assert "spreadsheetml" in res.headers["content-type"]
-        assert "hisobot-oylik-" in res.headers["content-disposition"]
+        assert "otchet-mesyachnyy-" in res.headers["content-disposition"]
         # PK zip magic: proves a workbook was written, not an error page.
         assert res.content[:2] == b"PK"
 
@@ -166,7 +166,7 @@ class TestPeriodReportEndpoint:
         from openpyxl import load_workbook
 
         wb = load_workbook(BytesIO(res.content))
-        assert wb.sheetnames == ["Xulosa", "Mashinalar", "Haydovchilar"]
+        assert wb.sheetnames == ["Сводка", "Машины", "Водители"]
 
     async def test_money_cells_are_numbers_not_text(self, client: AsyncClient, admin_headers):
         """A column of strings that look like money cannot be summed.
@@ -187,7 +187,7 @@ class TestPeriodReportEndpoint:
 
         from openpyxl import load_workbook
 
-        ws = load_workbook(BytesIO(res.content))["Mashinalar"]
+        ws = load_workbook(BytesIO(res.content))["Машины"]
         fuel_cell = ws.cell(row=2, column=5)
         assert isinstance(fuel_cell.value, (int, float))
         assert fuel_cell.number_format == "#,##0"

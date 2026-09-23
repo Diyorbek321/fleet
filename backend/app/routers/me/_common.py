@@ -46,7 +46,7 @@ async def assigned_truck(db: AsyncSession, driver_id: uuid.UUID) -> Optional[Tru
 async def require_assigned_truck(db: AsyncSession, driver_id: uuid.UUID) -> Truck:
     truck = await assigned_truck(db, driver_id)
     if truck is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No truck currently assigned")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Сейчас не закреплена ни одна машина")
     return truck
 
 
@@ -86,5 +86,5 @@ async def own_trip_or_404(db: AsyncSession, trip_id: uuid.UUID, driver: Driver) 
     res = await db.execute(select(Trip).where(Trip.id == trip_id))
     trip = res.scalar_one_or_none()
     if trip is None or trip.driver_id != driver.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Рейс не найден")
     return trip

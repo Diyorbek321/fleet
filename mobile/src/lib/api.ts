@@ -21,6 +21,18 @@ function isAuthEndpoint(path: string): boolean {
   );
 }
 
+/**
+ * How long a request may hang before it is treated as a failure.
+ *
+ * Without this a dead link — a lorry in a Kazakh dead zone, a proxy that
+ * accepted the connection and then stopped answering — leaves `fetch` pending
+ * forever, and a screen that shows a spinner until its load resolves shows that
+ * spinner until the app is killed. A driver reads that as "the section is
+ * broken", which is exactly what it is. Generous, because uploads on 2G are
+ * slow, but finite.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+
 async function doFetch(path: string, options: RequestInit, token: string | null): Promise<Response> {
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const headers: Record<string, string> = {
@@ -28,7 +40,20 @@ async function doFetch(path: string, options: RequestInit, token: string | null)
     ...(options.headers as Record<string, string> | undefined),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-  return fetch(`${API_URL}${path}`, { ...options, headers });
+
+  // Our controller always wins the timeout; a caller-supplied signal is
+  // chained onto it rather than replacing it, so passing one cannot quietly
+  // hand a request back its unlimited wait.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const abortFromCaller = () => controller.abort();
+  options.signal?.addEventListener('abort', abortFromCaller);
+  try {
+    return await fetch(`${API_URL}${path}`, { ...options, headers, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+    options.signal?.removeEventListener('abort', abortFromCaller);
+  }
 }
 
 /**
@@ -65,11 +90,30 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   if (resp.status === 204) return undefined as T;
 
   const text = await resp.text();
-  const data = text ? JSON.parse(text) : null;
+  // A gateway timeout or a crashed worker answers with HTML, not JSON. Letting
+  // JSON.parse throw here produced a SyntaxError, which is not an ApiError, so
+  // screens fell through their error branch and showed nothing — a failure that
+  // looked like a blank screen instead of like a failure.
+  let data: unknown = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    if (resp.ok) throw new ApiError(resp.status, 'Malformed response');
+  }
 
   if (!resp.ok) {
-    const detail = (data && (data.detail || data.message)) || resp.statusText;
-    throw new ApiError(resp.status, typeof detail === 'string' ? detail : 'Request failed');
+    // `||`, not `??`: an empty statusText is the common case on a proxy error,
+    // and it would otherwise become an error with no message — which is how a
+    // failure ends up showing as a blank alert.
+    throw new ApiError(resp.status, errorDetail(data) || resp.statusText || `HTTP ${resp.status}`);
   }
   return data as T;
+}
+
+/** FastAPI puts the human-readable reason in `detail`; some proxies use `message`. */
+function errorDetail(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const body = data as { detail?: unknown; message?: unknown };
+  const detail = body.detail ?? body.message;
+  return typeof detail === 'string' && detail ? detail : null;
 }

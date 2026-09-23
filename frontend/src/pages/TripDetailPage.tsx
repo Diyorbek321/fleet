@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ArrowRight, Trash2, FileImage, User, Clock } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from '@/lib/datetime';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -163,6 +163,56 @@ export default function TripDetailPage() {
                 <div className="flex items-center gap-2 text-muted-foreground">
                   {trip.truckName ?? ''}
                   {trip.truckPlate ? ` (${trip.truckPlate})` : ''}
+                </div>
+              )}
+              {(trip.cargoDescription || trip.cargoWeightKg) && (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">{t('trips.cargo')}:</span>
+                  <span className="font-medium">
+                    {[
+                      trip.cargoDescription,
+                      // Back to tonnes: the column is kilogrammes because the
+                      // reports sum it that way, but freight is quoted in
+                      // tonnes and that is what was typed in.
+                      trip.cargoWeightKg
+                        ? `${(trip.cargoWeightKg / 1000).toLocaleString()} ${t('trips.tonsShort')}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">{t('tripDetail.stage')}:</span>
+                <span className="font-medium">
+                  {trip.currentStage
+                    ? [
+                        t(`trips.stage.${trip.currentStage}`),
+                        trip.currentStagePlace ? t(`trips.place.${trip.currentStagePlace}`) : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : t('tripDetail.noStage')}
+                </span>
+              </div>
+              {trip.loadedAt && (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">{t('tripDetail.loadedAt')}:</span>
+                  <span className="font-medium">{format(trip.loadedAt, 'dd.MM.yyyy')}</span>
+                </div>
+              )}
+              {trip.etaCustoms && (
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">{t('tripDetail.etaCustoms')}:</span>
+                  <span className="font-medium">{format(trip.etaCustoms, 'dd.MM.yyyy')}</span>
+                  <span className="text-xs text-muted-foreground">
+                    (
+                    {trip.etaBasis === 'history'
+                      ? t('tripDetail.etaMeasured')
+                      : t('tripDetail.etaModelled')}
+                    )
+                  </span>
                 </div>
               )}
             </div>

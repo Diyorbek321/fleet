@@ -21,7 +21,10 @@ async def test_create_trip_autogenerates_reference(client: AsyncClient, admin_he
     )
     assert res.status_code == 200, res.text
     body = res.json()
-    assert body["reference"].startswith("TR-")
+    # Named after the company, not after an opaque prefix: the reference is read
+    # out on the phone and printed on the CMR, where "TR-2026-0012" told nobody
+    # whose lorry it was.
+    assert body["reference"] == "Test Org-0001"
     assert body["status"] == "draft"
     assert body["currency"] == "UZS"
     # created event present in timeline
@@ -150,11 +153,12 @@ async def _signup(client: AsyncClient, email: str, org_name: str) -> dict[str, s
 
 
 async def test_each_organization_numbers_its_trips_from_one(client: AsyncClient):
-    """References are a per-tenant sequence.
+    """References are a per-tenant sequence, under each tenant's own name.
 
     Shared globally, a new customer's very first trip comes out numbered from the
-    platform-wide total — TR-2026-000587 tells them exactly how much freight
-    everyone else is moving. Both orgs here must independently start at 000001.
+    platform-wide total — 000587 tells them exactly how much freight everyone
+    else is moving. Both orgs here must independently start at 0001, and neither
+    may be handed the other's name.
     """
     a_headers = await _signup(client, "ref-a@org.com", "Ref Org A")
     b_headers = await _signup(client, "ref-b@org.com", "Ref Org B")
@@ -163,11 +167,10 @@ async def test_each_organization_numbers_its_trips_from_one(client: AsyncClient)
     a2 = (await client.post("/api/trips", headers=a_headers, json={"rate": 1000})).json()
     b1 = (await client.post("/api/trips", headers=b_headers, json={"rate": 1000})).json()
 
-    assert a1["reference"].endswith("-000001")
-    assert a2["reference"].endswith("-000002")
+    assert a1["reference"] == "Ref Org A-0001"
+    assert a2["reference"] == "Ref Org A-0002"
     # Org B is unaffected by the two trips Org A already created.
-    assert b1["reference"].endswith("-000001")
-    assert b1["reference"] == a1["reference"]
+    assert b1["reference"] == "Ref Org B-0001"
 
 
 async def test_two_organizations_may_hold_the_same_explicit_reference(client: AsyncClient):
@@ -209,14 +212,14 @@ async def test_deleting_a_middle_trip_does_not_make_the_next_one_collide(
         (await client.post("/api/trips", headers=admin_headers, json={"rate": 1})).json()
         for _ in range(3)
     ]
-    assert refs[2]["reference"].endswith("-000003")
+    assert refs[2]["reference"].endswith("-0003")
 
     deleted = await client.delete(f"/api/trips/{refs[1]['id']}", headers=admin_headers)
     assert deleted.status_code in (200, 204)
 
     fourth = await client.post("/api/trips", headers=admin_headers, json={"rate": 1})
     assert fourth.status_code == 200, fourth.text
-    assert fourth.json()["reference"].endswith("-000004")
+    assert fourth.json()["reference"].endswith("-0004")
 
 
 async def test_concurrent_creates_never_share_a_reference(client: AsyncClient, admin_headers):
@@ -245,11 +248,14 @@ async def test_numbering_continues_past_shorter_seeded_references(
 ):
     """Reproduces production: seeded trips numbered TR-YYYY-0094, four digits.
 
-    As text ``'TR-2026-0094' > 'TR-2026-000095'`` — the '9' beats the '0' in the
-    third position — so a lexicographic MAX sticks on the short reference
-    forever and hands out the same number on every call. The tenant creates one
-    trip successfully and can never create a second. Taking the maximum
-    numerically is what makes mixed widths safe.
+    Two things at once. As text ``'TR-2026-0094' > 'TR-2026-000095'`` — the '9'
+    beats the '0' in the third position — so a lexicographic MAX sticks on the
+    short reference forever and hands out the same number on every call; the
+    tenant creates one trip and can never create a second. And a tenant whose
+    references were minted under the old ``TR-YYYY-`` scheme must carry on from
+    where they were, not open a second sequence at 0001 beside trips they can
+    still see. Taking the maximum numerically, across both schemes, is what
+    makes the switchover safe.
     """
     for n in (1, 94):
         seeded = await client.post(
@@ -264,19 +270,91 @@ async def test_numbering_continues_past_shorter_seeded_references(
 
     assert first.status_code == 200, first.text
     assert second.status_code == 200, second.text
-    assert first.json()["reference"] == "TR-2026-000095"
-    assert second.json()["reference"] == "TR-2026-000096"
+    assert first.json()["reference"] == "Test Org-0095"
+    assert second.json()["reference"] == "Test Org-0096"
 
 
 async def test_a_non_numeric_reference_does_not_break_numbering(
     client: AsyncClient, admin_headers
 ):
     """A hand-typed reference sharing the prefix must not reach the integer cast."""
-    typed = await client.post(
-        "/api/trips", headers=admin_headers, json={"rate": 1, "reference": "TR-2026-ACME"}
-    )
-    assert typed.status_code == 200, typed.text
+    for ref in ("TR-2026-ACME", "Test Org-ACME"):
+        typed = await client.post(
+            "/api/trips", headers=admin_headers, json={"rate": 1, "reference": ref}
+        )
+        assert typed.status_code == 200, typed.text
 
     generated = await client.post("/api/trips", headers=admin_headers, json={"rate": 1})
     assert generated.status_code == 200, generated.text
-    assert generated.json()["reference"] == "TR-2026-000001"
+    assert generated.json()["reference"] == "Test Org-0001"
+
+
+# ── The company's name at the head of its references ─────────────────────
+
+
+def test_the_prefix_keeps_the_name_the_customer_writes():
+    """"Angren Tek" is how it reads on a CMR, so internal spacing survives."""
+    from app.services.trips import reference_prefix
+
+    assert reference_prefix("Angren Tek") == "Angren Tek"
+    assert reference_prefix("  Angren   Tek  ") == "Angren Tek"
+
+
+def test_the_prefix_drops_what_would_break_a_url_or_a_filename():
+    """A reference ends up in both."""
+    from app.services.trips import reference_prefix
+
+    assert "/" not in reference_prefix("Angren/Tek")
+    assert "%" not in reference_prefix("Angren %Tek")
+    assert reference_prefix("ООО «Ангрен Тэк»") == "ООО Ангрен Тэк"
+
+
+def test_an_unnamed_organization_still_gets_a_prefix():
+    """A bare number is not a reference anyone can read out."""
+    from app.services.trips import reference_prefix
+
+    assert reference_prefix("") == "TR"
+    assert reference_prefix(None) == "TR"
+    assert reference_prefix("---") == "TR"
+
+
+def test_a_long_company_name_is_shortened_to_fit_the_column():
+    """``trips.reference`` is String(40); a name longer than the column would
+    otherwise fail the insert rather than the validation."""
+    from app.services.trips import MAX_PREFIX_LEN, reference_prefix
+
+    prefix = reference_prefix("A" * 200)
+    assert len(prefix) == MAX_PREFIX_LEN
+    assert len(f"{prefix}-{999999:04d}") <= 40
+
+
+async def test_a_company_renaming_itself_gets_the_new_name_on_new_trips(
+    client: AsyncClient, admin_headers, db
+):
+    """The prefix follows the organization's name, so a rename starts a fresh
+    sequence. The old references stay exactly as issued — they are printed on
+    CMRs that are already out of the office — and the unique constraint plus
+    the create endpoint's retry keep the two books from colliding.
+    """
+    from sqlalchemy import select, update
+
+    from app.models.organizations import Organization
+
+    first = (await client.post("/api/trips", headers=admin_headers, json={"rate": 1})).json()
+    assert first["reference"] == "Test Org-0001"
+
+    org_id = (
+        await db.execute(select(Organization.id).where(Organization.name == "Test Org"))
+    ).scalar_one()
+    await db.execute(
+        update(Organization).where(Organization.id == org_id).values(name="Angren Tek")
+    )
+    await db.commit()
+
+    second = (await client.post("/api/trips", headers=admin_headers, json={"rate": 1})).json()
+    assert second["reference"].startswith("Angren Tek-")
+    assert second["reference"] != first["reference"]
+
+    # The reference already on paper did not move.
+    listing = (await client.get("/api/trips", headers=admin_headers)).json()
+    assert "Test Org-0001" in [t["reference"] for t in listing]

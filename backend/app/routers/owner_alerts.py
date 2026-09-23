@@ -105,7 +105,7 @@ async def _get_owned(db: AsyncSession, account_id: uuid.UUID, org: uuid.UUID) ->
         )
     ).scalar_one_or_none()
     if account is None:
-        raise HTTPException(status_code=404, detail="Telegram account not found")
+        raise HTTPException(status_code=404, detail="Telegram-аккаунт не найден")
     return account
 
 
@@ -129,7 +129,7 @@ async def create_link(
             )
         ).scalar_one_or_none()
         if owner is None:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
 
     account = TelegramAccount(
         org_id=org,
@@ -229,7 +229,7 @@ async def send_test(
     """
     account = await _get_owned(db, account_id, org)
     if account.chat_id is None:
-        raise HTTPException(status_code=400, detail="Chat is not activated yet")
+        raise HTTPException(status_code=400, detail="Чат ещё не активирован")
 
     result = await send_message(
         account.chat_id,

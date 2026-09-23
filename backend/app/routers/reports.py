@@ -250,7 +250,7 @@ async def generate_ai_report(
     user=Depends(require_role(UserRole.admin)),
 ) -> Response:
     if report_type not in _VALID_TYPES or language not in LANGUAGE_NAMES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid parameters")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверные параметры")
     try:
         report = await generate_report(
             db,
@@ -264,7 +264,7 @@ async def generate_ai_report(
     except Exception:  # network / upstream AI errors — don't leak upstream detail to the client
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI report generation failed. Please try again later.",
+            detail="Не удалось сформировать отчёт ИИ. Попробуйте позже.",
         )
     return Response(
         content=report.content,
@@ -562,7 +562,7 @@ def _resolve_range(date_from: Optional[date], date_to: Optional[date]) -> tuple[
     if start > end:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="'from' must not be later than 'to'",
+            detail="«from» не может быть позже «to»",
         )
     return start, end
 

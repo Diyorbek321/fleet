@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTrucks } from '@/contexts/TruckContext';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '@/lib/datetime';
 
 export function RecentActivity() {
   const { t } = useTranslation();

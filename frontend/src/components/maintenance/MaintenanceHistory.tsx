@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMaintenance } from '@/contexts/MaintenanceContext';
 import { useTrucks } from '@/contexts/TruckContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,18 +9,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Plus, Search, Filter } from 'lucide-react';
-import { format } from 'date-fns';
+import { format } from '@/lib/datetime';
 import { ServiceType } from '@/types';
 import { LogServiceModal } from './LogServiceModal';
 
-const serviceTypeLabels: Record<ServiceType, string> = {
-  oil_change: 'Oil Change',
-  tire_rotation: 'Tire Rotation',
-  brake_inspection: 'Brake Inspection',
-  engine_service: 'Engine Service',
-  transmission: 'Transmission',
-  other: 'Other',
-};
+/** Kept in display order; the label itself comes from `maintenance.serviceTypes`. */
+const SERVICE_TYPES: ServiceType[] = [
+  'oil_change',
+  'tire_rotation',
+  'brake_inspection',
+  'engine_service',
+  'transmission',
+  'other',
+];
 
 const serviceTypeBadgeColors: Record<ServiceType, string> = {
   oil_change: 'bg-amber-500/20 text-amber-500',
@@ -31,6 +33,7 @@ const serviceTypeBadgeColors: Record<ServiceType, string> = {
 };
 
 export function MaintenanceHistory() {
+  const { t } = useTranslation();
   const { maintenanceRecords } = useMaintenance();
   const { trucks } = useTrucks();
   
@@ -70,7 +73,7 @@ export function MaintenanceHistory() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-foreground">{maintenanceRecords.length}</div>
-            <p className="text-sm text-muted-foreground">Total Records</p>
+            <p className="text-sm text-muted-foreground">{t('maintenance.history.totalRecords')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -78,7 +81,7 @@ export function MaintenanceHistory() {
             <div className="text-2xl font-bold text-foreground">
               ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-sm text-muted-foreground">Total Spent (filtered)</p>
+            <p className="text-sm text-muted-foreground">{t('maintenance.history.totalSpent')}</p>
           </CardContent>
         </Card>
         <Card>
@@ -86,7 +89,7 @@ export function MaintenanceHistory() {
             <div className="text-2xl font-bold text-foreground">
               ${filteredRecords.length > 0 ? (totalCost / filteredRecords.length).toFixed(2) : '0.00'}
             </div>
-            <p className="text-sm text-muted-foreground">Avg. per Service</p>
+            <p className="text-sm text-muted-foreground">{t('maintenance.history.avgPerService')}</p>
           </CardContent>
         </Card>
       </div>
@@ -96,12 +99,12 @@ export function MaintenanceHistory() {
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <CardTitle>Maintenance Log</CardTitle>
-              <CardDescription>Complete history of all maintenance services</CardDescription>
+              <CardTitle>{t('maintenance.history.title')}</CardTitle>
+              <CardDescription>{t('maintenance.history.description')}</CardDescription>
             </div>
             <Button onClick={() => setLogModalOpen(true)} className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
-              Log Service
+              {t('maintenance.reminders.logService')}
             </Button>
           </div>
         </CardHeader>
@@ -110,7 +113,7 @@ export function MaintenanceHistory() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by truck or vendor..."
+                placeholder={t('maintenance.history.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -119,10 +122,10 @@ export function MaintenanceHistory() {
             <Select value={filterTruck} onValueChange={setFilterTruck}>
               <SelectTrigger className="w-full sm:w-[180px]">
                 <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Filter truck" />
+                <SelectValue placeholder={t('maintenance.history.filterTruck')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Trucks</SelectItem>
+                <SelectItem value="all">{t('maintenance.history.allTrucks')}</SelectItem>
                 {trucks.map(truck => (
                   <SelectItem key={truck.id} value={truck.id}>
                     {truck.plateNumber}
@@ -132,12 +135,14 @@ export function MaintenanceHistory() {
             </Select>
             <Select value={filterService} onValueChange={setFilterService}>
               <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filter service" />
+                <SelectValue placeholder={t('maintenance.history.filterService')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Services</SelectItem>
-                {Object.entries(serviceTypeLabels).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
+                <SelectItem value="all">{t('maintenance.history.allServices')}</SelectItem>
+                {SERVICE_TYPES.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {t(`maintenance.serviceTypes.${value}`)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -147,19 +152,19 @@ export function MaintenanceHistory() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead>Date</TableHead>
-                  <TableHead>Truck</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead className="text-right">Mileage</TableHead>
-                  <TableHead className="text-right">Cost</TableHead>
-                  <TableHead className="hidden md:table-cell">Vendor</TableHead>
+                  <TableHead>{t('maintenance.history.colDate')}</TableHead>
+                  <TableHead>{t('maintenance.history.colTruck')}</TableHead>
+                  <TableHead>{t('maintenance.history.colService')}</TableHead>
+                  <TableHead className="text-right">{t('maintenance.history.colMileage')}</TableHead>
+                  <TableHead className="text-right">{t('maintenance.history.colCost')}</TableHead>
+                  <TableHead className="hidden md:table-cell">{t('maintenance.history.colVendor')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRecords.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No maintenance records found
+                      {t('maintenance.history.empty')}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -178,11 +183,11 @@ export function MaintenanceHistory() {
                       </TableCell>
                       <TableCell>
                         <Badge className={serviceTypeBadgeColors[record.serviceType]} variant="secondary">
-                          {serviceTypeLabels[record.serviceType]}
+                          {t(`maintenance.serviceTypes.${record.serviceType}`)}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        {record.mileage.toLocaleString()} mi
+                        {record.mileage.toLocaleString()} {t('common.km')}
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         ${record.cost.toFixed(2)}

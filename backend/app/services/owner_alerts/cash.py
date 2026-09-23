@@ -152,10 +152,10 @@ def find_gaps(
 
 
 def _fmt_amount(currency: str, amount: float) -> str:
-    """Group thousands with spaces, the way a so'm figure is written by hand.
+    """Group thousands with spaces, the way a sum figure is written by hand.
 
     Tiyin do not exist in practice, so only the dollar keeps its decimals — two
-    decimal places on 1 250 000 so'm is noise in a message read on a phone.
+    decimal places on 1 250 000 sum is noise in a message read on a phone.
     """
     digits = 2 if currency == "usd" else 0
     return f"{abs(amount):,.{digits}f}".replace(",", " ")
@@ -163,7 +163,7 @@ def _fmt_amount(currency: str, amount: float) -> str:
 
 def _esc(value: str) -> str:
     # quote=False: these land in text content, and escaping apostrophes turns
-    # every Uzbek name and plate note into &#x27; soup.
+    # every transliterated name and plate note into &#x27; soup.
     return html.escape(value, quote=False)
 
 
@@ -192,7 +192,7 @@ def build_alert(report: TripExpenseReport, trip: Trip, gaps: list[Gap]) -> Alert
         lines.append("")  # who it was, then a beat, then the numbers
 
     for gap in gaps:
-        verdict = "hisobsiz qoldi" if gap.unaccounted else "ortiqcha sarflangan"
+        verdict = "не подтверждено" if gap.unaccounted else "перерасход"
         amount = f"{_fmt_amount(gap.currency, gap.amount)} {CURRENCY_LABEL[gap.currency]}"
         usd_note = ""
         # Suppress the conversion on the dollar row itself — "120.00 USD (≈ $120)"
@@ -204,7 +204,7 @@ def build_alert(report: TripExpenseReport, trip: Trip, gaps: list[Gap]) -> Alert
     converted = [gap.usd for gap in gaps if gap.usd is not None]
     if len(converted) > 1:
         total = f"{sum(converted):,.0f}".replace(",", " ")
-        lines.append(f"Jami farq: ≈ <b>${total}</b>")
+        lines.append(f"Итого расхождение: ≈ <b>${total}</b>")
 
     return Alert(
         kind=AlertKind.cash_mismatch,
@@ -213,7 +213,7 @@ def build_alert(report: TripExpenseReport, trip: Trip, gaps: list[Gap]) -> Alert
         # describes money that was already spent days ago in another country —
         # waking the owner buys nothing and costs the bot its welcome.
         severity=AlertSeverity.warning,
-        title=f"Kassa hisobi to'g'ri kelmadi — {trip.reference}",
+        title=f"Касса не сходится — {trip.reference}",
         body="\n".join(lines),
         dedupe_key=_dedupe_key(report),
         dedupe_ttl_hours=DEDUPE_TTL_HOURS,

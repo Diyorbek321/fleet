@@ -26,7 +26,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.deps.auth import get_current_driver
 from app.models.drivers import Driver
-from app.models.enums import TripEventType, TripReportStatus, TripStatus
+from app.models.enums import (
+    STAGE_TO_STATUS,
+    TripEventType,
+    TripReportStatus,
+    TripStage,
+    TripStatus,
+)
 from app.models.trips import Trip, TripDocument, TripEvent
 from app.routers.me._common import PREFIX, TAGS, own_trip_or_404
 from app.schemas.trip_reports import TripExpenseReportIn, TripExpenseReportOut
@@ -39,8 +45,19 @@ router = APIRouter(prefix=PREFIX, tags=TAGS)
 
 _DRIVER_START_STATUSES = {TripStatus.en_route, TripStatus.loading}
 
+# The checkpoint that means "the load is on board" — what the cargo owner's
+# card calls the loading date. Reported once; a driver who taps it twice after
+# a reload does not move the date the customer was already given.
+_LOADED_STAGE = TripStage.loaded_waiting_docs
+
 # Cap a single upload at 10MB; phone photos are well under this.
 _MAX_DOC_BYTES = 10 * 1024 * 1024
+# The formats a driver's phone actually produces, mapped to the extension the
+# file is stored under. The extension is not cosmetic: /api/files derives the
+# Content-Type it serves from it, so a type absent from this map used to be
+# stored as `.bin`, accepted with a 201, and then served as an undisplayable
+# download — an upload that looked successful and left the trip without its
+# document.
 _DOC_EXT_BY_TYPE = {
     "image/jpeg": "jpg",
     "image/jpg": "jpg",
@@ -50,6 +67,11 @@ _DOC_EXT_BY_TYPE = {
     "image/heif": "heif",
     "image/gif": "gif",
 }
+
+# Membership of the map above IS the allowlist. The previous check accepted any
+# `image/*`, which let `image/svg+xml` — a scriptable document, not a picture —
+# through the door on its way to a `.bin` file nobody could open.
+ALLOWED_DOC_CONTENT_TYPES = frozenset(_DOC_EXT_BY_TYPE)
 
 
 def _doc_out(doc: TripDocument, *, driver_name: Optional[str] = None) -> TripDocumentOut:
@@ -102,17 +124,31 @@ async def advance_my_trip(
 
     from_status = trip.status
     now = datetime.now(timezone.utc)
-    if data.to_status in _DRIVER_START_STATUSES and trip.started_at is None:
+
+    # A driver reports a checkpoint; the coarse status is derived from it, so
+    # the panel, the alerts and the margin keep reading the one field they
+    # always read. A dispatcher sending a bare status still works.
+    to_status = STAGE_TO_STATUS[data.stage] if data.stage else data.to_status
+    assert to_status is not None  # TripAdvance rejects the empty body
+
+    if to_status in _DRIVER_START_STATUSES and trip.started_at is None:
         trip.started_at = now
-    if data.to_status == TripStatus.delivered:
+    if to_status == TripStatus.delivered:
         trip.delivered_at = now
-    trip.status = data.to_status
+    if data.stage is _LOADED_STAGE and trip.loaded_at is None:
+        trip.loaded_at = now
+    if data.stage is not None:
+        trip.current_stage = data.stage
+        trip.current_stage_place = data.stage_place
+    trip.status = to_status
     trip.updated_at = now
 
     event_type = TripEventType.status_change
-    if data.to_status == TripStatus.at_border:
+    if data.stage is TripStage.crossed_border:
+        event_type = TripEventType.border_clear
+    elif to_status == TripStatus.at_border:
         event_type = TripEventType.border_arrival
-    elif data.to_status == TripStatus.delivered:
+    elif to_status == TripStatus.delivered:
         event_type = TripEventType.pod
 
     db.add(
@@ -120,7 +156,9 @@ async def advance_my_trip(
             trip_id=trip.id,
             event=event_type,
             from_status=from_status,
-            to_status=data.to_status,
+            to_status=to_status,
+            stage=data.stage,
+            stage_place=data.stage_place,
             note=data.note,
             latitude=data.latitude,
             longitude=data.longitude,
@@ -131,11 +169,15 @@ async def advance_my_trip(
 
     # Notify cargo-owner subscribers over Telegram in the background — the
     # driver app must get its response immediately, not wait on Telegram.
-    if from_status != data.to_status:
+    #
+    # Keyed on the stage, not the status: "прибыл на границу УЗБ–КЗ" and
+    # "прошёл границу УЗБ–КЗ" are two things the customer wants to hear, and
+    # both sit inside the same coarse status move.
+    if data.stage is not None or from_status != to_status:
         background_tasks.add_task(
             notify_trip_status_change_background,
             trip.id,
-            data.to_status,
+            to_status,
             data.latitude,
             data.longitude,
             data.note,
@@ -167,26 +209,30 @@ async def upload_my_trip_document(
     if not is_configured():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Document storage is not configured",
+            detail="Хранилище документов не настроено",
         )
 
     trip = await own_trip_or_404(db, trip_id, driver)
 
-    content_type = (file.content_type or "").lower()
-    if not content_type.startswith("image/"):
+    # Strip any ";charset=..." the client tacked on before matching.
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type not in ALLOWED_DOC_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Only image uploads are allowed",
+            detail=(
+                "Неподдерживаемый тип изображения. Разрешены: "
+                + ", ".join(sorted(ALLOWED_DOC_CONTENT_TYPES))
+            ),
         )
 
     data = await file.read()
     if len(data) > _MAX_DOC_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File too large (max 10MB)",
+            detail="Файл слишком большой (максимум 10 МБ)",
         )
 
-    ext = _DOC_EXT_BY_TYPE.get(content_type, "bin")
+    ext = _DOC_EXT_BY_TYPE[content_type]  # guaranteed by the allowlist above
     key = f"orgs/{trip.org_id}/trips/{trip.id}/{uuid.uuid4()}.{ext}"
     put_object(key, data, content_type)
 
@@ -217,7 +263,7 @@ async def list_my_trip_documents(
     if not is_configured():
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Document storage is not configured",
+            detail="Хранилище документов не настроено",
         )
     res = await db.execute(
         select(TripDocument)
@@ -267,7 +313,7 @@ async def submit_my_trip_report(
     await own_trip_or_404(db, trip_id, driver)
     report = await get_report(db, trip_id)
     if report is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not started")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт ещё не начат")
     report.status = TripReportStatus.submitted
     report.submitted_at = datetime.now(timezone.utc)
     await db.commit()

@@ -8,22 +8,34 @@ import uz from './locales/uz.json';
 import ru from './locales/ru.json';
 
 export const SUPPORTED_LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'uz', label: 'O‘zbekcha' },
   { code: 'ru', label: 'Русский' },
+  { code: 'uz', label: 'O‘zbekcha' },
+  { code: 'en', label: 'English' },
 ] as const;
 
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]['code'];
 
-const STORAGE_KEY = 'fleet_driver_language';
+/** The language a driver gets before they have chosen one. */
+export const DEFAULT_LANGUAGE: LanguageCode = 'ru';
+
+/** Where the driver's chosen language is persisted. Also read by the
+ *  headless background-location task, which cannot use this i18next instance. */
+export const LANGUAGE_STORAGE_KEY = 'fleet_driver_language';
+const STORAGE_KEY = LANGUAGE_STORAGE_KEY;
 
 const isSupported = (code: string | null | undefined): code is LanguageCode =>
   !!code && SUPPORTED_LANGUAGES.some((l) => l.code === code);
 
-/** The device's preferred language, falling back to English. */
+/**
+ * The device's preferred language, falling back to Russian.
+ *
+ * A phone set to Kazakh, Turkish or English gets Russian rather than English:
+ * these trucks run Uzbekistan–Kazakhstan–Russia, and Russian is the language
+ * every driver on that route reads, whatever their handset was sold with.
+ */
 function deviceLanguage(): LanguageCode {
-  const code = getLocales()[0]?.languageCode ?? 'en';
-  return isSupported(code) ? code : 'en';
+  const code = getLocales()[0]?.languageCode ?? DEFAULT_LANGUAGE;
+  return isSupported(code) ? code : DEFAULT_LANGUAGE;
 }
 
 /**
@@ -49,7 +61,7 @@ export async function initI18n(): Promise<typeof i18n> {
       ru: { translation: ru },
     },
     lng,
-    fallbackLng: 'en',
+    fallbackLng: DEFAULT_LANGUAGE,
     supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
     interpolation: { escapeValue: false },
     // RN runtimes may lack full Intl.PluralRules; v4 keeps plural handling safe.

@@ -13,6 +13,7 @@ from app.core.security import hash_password  # bcrypt; reused for API key hashin
 from app.deps.auth import require_role
 from app.models.devices import Device
 from app.models.trucks import Truck
+from app.services.device_auth import invalidate as invalidate_device_auth
 from app.models.users import User
 from app.models.enums import UserRole
 from app.schemas.devices import (
@@ -36,7 +37,7 @@ async def _get_owned_device(db: AsyncSession, device_id: uuid.UUID, org: uuid.UU
         await db.execute(select(Device).where(Device.id == device_id, Device.org_id == org))
     ).scalar_one_or_none()
     if not device:
-        raise HTTPException(status_code=404, detail="Device not found")
+        raise HTTPException(status_code=404, detail="Устройство не найдено")
     return device
 
 
@@ -59,7 +60,7 @@ async def enroll_device(
 ):
     existing = (await db.execute(select(Device).where(Device.imei == data.imei))).scalar_one_or_none()
     if existing:
-        raise HTTPException(status_code=409, detail="Device with this IMEI is already enrolled")
+        raise HTTPException(status_code=409, detail="Устройство с таким IMEI уже зарегистрировано")
 
     # A device may only be bound to a truck owned by the same organization.
     if data.truck_id is not None:
@@ -67,7 +68,7 @@ async def enroll_device(
             await db.execute(select(Truck).where(Truck.id == data.truck_id, Truck.org_id == user.org_id))
         ).scalar_one_or_none()
         if not truck:
-            raise HTTPException(status_code=404, detail="Truck not found")
+            raise HTTPException(status_code=404, detail="Машина не найдена")
 
     api_key = _generate_api_key()
     device = Device(
@@ -100,6 +101,7 @@ async def update_device(
     user: User = Depends(require_role(UserRole.admin, UserRole.manager)),
 ):
     device = await _get_owned_device(db, device_id, user.org_id)
+    previous_imei = device.imei
 
     payload = data.model_dump(exclude_unset=True)
     # If re-binding to a truck, that truck must belong to the same org.
@@ -108,13 +110,17 @@ async def update_device(
             await db.execute(select(Truck).where(Truck.id == payload["truck_id"], Truck.org_id == user.org_id))
         ).scalar_one_or_none()
         if not truck:
-            raise HTTPException(status_code=404, detail="Truck not found")
+            raise HTTPException(status_code=404, detail="Машина не найдена")
 
     for k, v in payload.items():
         setattr(device, k, v)
 
     await db.commit()
     await db.refresh(device)
+    # An edit can move the IMEI; drop the cached verification for both the old
+    # and the new one so a stale entry can never authenticate the wrong device.
+    invalidate_device_auth(previous_imei)
+    invalidate_device_auth(device.imei)
     return device
 
 
@@ -129,6 +135,8 @@ async def rotate_api_key(
     api_key = _generate_api_key()
     device.api_key_hash = hash_password(api_key)
     await db.commit()
+    # The old key must stop working now, not when its cache entry expires.
+    invalidate_device_auth(device.imei)
     return DeviceRotateKey(api_key=api_key)
 
 
@@ -139,5 +147,7 @@ async def delete_device(
     user: User = Depends(require_role(UserRole.admin)),
 ):
     device = await _get_owned_device(db, device_id, user.org_id)
+    imei = device.imei
     await db.delete(device)
     await db.commit()
+    invalidate_device_auth(imei)

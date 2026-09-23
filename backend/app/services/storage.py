@@ -61,6 +61,18 @@ def read_object(key: str) -> bytes:
     return _resolve(key).read_bytes()
 
 
+def object_path(key: str) -> Path:
+    """The file backing ``key``, for callers that can stream it themselves.
+
+    Reading a 10 MB photo into a bytes object only to hand it straight to the
+    response is 10 MB of process memory per concurrent viewer; the trip detail
+    page loads a dozen at once. Returning the path lets Starlette sendfile it.
+    Callers must still verify the signature first — this resolves a key, it
+    does not authorize one.
+    """
+    return _resolve(key)
+
+
 def object_exists(key: str) -> bool:
     return _resolve(key).exists()
 

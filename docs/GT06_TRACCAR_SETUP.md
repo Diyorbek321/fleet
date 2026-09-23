@@ -95,26 +95,19 @@ X-IMEI: YOUR_DEVICE_IMEI</entry>
 ```
 
 **Problem with the single-URL approach**: Traccar forwards all devices to one URL
-with one set of headers. For multiple devices with different API keys, you need
-one of:
+with one set of headers, and Fleet Watch authenticates *per device* — the
+`(IMEI, api_key)` pair is what binds an incoming position to one customer's
+truck. There is no shared gateway key to fall back on: a key that belongs to no
+organization leaves ingest with nothing to check the target truck against, which
+is exactly why the old `GPS_API_KEYS` list was removed. So the forwarder has to
+send each device's own credentials.
 
-### Option A — One global "gateway" API key (simpler, less granular)
+### Option A — Per-device forwarding via Traccar's computed attributes (recommended)
 
-Set a single entry in `GPS_API_KEYS` in your backend `.env`:
-
-```env
-GPS_API_KEYS=traccar-forwarder-shared-key
-```
-
-Traccar forwards everything with that one key. Backend falls back to the legacy
-global-key path when no IMEI matches the per-device table. **Downside:** if the
-key leaks, you can't revoke one device without revoking all.
-
-### Option B — Per-device forwarding via Traccar's "Computed Attribute" + webhook (recommended)
-
-1. In Traccar UI, for each device, set a computed attribute `deviceApiKey` = the
-   API key from step 1.
-2. Use Traccar's `forward.urlVariables` feature to inject it:
+1. In the Traccar UI, for each device, set a computed attribute `deviceApiKey` to
+   the `api_key` that `POST /api/devices` returned for it (step 1). Fleet Watch
+   shows that key exactly once, so store it as you enroll.
+2. Template the headers so Traccar substitutes them per device at send time:
 
 ```xml
 <entry key='forward.url'>http://fleet-backend:8000/api/gps/ingest</entry>
@@ -124,13 +117,20 @@ X-IMEI: {device.uniqueId}
 </entry>
 ```
 
-Traccar substitutes each attribute per-device at send time.
+`device.uniqueId` is the IMEI Traccar knows the tracker by, and it must match the
+`imei` the device was enrolled with — that is the lookup key on our side.
 
-### Option C — Small adapter script (most flexible)
+### Option B — Small adapter service (most flexible)
 
-If Traccar's templating doesn't cut it, run a 40-line Python FastAPI app that
-receives Traccar webhooks and re-signs them with the correct per-IMEI key looked
-up from your DB. This is what production deployments usually do.
+If your Traccar version's templating cannot do the above, run a small service in
+front of the API: it receives Traccar's webhook, looks the IMEI up in its own key
+map, and re-sends with that device's `X-API-Key`. Keep the map in the adapter's
+own secret store, one entry per device, so revoking one tracker stays a
+one-device operation.
+
+Whichever you pick, rotating a compromised tracker is
+`POST /api/devices/{id}/rotate-key` — the old key stops working on the next
+request, not when some cache expires.
 
 ---
 

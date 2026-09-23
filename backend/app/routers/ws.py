@@ -51,13 +51,44 @@ async def _authorized_org_id(db: AsyncSession, token: str) -> uuid.UUID | None:
     return user.org_id
 
 
+# The subprotocol a client offers alongside its credential, and the one we
+# select in reply. Selecting the plain name — never the credential-bearing one —
+# keeps the token out of the handshake *response* as well as the request line.
+WS_SUBPROTOCOL = "fleetwatch.v1"
+_AUTH_SUBPROTOCOL_PREFIX = "fleetwatch.auth."
+
+
+def _token_from_subprotocol(websocket: WebSocket) -> str | None:
+    """Pull the access token out of ``Sec-WebSocket-Protocol``, if it is there.
+
+    A browser cannot set an ``Authorization`` header on ``new WebSocket()``, so
+    the token used to ride in the query string — where Caddy's access log, and
+    every proxy in front of it, wrote it to disk in cleartext alongside the
+    request line. The subprotocol header carries it instead: same handshake,
+    same origin checks, but nothing logs a string that grants access to a
+    fleet for the next thirty minutes.
+    """
+    offered = websocket.headers.get("sec-websocket-protocol")
+    if not offered:
+        return None
+    for entry in offered.split(","):
+        entry = entry.strip()
+        if entry.startswith(_AUTH_SUBPROTOCOL_PREFIX):
+            return entry[len(_AUTH_SUBPROTOCOL_PREFIX):] or None
+    return None
+
+
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
     token: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    # Token is passed as ?token=... — browsers can't set headers on WebSocket().
+    # Preferred: Sec-WebSocket-Protocol. The ?token= query parameter is still
+    # accepted for clients that predate this — the mobile app opens no socket,
+    # but a shipped web bundle lives in browser caches for as long as it lives.
+    subprotocol_token = _token_from_subprotocol(websocket)
+    token = subprotocol_token or token
     if not token:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Missing token")
         return
@@ -69,7 +100,11 @@ async def websocket_endpoint(
 
     # str() because that is the bucket key every broadcaster uses (gps.py, me.py).
     org_id = str(authorized)
-    await ws_manager.connect(websocket, org_id)
+    await ws_manager.connect(
+        websocket,
+        org_id,
+        subprotocol=WS_SUBPROTOCOL if subprotocol_token else None,
+    )
     try:
         while True:
             # Ignore inbound text (clients may send "ping" keep-alives).

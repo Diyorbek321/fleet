@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   ArrowLeft,
   User,
   Phone,
   Mail,
+  ShieldAlert,
   IdCard,
   CalendarClock,
   Truck as TruckIcon,
@@ -17,7 +19,7 @@ import {
   Clock,
   ExternalLink,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '@/lib/datetime';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -43,10 +45,10 @@ const statusVariant: Record<DriverStatus, 'default' | 'secondary'> = {
   on_leave: 'secondary',
 };
 
-const statusLabel: Record<DriverStatus, string> = {
-  active: 'Active',
-  inactive: 'Inactive',
-  on_leave: 'On leave',
+const statusLabelKey: Record<DriverStatus, string> = {
+  active: 'drivers.statusActive',
+  inactive: 'drivers.statusInactive',
+  on_leave: 'drivers.statusOnLeave',
 };
 
 interface InfoRowProps {
@@ -76,6 +78,7 @@ function scoreColor(score: number): string {
 export default function DriverDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['driver', id],
@@ -114,7 +117,7 @@ export default function DriverDetailPage() {
     mutationFn: () => driversApi.createLogin(id, { email: loginEmail.trim(), password: loginPassword }),
     onSuccess: (res) => {
       setCreatedCreds({ email: res.email, password: loginPassword });
-      toast({ title: 'App login created' });
+      toast({ title: t('drivers.detail.toastCreated') });
     },
     onError: (err) => {
       const msg =
@@ -122,8 +125,8 @@ export default function DriverDetailPage() {
           ? err.detail
           : err instanceof Error
             ? err.message
-            : 'Could not create login';
-      toast({ title: 'Failed to create login', description: msg, variant: 'destructive' });
+            : t('drivers.detail.createFailed');
+      toast({ title: t('drivers.detail.toastFailed'), description: msg, variant: 'destructive' });
     },
   });
 
@@ -150,9 +153,9 @@ export default function DriverDetailPage() {
     return (
       <div className="space-y-4">
         <Button variant="ghost" onClick={() => navigate('/drivers')}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Back to Drivers
+          <ArrowLeft className="mr-2 h-4 w-4" /> {t('drivers.detail.back')}
         </Button>
-        <p className="text-muted-foreground">Driver not found.</p>
+        <p className="text-muted-foreground">{t('drivers.detail.notFound')}</p>
       </div>
     );
   }
@@ -163,13 +166,13 @@ export default function DriverDetailPage() {
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/drivers')} title="Back to Drivers">
+        <Button variant="ghost" size="icon" onClick={() => navigate('/drivers')} title={t('drivers.detail.back')}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight">{driver.name}</h1>
-            <Badge variant={statusVariant[driver.status]}>{statusLabel[driver.status]}</Badge>
+            <Badge variant={statusVariant[driver.status]}>{t(statusLabelKey[driver.status])}</Badge>
           </div>
           <p className="text-muted-foreground font-mono text-sm">{driver.licenseNumber}</p>
         </div>
@@ -180,16 +183,34 @@ export default function DriverDetailPage() {
         <Card className="border-border/50 bg-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <User className="h-5 w-5" /> Contact
+              <User className="h-5 w-5" /> {t('drivers.detail.contact')}
             </CardTitle>
           </CardHeader>
           <CardContent className="divide-y divide-border/50">
-            <InfoRow icon={<Phone className="h-4 w-4" />} label="Phone">
+            <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phone')}>
               {driver.phone || '—'}
             </InfoRow>
-            <InfoRow icon={<Mail className="h-4 w-4" />} label="Email">
-              {driver.email || '—'}
+            {/* Only the numbers that exist: a row of dashes for the two SIMs a
+                driver does not have reads as missing data, not as absent. */}
+            {driver.phone2 && (
+              <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phone2')}>
+                {driver.phone2}
+              </InfoRow>
+            )}
+            {driver.phone3 && (
+              <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phone3')}>
+                {driver.phone3}
+              </InfoRow>
+            )}
+            <InfoRow icon={<ShieldAlert className="h-4 w-4" />} label={t('drivers.adr')}>
+              {driver.adr ? t('common.yes') : t('common.no')}
             </InfoRow>
+            {/* Kept for drivers entered before the form stopped asking. */}
+            {driver.email && (
+              <InfoRow icon={<Mail className="h-4 w-4" />} label={t('drivers.email')}>
+                {driver.email}
+              </InfoRow>
+            )}
           </CardContent>
         </Card>
 
@@ -197,14 +218,14 @@ export default function DriverDetailPage() {
         <Card className="border-border/50 bg-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <IdCard className="h-5 w-5" /> License
+              <IdCard className="h-5 w-5" /> {t('drivers.detail.licenseCard')}
             </CardTitle>
           </CardHeader>
           <CardContent className="divide-y divide-border/50">
-            <InfoRow icon={<IdCard className="h-4 w-4" />} label="License number">
+            <InfoRow icon={<IdCard className="h-4 w-4" />} label={t('drivers.license')}>
               <span className="font-mono">{driver.licenseNumber}</span>
             </InfoRow>
-            <InfoRow icon={<CalendarClock className="h-4 w-4" />} label="Expires">
+            <InfoRow icon={<CalendarClock className="h-4 w-4" />} label={t('drivers.detail.expires')}>
               {driver.licenseExpiry
                 ? new Date(driver.licenseExpiry).toLocaleDateString()
                 : '—'}
@@ -216,19 +237,19 @@ export default function DriverDetailPage() {
         <Card className="border-border/50 bg-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <TruckIcon className="h-5 w-5" /> Assigned Truck
+              <TruckIcon className="h-5 w-5" /> {t('drivers.detail.assignedTruck')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {currentTruck ? (
-              <InfoRow icon={<TruckIcon className="h-4 w-4" />} label="Truck">
+              <InfoRow icon={<TruckIcon className="h-4 w-4" />} label={t('drivers.detail.truck')}>
                 <Link to={`/trucks/${currentTruck.id}`} className="text-primary hover:underline">
                   {currentTruck.name} ({currentTruck.plateNumber})
                 </Link>
               </InfoRow>
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                Not currently assigned to a truck.
+                {t('drivers.detail.notAssigned')}
               </p>
             )}
           </CardContent>
@@ -238,7 +259,7 @@ export default function DriverDetailPage() {
         <Card className="border-border/50 bg-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <ShieldCheck className="h-5 w-5" /> Safety Score
+              <ShieldCheck className="h-5 w-5" /> {t('drivers.detail.safetyScore')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -251,23 +272,23 @@ export default function DriverDetailPage() {
                   <span className="text-sm text-muted-foreground">/ 100</span>
                 </div>
                 <div className="grid grid-cols-2 gap-x-6 text-sm">
-                  <InfoRow icon={<Gauge className="h-4 w-4" />} label="Speeding events">
+                  <InfoRow icon={<Gauge className="h-4 w-4" />} label={t('drivers.detail.speedingEvents')}>
                     {latestSafetyScore.speedingEvents}
                   </InfoRow>
-                  <InfoRow icon={<Gauge className="h-4 w-4" />} label="Harsh braking">
+                  <InfoRow icon={<Gauge className="h-4 w-4" />} label={t('drivers.detail.harshBraking')}>
                     {latestSafetyScore.harshBraking}
                   </InfoRow>
-                  <InfoRow icon={<Gauge className="h-4 w-4" />} label="Harsh acceleration">
+                  <InfoRow icon={<Gauge className="h-4 w-4" />} label={t('drivers.detail.harshAcceleration')}>
                     {latestSafetyScore.harshAcceleration}
                   </InfoRow>
-                  <InfoRow icon={<Gauge className="h-4 w-4" />} label="Idle time">
-                    {latestSafetyScore.idleTimeMinutes} min
+                  <InfoRow icon={<Gauge className="h-4 w-4" />} label={t('drivers.detail.idleTime')}>
+                    {latestSafetyScore.idleTimeMinutes} {t('common.minutes')}
                   </InfoRow>
                 </div>
               </div>
             ) : (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                No safety score recorded yet.
+                {t('drivers.detail.noScore')}
               </p>
             )}
           </CardContent>
@@ -277,16 +298,15 @@ export default function DriverDetailPage() {
         <Card className="border-border/50 bg-card md:col-span-2">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Smartphone className="h-5 w-5" /> Mobile App Access
+              <Smartphone className="h-5 w-5" /> {t('drivers.detail.appAccess')}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
-              Create a login so {driver.name} can sign in to the FleetWatch driver app and
-              receive trips, send GPS, and log fuel/expenses.
+              {t('drivers.detail.appAccessHint', { name: driver.name })}
             </p>
             <Button onClick={openLoginDialog} className="shrink-0">
-              <KeyRound className="mr-2 h-4 w-4" /> Create app login
+              <KeyRound className="mr-2 h-4 w-4" /> {t('drivers.detail.createLogin')}
             </Button>
           </CardContent>
         </Card>
@@ -295,13 +315,13 @@ export default function DriverDetailPage() {
         <Card className="border-border/50 bg-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Receipt className="h-5 w-5" /> Recent Expenses
+              <Receipt className="h-5 w-5" /> {t('drivers.detail.recentExpenses')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {expenses.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                No expenses logged from the app.
+                {t('drivers.detail.noExpenses')}
               </p>
             ) : (
               <div className="divide-y divide-border/50">
@@ -317,7 +337,7 @@ export default function DriverDetailPage() {
                             rel="noopener noreferrer"
                             className="flex items-center gap-1 text-xs text-primary hover:underline"
                           >
-                            <ExternalLink className="h-3 w-3" /> Receipt
+                            <ExternalLink className="h-3 w-3" /> {t('drivers.detail.receipt')}
                           </a>
                         )}
                       </div>
@@ -339,13 +359,13 @@ export default function DriverDetailPage() {
         <Card className="border-border/50 bg-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Clock className="h-5 w-5" /> Recent Shifts
+              <Clock className="h-5 w-5" /> {t('drivers.detail.recentShifts')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {shifts.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                No shifts recorded from the app.
+                {t('drivers.detail.noShifts')}
               </p>
             ) : (
               <div className="divide-y divide-border/50">
@@ -354,14 +374,16 @@ export default function DriverDetailPage() {
                     <div>
                       <div className="flex items-center gap-2">
                         <Badge variant={s.status === 'active' ? 'default' : 'secondary'}>
-                          {s.status === 'active' ? 'On shift' : 'Ended'}
+                          {s.status === 'active' ? t('drivers.detail.onShift') : t('drivers.detail.shiftEnded')}
                         </Badge>
                         {s.truckPlate && (
                           <span className="text-xs text-muted-foreground">{s.truckPlate}</span>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Started {formatDistanceToNow(new Date(s.startedAt), { addSuffix: true })}
+                        {t('drivers.detail.startedAgo', {
+                          ago: formatDistanceToNow(new Date(s.startedAt), { addSuffix: true }),
+                        })}
                       </p>
                     </div>
                     {s.startMileage != null && (
@@ -382,22 +404,21 @@ export default function DriverDetailPage() {
       <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create app login — {driver.name}</DialogTitle>
+            <DialogTitle>{t('drivers.detail.dialogTitle', { name: driver.name })}</DialogTitle>
           </DialogHeader>
 
           {createdCreds ? (
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Login created. Share these credentials with the driver — the password is shown
-                only once.
+                {t('drivers.detail.createdHint')}
               </p>
               <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-4 text-sm">
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Email</span>
+                  <span className="text-muted-foreground">{t('drivers.email')}</span>
                   <span className="font-mono">{createdCreds.email}</span>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">Password</span>
+                  <span className="text-muted-foreground">{t('drivers.detail.password')}</span>
                   <span className="font-mono">{createdCreds.password}</span>
                 </div>
               </div>
@@ -408,12 +429,12 @@ export default function DriverDetailPage() {
                     navigator.clipboard?.writeText(
                       `Email: ${createdCreds.email}\nPassword: ${createdCreds.password}`,
                     );
-                    toast({ title: 'Copied to clipboard' });
+                    toast({ title: t('common.copied') });
                   }}
                 >
-                  Copy
+                  {t('common.copy')}
                 </Button>
-                <Button onClick={() => setLoginOpen(false)}>Done</Button>
+                <Button onClick={() => setLoginOpen(false)}>{t('common.done')}</Button>
               </DialogFooter>
             </div>
           ) : (
@@ -425,7 +446,7 @@ export default function DriverDetailPage() {
               className="space-y-3"
             >
               <div className="space-y-2">
-                <Label htmlFor="login-email">Email</Label>
+                <Label htmlFor="login-email">{t('drivers.email')}</Label>
                 <Input
                   id="login-email"
                   type="email"
@@ -436,27 +457,27 @@ export default function DriverDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="login-password">Password</Label>
+                <Label htmlFor="login-password">{t('drivers.detail.password')}</Label>
                 <div className="flex gap-2">
                   <Input
                     id="login-password"
                     required
                     minLength={8}
-                    placeholder="At least 8 characters"
+                    placeholder={t('drivers.detail.passwordPlaceholder')}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
                   />
                   <Button type="button" variant="outline" onClick={generatePassword}>
-                    Generate
+                    {t('common.generate')}
                   </Button>
                 </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setLoginOpen(false)}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button type="submit" disabled={createLoginMutation.isPending}>
-                  Create login
+                  {t('drivers.detail.createAction')}
                 </Button>
               </DialogFooter>
             </form>

@@ -28,7 +28,6 @@ recorded as reported.
 from __future__ import annotations
 
 import html
-import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -41,6 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.logging import logger
+from app.core.urls import panel_link
 from app.models.owner_alerts import (
     SEVERITY_RANK,
     AlertKind,
@@ -94,43 +94,21 @@ _SEVERITY_ICON: dict[AlertSeverity, str] = {
 # ── Rendering ────────────────────────────────────────────────────────────
 
 
-def _panel_base_url() -> str:
-    """Externally reachable base URL of the web panel.
-
-    Read from ``PUBLIC_WEB_URL`` when set, otherwise the first configured CORS
-    origin — which is by definition the browser app allowed to call this API,
-    so in every real deployment it is already the right answer. An empty
-    result simply drops the link from the message rather than shipping a
-    ``None/trips/…`` href.
-    """
-    explicit = (settings.public_web_url or os.environ.get("PUBLIC_WEB_URL", "")).strip()
-    if explicit:
-        return explicit.rstrip("/")
-    origins = settings.cors_origins_list()
-    return origins[0].rstrip("/") if origins else ""
-
-
-def _panel_link(path: str | None) -> str | None:
-    if not path:
-        return None
-    base = _panel_base_url()
-    if not base:
-        return None
-    return f"{base}/{path.lstrip('/')}"
 
 
 def render_alert(alert: Alert) -> str:
     """The exact HTML text a chat receives. Pure, so it is testable alone."""
     icon = _SEVERITY_ICON.get(alert.severity, "•")
     # quote=False: the title is text content, not an attribute value, and
-    # escaping apostrophes turns every Uzbek word like "yoqilg'i" into
-    # "yoqilg&#x27;i" in anything that reads the message as plain text.
+    # escaping apostrophes turns every transliterated plate or place name
+    # carrying one into "&#x27;" soup in anything that reads the message as
+    # plain text.
     parts = [f"{icon} <b>{html.escape(alert.title, quote=False)}</b>"]
     if alert.body:
         parts.append(alert.body)
-    link = _panel_link(alert.path)
+    link = panel_link(alert.path)
     if link:
-        parts.append(f'<a href="{html.escape(link, quote=True)}">🔗 Panelda ochish</a>')
+        parts.append(f'<a href="{html.escape(link, quote=True)}">🔗 Открыть в панели</a>')
     return "\n\n".join(parts)
 
 

@@ -18,6 +18,8 @@ here needs backdated tracks.
 """
 from __future__ import annotations
 
+from tests.conftest import awake_quiet_hours
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -223,10 +225,10 @@ def test_the_roll_up_counts_what_was_held_back_and_promises_it():
     ) + leakage._fraud_findings({"events": [_fraud_row(log_id="log-a")]})
 
     alert = leakage._summary_alert(held, "2026-09-02")
-    assert "Yana 5 ta" in alert.title
-    assert "Ruxsatsiz to'xtash — 4 ta" in alert.body
-    assert "Shubhali yoqilg'i quyish — 1 ta" in alert.body
-    assert "keyingi tekshiruvlarda yuboriladi" in alert.body
+    assert "Обнаружено ещё 5" in alert.title
+    assert "Стоянка вне точек — 4" in alert.body
+    assert "Подозрительная заправка — 1" in alert.body
+    assert "при следующих проверках" in alert.body
     # Per day, not per run: the owner needs to know a backlog exists once.
     assert alert.dedupe_key == "leakage:summary:2026-09-02"
     assert alert.dedupe_ttl_hours == 24
@@ -281,8 +283,9 @@ async def _org_with_chat(db, name: str = "Leak Co", chat_id: str = "700001") -> 
             muted_kinds=[],
             # Explicitly no quiet window: the defaults are 22→07 and the suite
             # must not start passing or failing with the wall clock.
-            quiet_from_hour=None,
-            quiet_to_hour=None,
+            # Not None — that reads as "no quiet hours" and silently
+            # produces the model's 22:00-07:00 default instead.
+            **awake_quiet_hours(),
         )
     )
     await db.commit()
@@ -335,8 +338,8 @@ async def test_a_new_stop_and_a_bad_fill_reach_the_owner(db, captured_sends):
 
     assert await leakage.run(db) == 2
     texts = "\n".join(text for _, text in captured_sends)
-    assert "Ruxsatsiz to'xtash" in texts
-    assert "Shubhali yoqilg'i quyish" in texts
+    assert "Стоянка вне точек" in texts
+    assert "Подозрительная заправка" in texts
     assert "01A700AA" in texts
 
 
@@ -362,7 +365,7 @@ async def test_one_run_caps_the_alerts_and_reports_the_remainder(db, captured_se
     sent = await leakage.run(db)
 
     assert sent == leakage.MAX_ALERTS_PER_ORG + 1  # the five, plus one roll-up
-    assert "Yana 2 ta" in captured_sends[-1][1]
+    assert "Обнаружено ещё 2" in captured_sends[-1][1]
 
 
 async def test_what_the_cap_held_back_arrives_on_the_next_run(db, captured_sends):
@@ -395,7 +398,7 @@ async def test_the_roll_up_is_not_repeated_while_the_backlog_drains(db, captured
 
     await leakage.run(db)
     await leakage.run(db)
-    assert sum(1 for _, text in captured_sends if "Yana" in text) == 1
+    assert sum(1 for _, text in captured_sends if "Обнаружено ещё" in text) == 1
 
 
 async def test_findings_never_cross_organizations(db, captured_sends):

@@ -20,18 +20,19 @@ import { TelegramAlertsCard } from '@/components/settings/TelegramAlertsCard';
 
 interface ToggleRow {
   key: keyof UserSettings;
-  label: string;
+  /** Key under `settings.` — resolved at render so a language switch reaches it. */
+  labelKey: string;
 }
 
 const NOTIFICATION_TOGGLES: ToggleRow[] = [
-  { key: 'speedAlerts', label: 'Speed alerts' },
-  { key: 'offlineAlerts', label: 'Offline alerts' },
-  { key: 'maintenanceReminders', label: 'Maintenance reminders' },
+  { key: 'speedAlerts', labelKey: 'settings.speedAlerts' },
+  { key: 'offlineAlerts', labelKey: 'settings.offlineAlerts' },
+  { key: 'maintenanceReminders', labelKey: 'settings.maintenanceReminders' },
 ];
 
 const APPEARANCE_TOGGLES: ToggleRow[] = [
-  { key: 'autoRefreshMap', label: 'Auto-refresh map' },
-  { key: 'speedInMph', label: 'Show speed in mph' },
+  { key: 'autoRefreshMap', labelKey: 'settings.autoRefreshMap' },
+  { key: 'speedInMph', labelKey: 'settings.speedInMph' },
 ];
 
 export default function SettingsPage() {
@@ -43,8 +44,8 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 animate-fade-in max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and preferences</p>
+        <h1 className="text-2xl font-bold tracking-tight">{t('settings.title')}</h1>
+        <p className="text-muted-foreground">{t('settings.subtitle')}</p>
       </div>
 
       <Card className="border-border/50 bg-card">
@@ -69,13 +70,13 @@ export default function SettingsPage() {
 
       <Card className="border-border/50 bg-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Notifications</CardTitle>
-          <CardDescription>Configure how you receive alerts</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> {t('settings.notifications')}</CardTitle>
+          <CardDescription>{t('settings.notificationsDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {NOTIFICATION_TOGGLES.map(({ key, label }) => (
+          {NOTIFICATION_TOGGLES.map(({ key, labelKey }) => (
             <div key={key} className="flex items-center justify-between">
-              <Label htmlFor={key}>{label}</Label>
+              <Label htmlFor={key}>{t(labelKey)}</Label>
               <Switch
                 id={key}
                 checked={settings[key]}
@@ -88,13 +89,13 @@ export default function SettingsPage() {
 
       <Card className="border-border/50 bg-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" /> Appearance</CardTitle>
-          <CardDescription>Customize the interface</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Palette className="h-5 w-5" /> {t('settings.appearance')}</CardTitle>
+          <CardDescription>{t('settings.appearanceDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {APPEARANCE_TOGGLES.map(({ key, label }) => (
+          {APPEARANCE_TOGGLES.map(({ key, labelKey }) => (
             <div key={key} className="flex items-center justify-between">
-              <Label htmlFor={key}>{label}</Label>
+              <Label htmlFor={key}>{t(labelKey)}</Label>
               <Switch
                 id={key}
                 checked={settings[key]}
@@ -107,12 +108,12 @@ export default function SettingsPage() {
 
       <Card className="border-border/50 bg-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Languages className="h-5 w-5" /> Language</CardTitle>
-          <CardDescription>Choose your preferred language</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Languages className="h-5 w-5" /> {t('settings.language')}</CardTitle>
+          <CardDescription>{t('settings.languageDescription')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <Label htmlFor="language">Display language</Label>
+            <Label htmlFor="language">{t('settings.displayLanguage')}</Label>
             <Select
               value={currentLanguage}
               onValueChange={(value) => void i18n.changeLanguage(value)}

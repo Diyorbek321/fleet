@@ -9,6 +9,27 @@ export type TripStatus =
   | 'delivered'
   | 'cancelled';
 
+/**
+ * The checkpoint a driver reports, finer than `TripStatus`.
+ *
+ * The status stays the coarse lifecycle every report and alert is built on;
+ * this is the line the cargo owner reads. The server derives one from the
+ * other, so they never disagree.
+ */
+export type TripStage =
+  | 'arrived_loading'
+  | 'loaded_waiting_docs'
+  | 'docs_received_en_route'
+  | 'arrived_border'
+  | 'crossed_border'
+  | 'arrived_customs'
+  | 'left_customs'
+  | 'arrived_unloading'
+  | 'unloaded';
+
+/** Where a stage happened: a country, or — at a border — the crossing itself. */
+export type StagePlace = 'uz' | 'kz' | 'ru' | 'uz_kz' | 'kz_ru';
+
 export type TripEventType =
   | 'created'
   | 'status_change'
@@ -34,6 +55,13 @@ export interface Trip {
   truckId: string | null;
   driverId: string | null;
   status: TripStatus;
+  currentStage: TripStage | null;
+  currentStagePlace: StagePlace | null;
+  loadedAt: string | null;
+  /** Expected arrival at customs, ISO date, or null when not estimable. */
+  etaCustoms: string | null;
+  /** How that date was reached: measured from past trips, or modelled. */
+  etaBasis: 'history' | 'model' | null;
   shipper: string | null;
   consignee: string | null;
   originName: string | null;
@@ -117,6 +145,11 @@ interface BackendTrip {
   truck_id: string | null;
   driver_id: string | null;
   status: TripStatus;
+  current_stage: TripStage | null;
+  current_stage_place: StagePlace | null;
+  loaded_at: string | null;
+  eta_customs: string | null;
+  eta_basis: 'history' | 'model' | null;
   shipper: string | null;
   consignee: string | null;
   origin_name: string | null;
@@ -159,6 +192,11 @@ function adapt(t: BackendTrip): Trip {
     truckId: t.truck_id,
     driverId: t.driver_id,
     status: t.status,
+    currentStage: t.current_stage ?? null,
+    currentStagePlace: t.current_stage_place ?? null,
+    loadedAt: t.loaded_at ?? null,
+    etaCustoms: t.eta_customs ?? null,
+    etaBasis: t.eta_basis ?? null,
     shipper: t.shipper,
     consignee: t.consignee,
     originName: t.origin_name,

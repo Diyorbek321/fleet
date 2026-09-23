@@ -3,6 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchTruckLocations, type LiveLocation, type LocationUpdateMessage } from '@/lib/locations';
 import { tokenStorage } from '@/lib/api';
 
+/** Negotiated with the API; must match app/routers/ws.py. */
+const WS_SUBPROTOCOL = 'fleetwatch.v1';
+const WS_AUTH_SUBPROTOCOL_PREFIX = 'fleetwatch.auth.';
+
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8000';
 
 export const LOCATIONS_KEY = ['truck-locations'] as const;
@@ -35,7 +39,15 @@ export function useLiveLocations() {
       const token = tokenStorage.getAccess();
       if (!token || cancelled) return;
 
-      const ws = new WebSocket(`${WS_URL}/ws?token=${encodeURIComponent(token)}`);
+      // The token travels as a subprotocol, not in the URL: a query string is
+      // written verbatim into every access log between here and the API, and
+      // this one grants access to the whole fleet until it expires. The server
+      // selects WS_SUBPROTOCOL in reply, so the credential never appears in the
+      // handshake response either.
+      const ws = new WebSocket(`${WS_URL}/ws`, [
+        WS_SUBPROTOCOL,
+        `${WS_AUTH_SUBPROTOCOL_PREFIX}${token}`,
+      ]);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -52,6 +64,13 @@ export function useLiveLocations() {
         }
         if (msg.type !== 'truck_location_update') return;
 
+        // The broadcast carries coordinates only. Without this the place name
+        // seeded from REST would blink out on the first GPS ping and never
+        // come back until a full page load.
+        const known =
+          pendingRef.current?.[msg.truck_id] ??
+          queryClient.getQueryData<Record<string, LiveLocation>>(LOCATIONS_KEY)?.[msg.truck_id];
+
         pendingRef.current = {
           ...pendingRef.current,
           [msg.truck_id]: {
@@ -60,6 +79,7 @@ export function useLiveLocations() {
             longitude: msg.lng,
             speed: msg.speed,
             heading: msg.heading,
+            address: known?.address ?? null,
             recordedAt: msg.recorded_at ? new Date(msg.recorded_at) : new Date(),
           },
         };

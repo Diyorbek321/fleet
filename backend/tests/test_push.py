@@ -241,10 +241,10 @@ class TestQueueMessage:
     @pytest.mark.parametrize(
         "status,expected_in_body",
         [
-            ("late", "kechik"),
-            ("revoked", "bekor"),
-            ("crossed", "o'tdi"),
-            ("in_queue", "navbat"),
+            ("late", "опаздыва"),
+            ("revoked", "отозван"),
+            ("crossed", "прошли"),
+            ("in_queue", "очеред"),
         ],
     )
     def test_each_status_says_what_happened(self, status, expected_in_body):

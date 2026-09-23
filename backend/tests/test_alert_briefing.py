@@ -16,6 +16,8 @@ instead.
 """
 from __future__ import annotations
 
+from tests.conftest import awake_quiet_hours
+
 import uuid
 from datetime import date, datetime, time, timedelta
 
@@ -83,7 +85,7 @@ def test_the_template_alone_is_a_complete_digest():
 
 
 def test_a_quiet_night_still_reports_its_zeros():
-    """A fleet that did nothing must read as "0 ta", not as a missing line.
+    """A fleet that did nothing must read as "0", not as a missing line.
 
     Hiding empty figures would make the digest silently shorter on exactly the
     mornings an owner most needs to notice that nothing moved.
@@ -104,13 +106,13 @@ def test_a_quiet_night_still_reports_its_zeros():
         )
     )
     assert len(lines) == 5
-    assert "<b>0 ta</b> yetkazildi" in lines[0]
-    assert "<b>0 km</b>" in lines[1]
+    assert "доставлено <b>0</b>" in lines[0]
+    assert "<b>0 км</b>" in lines[1]
 
 
 def test_money_is_grouped_the_way_it_is_written_on_an_invoice():
     lines = render_plain(_facts(delivered_revenue=45_000_000))
-    assert "45 000 000 so'm" in lines[0]
+    assert "45 000 000 сум" in lines[0]
 
 
 # ── What the model is shown ──────────────────────────────────────────────
@@ -368,8 +370,9 @@ async def _org(db, name: str = "Alert Co", *, chat: bool = True, active: bool = 
                 chat_id=f"chat-{uuid.uuid4().hex[:8]}",
                 min_severity=AlertSeverity.warning,
                 muted_kinds=[],
-                quiet_from_hour=None,
-                quiet_to_hour=None,
+                # Not None — that reads as "no quiet hours" and silently
+                # produces the model's 22:00-07:00 default instead.
+                **awake_quiet_hours(),
             )
         )
     await db.commit()
@@ -530,7 +533,7 @@ async def test_the_digest_goes_out_once_a_day(db, captured_sends, now_is_briefin
     assert await run(db) == 0
     assert await run(db) == 0
     assert len(captured_sends) == 1
-    assert "Ertalabki xulosa" in captured_sends[0][1]
+    assert "Утренняя сводка" in captured_sends[0][1]
 
 
 async def test_without_an_api_key_the_owner_still_gets_their_numbers(
@@ -550,7 +553,7 @@ async def test_without_an_api_key_the_owner_still_gets_their_numbers(
     await db.commit()
 
     assert await run(db) == 1
-    assert "12 000 000 so'm" in captured_sends[0][1]
+    assert "12 000 000 сум" in captured_sends[0][1]
 
 
 async def test_nothing_is_sent_outside_the_morning_window(db, captured_sends, monkeypatch):

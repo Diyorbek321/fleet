@@ -280,3 +280,121 @@ class TestAnalyticsAreScoped:
         rows = res.json()
         rows = rows if isinstance(rows, list) else rows.get("trucks", [])
         assert all(row.get("truck_id") != a_truck for row in rows)
+
+
+# ── Collections nobody remembered to add above ────────────────────────
+#
+# RESOURCES covers the five collections with full CRUD. Most of the read
+# surface is not CRUD at all — analytics, reports, aggregates, recent-activity
+# feeds — and every one of them is a `select()` somebody scoped by hand. The
+# two tests below stop that surface from depending on anybody's memory.
+
+
+def _collection_get_routes() -> list[str]:
+    """Every parameterless GET under /api, read off the running app."""
+    from app.main import app
+
+    paths = set()
+    for route in app.routes:
+        path = getattr(route, "path", "")
+        methods = getattr(route, "methods", set()) or set()
+        if path.startswith("/api") and "{" not in path and "GET" in methods:
+            paths.add(path)
+    return sorted(paths)
+
+
+# Routes that cannot leak one customer's fleet to another, with the reason.
+# Anything not listed here gets probed; adding a route means deciding which
+# side of this line it is on.
+NON_TENANT_GETS = {
+    "/api/auth/me": "the caller's own user record",
+    "/api/auth/users": "staff of the caller's own org, already org-scoped by role",
+    "/api/organizations": "superadmin only; a non-superadmin is refused",
+    "/api/organizations/platform/audit": "superadmin only",
+    "/api/organizations/platform/stats": "superadmin only",
+}
+
+
+async def _seed_recognisable_fleet(client: AsyncClient, headers: dict) -> list[str]:
+    """Build a small fleet whose every row carries a string nothing else has."""
+    truck = await client.post(
+        "/api/trucks",
+        headers=headers,
+        json={"name": "ZZMARKERTRUCK", "plate_number": "ZZMARKER01"},
+    )
+    driver = await client.post(
+        "/api/drivers",
+        headers=headers,
+        json={"name": "ZZMARKERDRIVER", "license_number": "ZZMARKERLIC"},
+    )
+    await client.post(
+        "/api/geofences",
+        headers=headers,
+        json={
+            "name": "ZZMARKERDEPOT",
+            "category": "depot",
+            "center_lat": 41.3,
+            "center_lng": 69.2,
+            "radius_m": 500,
+        },
+    )
+    truck_id, driver_id = truck.json()["id"], driver.json()["id"]
+    await client.post(
+        f"/api/trucks/{truck_id}/fuel-logs",
+        headers=headers,
+        json={"liters": 400, "cost_per_liter": 9500, "odometer": 1000},
+    )
+    await client.post(
+        f"/api/trucks/{truck_id}/maintenance",
+        headers=headers,
+        json={"service_type": "oil_change", "cost": 1_500_000, "notes": "ZZMARKERSERVICE"},
+    )
+    await client.post(
+        "/api/trips",
+        headers=headers,
+        json={"truck_id": truck_id, "driver_id": driver_id, "rate": 42_000_000},
+    )
+    return ["ZZMARKERTRUCK", "ZZMARKER01", "ZZMARKERDRIVER", "ZZMARKERLIC", "ZZMARKERDEPOT", truck_id, driver_id]
+
+
+async def test_no_collection_read_leaks_another_orgs_fleet(
+    client: AsyncClient, two_orgs
+):
+    """Org A builds a fleet; every readable collection is then fetched as Org B.
+
+    This is the failure the per-resource tests above cannot see: they check the
+    five collections someone thought to list, while a leak is by definition in
+    the query nobody thought about. Reading the routes off the app means a new
+    router is probed the day it is mounted.
+    """
+    a_headers, b_headers = two_orgs
+    markers = await _seed_recognisable_fleet(client, a_headers)
+
+    probed, leaked = [], []
+    for path in _collection_get_routes():
+        if path in NON_TENANT_GETS:
+            continue
+        res = await client.get(path, headers=b_headers)
+        if res.status_code != 200:
+            continue  # refused or needs arguments — either way, nothing came out
+        probed.append(path)
+        body = res.text
+        for marker in markers:
+            if marker in body:
+                leaked.append(f"{path} → {marker}")
+
+    assert not leaked, "another organization's data came back:\n  " + "\n  ".join(leaked)
+    # If a refactor makes every route 4xx, the loop above would pass by doing
+    # nothing at all. It has to actually read something to mean anything.
+    assert len(probed) >= 12, f"only probed {len(probed)} collections: {probed}"
+
+
+async def test_every_readable_collection_is_either_probed_or_exempted():
+    """A new router cannot ship without someone deciding it is tenant-safe.
+
+    The exemption list takes a reason per entry, so the decision is written
+    down where the next person reviewing a new route will read it.
+    """
+    routes = set(_collection_get_routes())
+    stale = set(NON_TENANT_GETS) - routes
+    assert not stale, f"exempted routes that no longer exist: {sorted(stale)}"

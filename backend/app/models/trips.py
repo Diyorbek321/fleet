@@ -18,7 +18,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.models.enums import TripStatus, TripEventType, SegmentKind
+from app.models.enums import SegmentKind, StagePlace, TripEventType, TripStage, TripStatus
 
 
 class Trip(Base):
@@ -44,6 +44,15 @@ class Trip(Base):
     driver_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("drivers.id", ondelete="SET NULL"), nullable=True)
 
     status: Mapped[TripStatus] = mapped_column(Enum(TripStatus, name="trip_status"), default=TripStatus.draft, nullable=False)
+    # The driver's own words for where the load is, kept beside the coarse
+    # status rather than replacing it: reports and alerts read `status`, the
+    # cargo owner's message reads these two.
+    current_stage: Mapped[TripStage | None] = mapped_column(
+        Enum(TripStage, name="trip_stage"), nullable=True
+    )
+    current_stage_place: Mapped[StagePlace | None] = mapped_column(
+        Enum(StagePlace, name="stage_place"), nullable=True
+    )
 
     # Parties
     shipper: Mapped[str | None] = mapped_column(String(200), nullable=True)
@@ -71,6 +80,11 @@ class Trip(Base):
     scheduled_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     scheduled_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Stamped the first time a driver reports the load as on board. Distinct
+    # from `started_at`, which is when the trip began moving at all — the
+    # customer's card asks for the loading date, and on a run that waits two
+    # days for papers those are not the same day.
+    loaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -102,6 +116,15 @@ class TripEvent(Base):
     event: Mapped[TripEventType] = mapped_column(Enum(TripEventType, name="trip_event_type"), nullable=False)
     from_status: Mapped[TripStatus | None] = mapped_column(Enum(TripStatus, name="trip_status"), nullable=True)
     to_status: Mapped[TripStatus | None] = mapped_column(Enum(TripStatus, name="trip_status"), nullable=True)
+    # The checkpoint this row records, when there was one. Nullable because
+    # dispatcher-side status moves and older rows have no stage — and because
+    # the ETA's medians must be able to tell "not reported" from "reported".
+    stage: Mapped[TripStage | None] = mapped_column(
+        Enum(TripStage, name="trip_stage"), nullable=True
+    )
+    stage_place: Mapped[StagePlace | None] = mapped_column(
+        Enum(StagePlace, name="stage_place"), nullable=True
+    )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 8), nullable=True)
     longitude: Mapped[float | None] = mapped_column(Numeric(11, 8), nullable=True)

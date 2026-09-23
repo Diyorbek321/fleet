@@ -16,6 +16,7 @@ from app.services.refresh_tokens import refresh_store
 from app.services.scheduler import shutdown_scheduler, start_scheduler
 from app.services.telegram import register_webhook
 
+from app.routers.audit import router as audit_router
 from app.routers.auth import router as auth_router
 from app.routers.organizations import router as organizations_router
 from app.routers.org_settings import router as org_settings_router
@@ -35,6 +36,7 @@ from app.routers.reminders import router as reminders_router
 from app.routers.queue import router as queue_router
 from app.routers.files import router as files_router
 from app.routers.telegram import webhook_router as telegram_webhook_router, api_router as telegram_api_router
+from app.routers.track import router as track_router
 from app.routers.owner_alerts import router as owner_alerts_router
 
 
@@ -48,6 +50,23 @@ def _check_secrets() -> None:
     ship the committed placeholder secret). The test secret is long and not in
     the blocklist, so the suite still starts.
     """
+    # The fleet-wide GPS allow-list is gone: a key with no organization behind
+    # it made the tenant check on ingest unenforceable (see routers/gps.py).
+    # A process still carrying one is configured for a security model that no
+    # longer exists, and silently ignoring the setting would leave an operator
+    # believing their trackers are authenticated when every one of them is
+    # about to start failing.
+    if settings.gps_keys_set():
+        message = (
+            "GPS_API_KEYS is no longer supported — a fleet-wide key cannot be "
+            "scoped to one customer, so it bypassed tenant isolation on "
+            "/api/gps/ingest. Enroll each tracker with POST /api/devices and "
+            "remove the setting."
+        )
+        if settings.is_prod:
+            raise RuntimeError(message)
+        logger.warning("gps_api_keys_ignored", detail=message)
+
     if settings.env.lower() == "dev":
         return
     secret = settings.jwt_secret_key.strip()
@@ -159,6 +178,7 @@ async def health_db():
 
 # Include routers
 app.include_router(auth_router)
+app.include_router(audit_router)
 app.include_router(organizations_router)
 app.include_router(org_settings_router)
 app.include_router(trucks_router)
@@ -176,6 +196,7 @@ app.include_router(driver_data_router)
 app.include_router(reminders_router)
 app.include_router(queue_router)
 app.include_router(files_router)
+app.include_router(track_router)
 app.include_router(telegram_webhook_router)
 app.include_router(telegram_api_router)
 app.include_router(owner_alerts_router)

@@ -31,21 +31,21 @@ async def get_current_user(
     operator out of the very endpoint needed to un-suspend a customer.
     """
     if creds is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Требуется вход в систему")
     token = creds.credentials
     try:
         payload = decode_token(token)
     except Exception:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверный токен")
 
     user_id_raw = payload.get("userId")
     if not user_id_raw:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверное содержимое токена")
 
     try:
         user_id = uuid.UUID(user_id_raw)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверное содержимое токена")
 
     res = await db.execute(
         select(User, Organization.is_active)
@@ -54,7 +54,7 @@ async def get_current_user(
     )
     row = res.first()
     if row is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден")
 
     user, org_is_active = row
 
@@ -65,11 +65,11 @@ async def get_current_user(
     if token_predates_password_change(payload, user.password_changed_at):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Password changed — please sign in again",
+            detail="Пароль изменён — войдите заново",
         )
 
     if not org_is_active and user.role is not UserRole.superadmin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Organization is suspended")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Компания заблокирована")
     return user
 
 def require_role(*roles: UserRole):
@@ -91,7 +91,7 @@ def require_role(*roles: UserRole):
 
     async def _dep(user: User = Depends(get_current_user)) -> User:
         if user.role not in allowed:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
         return user
     return _dep
 
@@ -135,25 +135,25 @@ async def get_org_id(
         # it. Silently serving their own data would hide both.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Support access is restricted to platform operators",
+            detail="Доступ поддержки разрешён только операторам платформы",
         )
 
     if request.method.upper() not in _SAFE_METHODS:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Support access is read-only",
+            detail="Доступ поддержки — только на чтение",
         )
 
     try:
         target_id = uuid.UUID(requested)
     except (ValueError, TypeError):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid organization id")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный идентификатор компании")
 
     org = (
         await db.execute(select(Organization).where(Organization.id == target_id))
     ).scalar_one_or_none()
     if org is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Компания не найдена")
 
     from app.services.audit import record_support_read
 
@@ -170,6 +170,6 @@ async def get_current_driver(user: User = Depends(get_current_user)) -> "Driver"
     if user.driver_id is None or user.driver is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This account is not linked to a driver profile",
+            detail="Эта учётная запись не связана с профилем водителя",
         )
     return user.driver

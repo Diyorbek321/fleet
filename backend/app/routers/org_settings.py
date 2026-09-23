@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.deps.auth import get_current_user, get_org_id, require_role
+from app.services import audit
 from app.models.enums import UserRole
 from app.models.organizations import Organization
 from app.models.users import User
@@ -68,7 +69,7 @@ async def _load_org(db: AsyncSession, org_id: uuid.UUID) -> Organization:
         await db.execute(select(Organization).where(Organization.id == org_id))
     ).scalar_one_or_none()
     if org is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Organization not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Компания не найдена")
     return org
 
 
@@ -87,14 +88,36 @@ async def update_org_settings(
     data: OrgSettingsIn,
     db: AsyncSession = Depends(get_db),
     org: uuid.UUID = Depends(get_org_id),
-    _: User = Depends(require_role(UserRole.admin)),
+    actor: User = Depends(require_role(UserRole.admin)),
 ):
     """Set the rates. Admin only — they change what every past report reads as."""
     record = await _load_org(db, org)
+    fields = ("usd_to_kzt", "usd_to_rub", "usd_to_uzs")
+    before = {f: getattr(record, f) for f in fields}
+
     record.usd_to_kzt = data.usd_to_kzt
     record.usd_to_rub = data.usd_to_rub
     record.usd_to_uzs = data.usd_to_uzs
     record.updated_at = datetime.now(timezone.utc)
+
+    # These retroactively restate every cross-border expense report the company
+    # has ever filed. One number moved by an operator can change a quarter's
+    # figures, and nothing else in the product would show that it happened.
+    changed = audit.describe_changes(
+        before, {f: getattr(record, f) for f in fields}, fields
+    )
+    if changed:
+        await audit.record_change(
+            db,
+            actor=actor,
+            action=audit.SETTINGS_UPDATE,
+            org_id=org,
+            target_type="org_settings",
+            target_id=org,
+            target_label="exchange rates",
+            detail=changed,
+        )
+
     await db.commit()
     await db.refresh(record)
     return OrgSettingsOut.model_validate(record)

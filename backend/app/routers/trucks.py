@@ -5,6 +5,7 @@ from typing import Optional
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
@@ -18,6 +19,7 @@ from app.schemas.trucks import (
     TruckLocationOut, LocationHistoryItem
 )
 from app.models.drivers import DriverAssignment, Driver
+from app.services import audit
 
 router = APIRouter(prefix="/api/trucks", tags=["Trucks"])
 
@@ -32,7 +34,7 @@ async def _get_owned_truck(db: AsyncSession, truck_id: uuid.UUID, org: uuid.UUID
         await db.execute(select(Truck).where(Truck.id == truck_id, Truck.org_id == org))
     ).scalar_one_or_none()
     if not truck:
-        raise HTTPException(status_code=404, detail="Truck not found")
+        raise HTTPException(status_code=404, detail="Машина не найдена")
     return truck
 
 
@@ -64,6 +66,28 @@ async def list_trucks(
     res = await db.execute(stmt.order_by(Truck.created_at.desc()))
     return res.scalars().all()
 
+async def _reject_duplicate_plate(
+    db: AsyncSession, org: uuid.UUID, plate: str | None, exclude_id: uuid.UUID | None = None
+) -> None:
+    """409 if this fleet already runs that plate.
+
+    Scoped to the organization, because that is what the constraint behind it
+    now says. An unscoped check would answer "taken" for a plate belonging to a
+    different company — a wrong answer, and one that tells the caller something
+    about a competitor's fleet.
+    """
+    if not plate:
+        return
+    stmt = select(Truck.id).where(Truck.org_id == org, Truck.plate_number == plate)
+    if exclude_id is not None:
+        stmt = stmt.where(Truck.id != exclude_id)
+    if (await db.execute(stmt)).scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Машина с госномером {plate} уже есть в этом автопарке",
+        )
+
+
 @router.post("", response_model=TruckOut)
 async def create_truck(
     data: TruckCreate,
@@ -71,9 +95,21 @@ async def create_truck(
     org: uuid.UUID = Depends(get_org_id),
     _user=Depends(_MANAGE),
 ):
-    truck = Truck(org_id=org, **data.model_dump())
+    payload = data.model_dump()
+    await _reject_duplicate_plate(db, org, payload.get("plate_number"))
+
+    truck = Truck(org_id=org, **payload)
     db.add(truck)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # Two operators adding the same plate at once: the check above lost the
+        # race, the constraint did not.
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Машина с госномером {payload.get('plate_number')} уже есть в этом автопарке",
+        )
     await db.refresh(truck)
     return truck
 
@@ -90,7 +126,7 @@ async def get_truck(
     )
     truck = res.scalar_one_or_none()
     if not truck:
-        raise HTTPException(status_code=404, detail="Truck not found")
+        raise HTTPException(status_code=404, detail="Машина не найдена")
 
     # fetch current driver assignment
     da_res = await db.execute(
@@ -120,11 +156,21 @@ async def update_truck(
 ):
     truck = await _get_owned_truck(db, truck_id, org)
 
-    for k, v in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    await _reject_duplicate_plate(db, org, payload.get("plate_number"), exclude_id=truck.id)
+
+    for k, v in payload.items():
         setattr(truck, k, v)
 
     truck.updated_at = datetime.now(timezone.utc)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Машина с госномером {payload.get('plate_number')} уже есть в этом автопарке",
+        )
     await db.refresh(truck)
     return truck
 
@@ -133,9 +179,20 @@ async def delete_truck(
     truck_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     org: uuid.UUID = Depends(get_org_id),
-    _user=Depends(_MANAGE),
+    actor=Depends(_MANAGE),
 ):
     truck = await _get_owned_truck(db, truck_id, org)
+    # Cascades through this truck's location history, fuel logs and trips.
+    await audit.record_change(
+        db,
+        actor=actor,
+        action=audit.TRUCK_DELETE,
+        org_id=org,
+        target_type="truck",
+        target_id=truck.id,
+        target_label=truck.plate_number,
+        detail=f"name: {truck.name}",
+    )
     await db.delete(truck)
     await db.commit()
     return {"message": "Deleted"}
@@ -150,7 +207,7 @@ async def get_current_location(
     res = await db.execute(select(TruckLocation).where(TruckLocation.truck_id == truck_id))
     loc = res.scalar_one_or_none()
     if not loc:
-        raise HTTPException(status_code=404, detail="Location not found")
+        raise HTTPException(status_code=404, detail="Местоположение не найдено")
     return TruckLocationOut.model_validate(loc)
 
 @router.get("/{truck_id}/history", response_model=list[LocationHistoryItem])

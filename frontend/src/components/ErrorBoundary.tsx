@@ -1,6 +1,7 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { logger } from "@/lib/logger";
+import i18n from "@/i18n";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -58,11 +59,10 @@ export class ErrorBoundary extends Component<
             ⚠️
           </div>
           <h1 className="text-2xl font-semibold text-foreground">
-            Something went wrong
+            {i18n.t("errors.boundaryTitle")}
           </h1>
           <p className="max-w-md text-sm text-muted-foreground">
-            An unexpected error occurred. Please reload the page. If the problem
-            persists, contact your administrator.
+            {i18n.t("errors.boundaryBody")}
           </p>
         </div>
 
@@ -74,7 +74,7 @@ export class ErrorBoundary extends Component<
           </pre>
         )}
 
-        <Button onClick={this.handleReload}>Reload</Button>
+        <Button onClick={this.handleReload}>{i18n.t("common.reload")}</Button>
       </div>
     );
   }

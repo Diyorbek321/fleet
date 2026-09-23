@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, date, timezone
-from sqlalchemy import String, Date, DateTime, Enum, ForeignKey, UniqueConstraint, Integer
+from sqlalchemy import Boolean, String, Date, DateTime, Enum, ForeignKey, UniqueConstraint, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
@@ -16,8 +16,17 @@ class Driver(Base):
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Three numbers, because that is how a driver is actually reached in this
+    # market: the SIM in the cab, a personal handset, and a Russian/Kazakh SIM
+    # bought for the leg beyond the border. One column meant a dispatcher who
+    # could not get through had nowhere to look for the second number.
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    phone2: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    phone3: Mapped[str | None] = mapped_column(String(20), nullable=True)
     email: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True)
+    # Cleared to carry dangerous goods. Not a document reference: dispatch only
+    # ever asks the yes/no question, when matching a driver to an ADR load.
+    adr: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     license_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     license_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[DriverStatus] = mapped_column(Enum(DriverStatus, name="driver_status"), default=DriverStatus.active, nullable=False)

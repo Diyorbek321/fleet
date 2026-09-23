@@ -120,7 +120,7 @@ async def stop_queue_watch(
     )
     watch = res.scalars().first()
     if watch is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active watch")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Нет активного отслеживания")
     watch.active = False
     watch.updated_at = datetime.now(timezone.utc)
     await db.commit()
@@ -139,7 +139,7 @@ async def refresh_queue_watch(
     )
     watch = res.scalars().first()
     if watch is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active watch")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Нет активного отслеживания")
 
     record, notify = await evaluate_watch(watch, client)
     if notify:

@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from datetime import datetime
 import pathlib
 
 # --- environment (must happen before importing app.*) ---
@@ -38,10 +39,12 @@ TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", _DEFAULT_TEST_DSN)
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-not-for-production-use-only")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:8080")
-os.environ.setdefault("GPS_API_KEYS", "legacy-test-key")
 os.environ.setdefault("ENV", "test")
 os.environ.setdefault("DEBUG", "false")
 os.environ.setdefault("USE_REDIS_REFRESH_TOKENS", "false")
+# Reverse geocoding calls a public HTTP service; no test may reach the network.
+# Cases that exercise it turn it on explicitly and inject a MockTransport.
+os.environ.setdefault("GEOCODING_ENABLED", "false")
 # Public sign-up is OFF in production (companies are provisioned by the platform
 # operator), but the suite's `admin_token` fixture and tests/test_tenancy.py build
 # their tenants through POST /api/auth/register — the cheapest way to get two
@@ -265,3 +268,35 @@ async def driver_login(client: AsyncClient, admin_headers) -> dict:
         "driver_id": driver["id"],
         "headers": {"Authorization": f"Bearer {login['access_token']}"},
     }
+
+
+def awake_window() -> tuple[int, int]:
+    """A quiet-hours window guaranteed NOT to contain the current Tashkent hour.
+
+    ``TelegramAccount.quiet_from_hour`` is ``nullable=True, default=22``, and a
+    Python-side default fires whenever the value is None at insert — so
+    constructing an account with ``quiet_from_hour=None`` does not disable quiet
+    hours, it silently sets 22:00–07:00. Every alert test that built an account
+    that way was therefore green by day and red after ten at night, which is a
+    worse failure than a flaky test: the suite looked fine to whoever ran it and
+    broke for whoever ran it late.
+
+    Tests that want the window to bite pass their own hours; everything else
+    takes this one and stops depending on the clock.
+    """
+    from app.services.period_reports import report_tz
+
+    hour = datetime.now(report_tz()).hour
+    return (hour + 2) % 24, (hour + 3) % 24
+
+
+def awake_quiet_hours() -> dict[str, int]:
+    """``TelegramAccount`` kwargs for a quiet window that is not happening now.
+
+    Spread as ``**awake_quiet_hours()`` at every construction site, because the
+    obvious spelling is wrong: ``quiet_from_hour=None`` reads as "no quiet
+    hours" and produces 22:00-07:00, so a suite written that way is green all
+    day and red all evening.
+    """
+    lo, hi = awake_window()
+    return {"quiet_from_hour": lo, "quiet_to_hour": hi}

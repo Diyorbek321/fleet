@@ -30,6 +30,13 @@ USER appuser
 
 EXPOSE 8000
 
+# Report whether this process can still serve. `restart: unless-stopped` only
+# reacts to a process that exits; a container that is up but wedged looks
+# perfectly healthy to Docker without this, and to anyone reading `docker ps`.
+# start-period covers `alembic upgrade head`, which runs before uvicorn binds.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD python -c "import urllib.request,os,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:'+os.environ.get('PORT','8000')+'/health', timeout=4).status==200 else 1)"
+
 # Apply migrations, then start the server. Bind to 0.0.0.0 and respect the
 # platform-provided $PORT (Railway/Render set it); default to 8000 locally.
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

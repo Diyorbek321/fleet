@@ -149,8 +149,8 @@ def _validate_report_lines(data: TripExpenseReportIn) -> None:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=(
-                    f"Duplicate expense line for country '{cell[0]}' and category "
-                    f"'{cell[1]}' — each country/category combination may only appear once."
+                    f"Повторяющаяся строка расхода: страна '{cell[0]}', категория "
+                    f"'{cell[1]}' — каждое сочетание страны и категории может встречаться только один раз."
                 ),
             )
         seen_cells.add(cell)
@@ -160,7 +160,7 @@ def _validate_report_lines(data: TripExpenseReportIn) -> None:
         if row.row_no in seen_row_nos:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Duplicate fuel row number '{row.row_no}' — each row_no may only appear once.",
+                detail=f"Повторяющийся номер строки заправки '{row.row_no}' — row_no может встречаться только один раз.",
             )
         seen_row_nos.add(row.row_no)
 

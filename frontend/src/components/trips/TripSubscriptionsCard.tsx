@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Send, Trash2, MessageSquare, Check } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '@/lib/datetime';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

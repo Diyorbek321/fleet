@@ -13,6 +13,8 @@ identical messages a day.
 """
 from __future__ import annotations
 
+from tests.conftest import awake_quiet_hours
+
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -178,8 +180,8 @@ def test_the_message_names_the_currency_that_is_short():
 def test_the_message_distinguishes_missing_cash_from_overspending():
     unaccounted = build_alert(_report(), _trip(), find_gaps({"kzt": 200_000.0}, _rates()))
     overspent = build_alert(_report(), _trip(), find_gaps({"kzt": -200_000.0}, _rates()))
-    assert "hisobsiz qoldi" in unaccounted.body
-    assert "ortiqcha sarflangan" in overspent.body
+    assert "не подтверждено" in unaccounted.body
+    assert "перерасход" in overspent.body
 
 
 def test_a_multi_currency_mismatch_is_totalled_in_dollars():
@@ -187,13 +189,13 @@ def test_a_multi_currency_mismatch_is_totalled_in_dollars():
     alert = build_alert(
         _report(), _trip(), find_gaps({"usd": 120.0, "kzt": 200_000.0}, _rates())
     )
-    assert "Jami farq" in alert.body
+    assert "Итого расхождение" in alert.body
     assert "555" in alert.body  # $120 + 200 000 KZT at 460
 
 
 def test_a_single_currency_mismatch_is_not_totalled():
     alert = build_alert(_report(), _trip(), find_gaps({"kzt": 200_000.0}, _rates()))
-    assert "Jami farq" not in alert.body
+    assert "Итого расхождение" not in alert.body
 
 
 def test_the_dollar_row_is_not_converted_into_itself():
@@ -251,8 +253,9 @@ async def _org_with_chat(db, *, chat_id: str = "900001", **rates) -> Organizatio
             chat_id=chat_id,
             min_severity=AlertSeverity.info,
             muted_kinds=[],
-            quiet_from_hour=None,  # tests must not depend on the wall clock
-            quiet_to_hour=None,
+            # Not None — that reads as "no quiet hours" and silently
+            # produces the model's 22:00-07:00 default instead.
+            **awake_quiet_hours(),
         )
     )
     await db.commit()

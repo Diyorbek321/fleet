@@ -30,7 +30,7 @@ async def _get_owned_driver(db: AsyncSession, driver_id: uuid.UUID, org: uuid.UU
         await db.execute(select(Driver).where(Driver.id == driver_id, Driver.org_id == org))
     ).scalar_one_or_none()
     if not driver:
-        raise HTTPException(status_code=404, detail="Driver not found")
+        raise HTTPException(status_code=404, detail="Водитель не найден")
     return driver
 
 
@@ -46,11 +46,11 @@ async def create_driver_login(
 
     existing_link = (await db.execute(select(User).where(User.driver_id == driver_id))).scalar_one_or_none()
     if existing_link:
-        raise HTTPException(status_code=409, detail="Driver already has a login")
+        raise HTTPException(status_code=409, detail="У водителя уже есть учётная запись")
 
     email_taken = (await db.execute(select(User).where(User.email == data.email))).scalar_one_or_none()
     if email_taken:
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Этот email уже зарегистрирован")
 
     user = User(
         org_id=admin.org_id,
@@ -148,9 +148,20 @@ async def delete_driver(
     driver_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     org: uuid.UUID = Depends(get_org_id),
-    _user=Depends(_MANAGE),
+    actor=Depends(_MANAGE),
 ):
     driver = await _get_owned_driver(db, driver_id, org)
+    # Takes their expense history and cash reconciliation with them.
+    await audit.record_change(
+        db,
+        actor=actor,
+        action=audit.DRIVER_DELETE,
+        org_id=org,
+        target_type="driver",
+        target_id=driver.id,
+        target_label=driver.name,
+        detail=f"license: {driver.license_number}",
+    )
     await db.delete(driver)
     await db.commit()
     return {"message": "Deleted"}
@@ -167,7 +178,7 @@ async def assign_driver_to_truck(
     await _get_owned_driver(db, driver_id, org)
     t_res = await db.execute(select(Truck).where(Truck.id == data.truck_id, Truck.org_id == org))
     if not t_res.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="Truck not found")
+        raise HTTPException(status_code=404, detail="Машина не найдена")
 
     # unassign current active assignment for this truck (if any)
     da_truck_res = await db.execute(
@@ -204,7 +215,7 @@ async def unassign_driver(
     )
     da = da_res.scalar_one_or_none()
     if not da:
-        raise HTTPException(status_code=404, detail="No active assignment")
+        raise HTTPException(status_code=404, detail="Нет активной привязки")
     da.unassigned_at = datetime.now(timezone.utc)
     await db.commit()
     return {"message": "Unassigned"}

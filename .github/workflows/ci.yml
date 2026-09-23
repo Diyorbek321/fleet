@@ -43,7 +43,6 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://fleet:fleet@localhost:5432/fleet
           JWT_SECRET_KEY: ci-secret-key-at-least-32-chars-long
           CORS_ORIGINS: http://localhost:8080
-          GPS_API_KEYS: ci
       - name: Run pytest with coverage
         run: pytest --cov=app --cov-report=term
         env:

@@ -150,28 +150,28 @@ def _batched(items: Sequence[PushToken], size: int) -> Iterable[Sequence[PushTok
 
 # ── Message text ─────────────────────────────────────────────────────────────
 #
-# Uzbek, matching the customer-facing Telegram messages in
+# Russian, matching the customer-facing Telegram messages in
 # ``app/services/telegram.py``. The driver app is translated, but a push
 # notification is rendered by the OS from what the server sends, and the server
 # has no record of which language a driver picked — so this follows the same
 # choice the rest of the platform's outbound text already makes.
 
 _QUEUE_TITLES = {
-    "late": "⏰ Navbatga kechikyapsiz",
-    "revoked": "❌ Ruxsat bekor qilindi",
-    "crossed": "✅ Chegaradan o'tdingiz",
-    "in_queue": "🕓 Navbatdasiz",
-    "check_failed": "⚠️ Tekshiruv o'tmadi",
-    "none": "ℹ️ Bronь topilmadi",
+    "late": "⏰ Вы опаздываете в очередь",
+    "revoked": "❌ Пропуск отозван",
+    "crossed": "✅ Вы прошли границу",
+    "in_queue": "🕓 Вы в очереди",
+    "check_failed": "⚠️ Проверка не пройдена",
+    "none": "ℹ️ Бронь не найдена",
 }
 
 _QUEUE_BODIES = {
-    "late": "{plate} — {checkpoint}. Navbat vaqtingizdan kechikyapsiz.",
-    "revoked": "{plate} — {checkpoint}. Navbat ruxsatingiz bekor qilindi.",
-    "crossed": "{plate} — {checkpoint} chegara punktidan o'tdingiz.",
-    "in_queue": "{plate} — {checkpoint}. Navbatdasiz.",
-    "check_failed": "{plate} — {checkpoint}. Tekshiruv o'tmadi, hujjatlarni qayta ko'ring.",
-    "none": "{plate} — {checkpoint}. Registrda bron topilmadi.",
+    "late": "{plate} — {checkpoint}. Вы опаздываете к своему времени в очереди.",
+    "revoked": "{plate} — {checkpoint}. Ваш пропуск в очередь отозван.",
+    "crossed": "{plate} — вы прошли пункт пропуска {checkpoint}.",
+    "in_queue": "{plate} — {checkpoint}. Вы в очереди.",
+    "check_failed": "{plate} — {checkpoint}. Проверка не пройдена, проверьте документы.",
+    "none": "{plate} — {checkpoint}. В реестре бронь не найдена.",
 }
 
 
@@ -182,6 +182,6 @@ def queue_status_message(status: str, *, plate: str, checkpoint: str) -> tuple[s
     registry can add a label at any time, and a driver being told "status
     changed" is far better than being told nothing while we wait for a deploy.
     """
-    title = _QUEUE_TITLES.get(status, "🚚 Navbat holati o'zgardi")
-    template = _QUEUE_BODIES.get(status, "{plate} — {checkpoint}. Holat o'zgardi.")
+    title = _QUEUE_TITLES.get(status, "🚚 Статус очереди изменился")
+    template = _QUEUE_BODIES.get(status, "{plate} — {checkpoint}. Статус изменился.")
     return title, template.format(plate=plate, checkpoint=checkpoint)

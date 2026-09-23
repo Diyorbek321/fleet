@@ -163,6 +163,7 @@ def captured_sends(monkeypatch) -> list[tuple[str, str]]:
 
 
 async def _org_and_chat(db, **kwargs) -> tuple[uuid.UUID, TelegramAccount]:
+    _awake = _awake_now()
     org = Organization(name="Alert Co")
     db.add(org)
     await db.flush()
@@ -172,8 +173,13 @@ async def _org_and_chat(db, **kwargs) -> tuple[uuid.UUID, TelegramAccount]:
         chat_id="900001",
         min_severity=kwargs.pop("min_severity", AlertSeverity.info),
         muted_kinds=kwargs.pop("muted_kinds", []),
-        quiet_from_hour=kwargs.pop("quiet_from_hour", None),
-        quiet_to_hour=kwargs.pop("quiet_to_hour", None),
+        # Defaulting these to None does NOT mean "no quiet hours": the column is
+        # nullable but carries a Python-side default of 22, which fires on any
+        # None at insert. Every test here that did not care about the hour was
+        # therefore given a 22:00–07:00 window and failed after ten at night.
+        # Tests that want the window to bite still pass _quiet_now().
+        quiet_from_hour=kwargs.pop("quiet_from_hour", _awake[0]),
+        quiet_to_hour=kwargs.pop("quiet_to_hour", _awake[1]),
         is_active=kwargs.pop("is_active", True),
         **kwargs,
     )
@@ -493,7 +499,7 @@ async def test_settings_reports_the_current_preferences(db):
     )
     reply = await handle_owner_message(db, "900001", "/settings")
     assert "Direktor" in reply
-    assert "Reys holati" in reply
+    assert "Статус рейса" in reply
     assert "22:00" in reply
 
 
@@ -795,7 +801,7 @@ async def test_an_owner_chat_answers_its_own_commands(
     sends.clear()
 
     await _post_update(client, "/settings")
-    assert "Sozlamalar" in sends[0][1]
+    assert "Настройки" in sends[0][1]
 
     await _post_update(client, "/stop")
     row = (await client.get("/api/org/telegram", headers=admin_headers)).json()[0]

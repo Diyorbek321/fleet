@@ -14,6 +14,9 @@
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import i18n, { LANGUAGE_STORAGE_KEY } from '../i18n';
 
 import { ApiError } from './api';
 import { meApi, type LocationPing } from './me';
@@ -36,12 +39,33 @@ Notifications.setNotificationHandler({
 });
 
 /**
+ * The "tracking stopped" copy, carried here rather than read from i18next.
+ *
+ * This runs in the headless task context described in the module docstring:
+ * it does NOT share React/i18n state with the foreground app, and a live
+ * i18next instance may never have been initialized there. So the task reads
+ * the driver's saved language straight out of storage — the same key the app
+ * writes — and picks its own wording. Russian is the fallback, matching the
+ * app's default.
+ */
+const STOPPED_COPY: Record<string, { title: string; body: string }> = {
+  ru: {
+    title: 'Передача геолокации остановлена',
+    body: 'Fleet Watch перестал передавать вашу геолокацию — откройте приложение и войдите снова.',
+  },
+  uz: {
+    title: 'Joylashuv uzatish to‘xtadi',
+    body: 'Fleet Watch joylashuvingizni uzatishni to‘xtatdi — ilovani ochib, qaytadan kiring.',
+  },
+  en: {
+    title: 'Location sharing stopped',
+    body: 'Fleet Watch stopped sharing your location — please reopen the app and sign in again.',
+  },
+};
+
+/**
  * Alerts the driver that background tracking stopped itself because the
- * session is dead. Fired from the headless task context described in the
- * module docstring above, which does NOT share React/i18n state with the
- * foreground app, so the copy here is intentionally hardcoded (a live
- * i18next instance may not be initialized in that context) rather than
- * routed through `react-i18next`.
+ * session is dead.
  *
  * Best-effort: notification permission is requested up front in
  * {@link requestTrackingPermissions} (which runs in the foreground, where a
@@ -50,11 +74,16 @@ Notifications.setNotificationHandler({
  */
 async function notifyTrackingStopped(): Promise<void> {
   try {
+    let lang = 'ru';
+    try {
+      const saved = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
+      if (saved && saved in STOPPED_COPY) lang = saved;
+    } catch {
+      // Storage unavailable in this context — the Russian default stands.
+    }
+    const copy = STOPPED_COPY[lang] ?? STOPPED_COPY.ru;
     await Notifications.scheduleNotificationAsync({
-      content: {
-        title: 'Location sharing stopped',
-        body: 'Fleet Watch stopped sharing your location — please reopen the app and sign in again.',
-      },
+      content: { title: copy.title, body: copy.body },
       trigger: null,
     });
   } catch {
@@ -62,23 +91,32 @@ async function notifyTrackingStopped(): Promise<void> {
   }
 }
 
-/** How the background updates are sampled. Tuned for trucking: a ping every
- *  ~15s or every 50m, balanced accuracy to preserve battery. */
-const UPDATE_OPTIONS: Location.LocationTaskOptions = {
-  accuracy: Location.Accuracy.Balanced,
-  timeInterval: 15000,
-  distanceInterval: 50,
-  // Keep the OS from killing the process while a shift is active (Android).
-  foregroundService: {
-    notificationTitle: 'Fleet Watch',
-    notificationBody: 'Sharing your location with your dispatcher',
-    notificationColor: '#2563eb',
-  },
-  // iOS: surface the blue bar / pause behaviour sensibly.
-  pausesUpdatesAutomatically: false,
-  showsBackgroundLocationIndicator: true,
-  activityType: Location.ActivityType.AutomotiveNavigation,
-};
+/**
+ * How the background updates are sampled. Tuned for trucking: a ping every
+ * ~15s or every 50m, balanced accuracy to preserve battery.
+ *
+ * Built on each start rather than held as a module constant: the Android
+ * foreground-service notification sits in the driver's shade for the whole
+ * shift, so its wording has to follow the language they picked — and at import
+ * time i18next may not be initialised yet.
+ */
+function updateOptions(): Location.LocationTaskOptions {
+  return {
+    accuracy: Location.Accuracy.Balanced,
+    timeInterval: 15000,
+    distanceInterval: 50,
+    // Keep the OS from killing the process while a shift is active (Android).
+    foregroundService: {
+      notificationTitle: 'Fleet Watch',
+      notificationBody: i18n.t('tracking.foregroundBody'),
+      notificationColor: '#2563eb',
+    },
+    // iOS: surface the blue bar / pause behaviour sensibly.
+    pausesUpdatesAutomatically: false,
+    showsBackgroundLocationIndicator: true,
+    activityType: Location.ActivityType.AutomotiveNavigation,
+  };
+}
 
 interface LocationTaskData {
   locations: Location.LocationObject[];
@@ -184,7 +222,7 @@ export async function isTrackingActive(): Promise<boolean> {
  */
 export async function startBackgroundTracking(): Promise<void> {
   if (await isTrackingActive()) return;
-  await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, UPDATE_OPTIONS);
+  await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, updateOptions());
 }
 
 /** Stop background location updates if they are running. */

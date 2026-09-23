@@ -232,9 +232,35 @@
   @apply !text-primary;
 }
 
-.truck-marker {
+.truck-marker,
+.track-truck-marker,
+.track-endpoint-marker {
   background: transparent;
   border: 0;
+}
+
+/*
+ * The plate, permanently above its truck.
+ *
+ * A Leaflet tooltip rather than markup inside the marker icon: an icon grown
+ * tall enough to hold a label grows its click target with it, and at fleet
+ * zoom those boxes overlap and start stealing each other's clicks. A tooltip
+ * is non-interactive and leaves the 32px dot as the only thing you can hit.
+ */
+.truck-plate.leaflet-tooltip {
+  @apply !bg-card/95 !text-card-foreground !border-border font-mono;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.35);
+  white-space: nowrap;
+}
+
+/* The little arrow: a label this small reads better without one. */
+.truck-plate.leaflet-tooltip::before {
+  display: none;
 }
 
 /* Animation keyframes */

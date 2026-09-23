@@ -1,4 +1,4 @@
-import type { Truck, TruckStatus, DashboardStats } from '@/types';
+import type { Truck, TruckStatus, TrailerVolume, DashboardStats } from '@/types';
 import { api } from '@/lib/api';
 
 // ---- Backend shapes (from /api/trucks) ----
@@ -11,6 +11,9 @@ interface BackendTruck {
   plate_number: string;
   model: string | null;
   year: number | null;
+  tractor_brand: string | null;
+  trailer_brand: string | null;
+  trailer_volume: TrailerVolume | null;
   status: BackendStatus;
   fuel_level: number;
   mileage: number;
@@ -58,6 +61,9 @@ export interface TruckDetails {
   plateNumber: string;
   model: string | null;
   year: number | null;
+  tractorBrand: string | null;
+  trailerBrand: string | null;
+  trailerVolume: TrailerVolume | null;
   status: BackendStatus;
   fuelLevel: number;
   mileage: number;
@@ -74,6 +80,9 @@ function adaptDetails(d: BackendTruckDetails): TruckDetails {
     plateNumber: d.plate_number,
     model: d.model,
     year: d.year,
+    tractorBrand: d.tractor_brand,
+    trailerBrand: d.trailer_brand,
+    trailerVolume: d.trailer_volume,
     status: d.status,
     fuelLevel: d.fuel_level,
     mileage: d.mileage,
@@ -114,16 +123,30 @@ export function toFrontendTruck(b: BackendTruck, extras?: Partial<BackendTruckDe
     id: b.id,
     plateNumber: b.plate_number,
     name: b.name,
-    deviceImei: '',
     model: b.model ?? undefined,
+    tractorBrand: b.tractor_brand ?? undefined,
+    trailerBrand: b.trailer_brand ?? undefined,
+    trailerVolume: b.trailer_volume ?? undefined,
     driverName: driver?.name,
     status: mapStatus(b.status),
     speed: loc?.speed ?? 0,
     latitude: loc?.latitude ?? 0,
     longitude: loc?.longitude ?? 0,
+    address: loc?.address ?? null,
     lastUpdate: new Date(b.updated_at),
     isEnabled: b.status !== 'offline',
   };
+}
+
+/** Everything the truck form collects. One shape for create and patch, so a
+ *  field added to the form cannot reach one endpoint and not the other. */
+export interface TruckInput {
+  name: string;
+  plateNumber: string;
+  model?: string;
+  tractorBrand?: string;
+  trailerBrand?: string;
+  trailerVolume?: TrailerVolume;
 }
 
 // ---- Endpoint wrappers ----
@@ -141,25 +164,31 @@ export const trucksApi = {
     const d = await api<BackendTruckDetails>(`/api/trucks/${id}`);
     return adaptDetails(d);
   },
-  create: async (input: { name: string; plateNumber: string; model?: string }): Promise<Truck> => {
+  create: async (input: TruckInput): Promise<Truck> => {
     const created = await api<BackendTruck>('/api/trucks', {
       method: 'POST',
       body: {
         name: input.name,
         plate_number: input.plateNumber,
         model: input.model,
+        tractor_brand: input.tractorBrand,
+        trailer_brand: input.trailerBrand,
+        trailer_volume: input.trailerVolume,
       },
     });
     return toFrontendTruck(created);
   },
   update: async (
     id: string,
-    patch: Partial<{ name: string; plateNumber: string; model: string; status: BackendStatus }>,
+    patch: Partial<TruckInput & { status: BackendStatus }>,
   ): Promise<Truck> => {
     const body: Record<string, unknown> = {};
     if (patch.name !== undefined) body.name = patch.name;
     if (patch.plateNumber !== undefined) body.plate_number = patch.plateNumber;
     if (patch.model !== undefined) body.model = patch.model;
+    if (patch.tractorBrand !== undefined) body.tractor_brand = patch.tractorBrand;
+    if (patch.trailerBrand !== undefined) body.trailer_brand = patch.trailerBrand;
+    if (patch.trailerVolume !== undefined) body.trailer_volume = patch.trailerVolume;
     if (patch.status !== undefined) body.status = patch.status;
 
     const updated = await api<BackendTruck>(`/api/trucks/${id}`, { method: 'PUT', body });

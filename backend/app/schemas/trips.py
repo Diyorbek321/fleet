@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-from app.models.enums import TripStatus, TripEventType, SegmentKind
+from app.models.enums import (
+    SegmentKind,
+    StagePlace,
+    TripEventType,
+    TripStage,
+    TripStatus,
+    places_for_stage,
+)
 
 
 class TripCreate(BaseModel):
@@ -55,11 +62,34 @@ class TripUpdate(BaseModel):
 
 
 class TripAdvance(BaseModel):
-    """Move a trip to a new status, logging a timeline event."""
-    to_status: TripStatus
+    """Move a trip on, logging a timeline event.
+
+    Either form is accepted. A driver sends ``stage`` (+ ``stage_place``) and
+    the server derives the status from it; the dispatcher panel still sends a
+    bare ``to_status``, because from a desk "mark it delivered" is the whole
+    intent and there is no checkpoint to report.
+    """
+
+    to_status: Optional[TripStatus] = None
+    stage: Optional[TripStage] = None
+    stage_place: Optional[StagePlace] = None
     note: Optional[str] = None
     latitude: Optional[float] = Field(default=None, ge=-90, le=90)
     longitude: Optional[float] = Field(default=None, ge=-180, le=180)
+
+    @model_validator(mode="after")
+    def _one_of_stage_or_status(self) -> "TripAdvance":
+        if self.stage is None and self.to_status is None:
+            raise ValueError("Укажите stage или to_status")
+        if self.stage is not None and self.stage_place is not None:
+            allowed = places_for_stage(self.stage)
+            if self.stage_place not in allowed:
+                # A border stage carries a crossing, everything else a country.
+                # Rejecting the mismatch here keeps the medians behind the
+                # arrival estimate from pooling two different borders together.
+                names = ", ".join(p.value for p in allowed)
+                raise ValueError(f"Для этого этапа допустимо: {names}")
+        return self
 
 
 class TripEventOut(BaseModel):
@@ -100,6 +130,14 @@ class TripOut(BaseModel):
     scheduled_end: Optional[datetime]
     started_at: Optional[datetime]
     delivered_at: Optional[datetime]
+    loaded_at: Optional[datetime] = None
+    current_stage: Optional[TripStage] = None
+    current_stage_place: Optional[StagePlace] = None
+    # Filled by the trips router where it is worth a query; absent elsewhere,
+    # because an estimate costs a scan of the corridor's history and a trip
+    # list of forty rows does not need forty of them.
+    eta_customs: Optional[date] = None
+    eta_basis: Optional[str] = None
     notes: Optional[str]
     created_at: datetime
     updated_at: datetime

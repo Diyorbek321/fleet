@@ -73,13 +73,13 @@ _BUCKET_TTL_HOURS: dict[AlertSeverity, int] = {
 # was not recorded either.
 _MAX_ALERTS_PER_ORG_PER_RUN = 12
 
-_SERVICE_LABELS_UZ: dict[str, str] = {
-    "oil_change": "Moy almashtirish",
-    "tire_rotation": "G'ildiraklarni almashtirish",
-    "brake_inspection": "Tormoz tekshiruvi",
-    "engine_service": "Dvigatel xizmati",
-    "transmission": "Transmissiya",
-    "general": "Umumiy texnik xizmat",
+_SERVICE_LABELS_RU: dict[str, str] = {
+    "oil_change": "Замена масла",
+    "tire_rotation": "Перестановка шин",
+    "brake_inspection": "Проверка тормозов",
+    "engine_service": "Обслуживание двигателя",
+    "transmission": "Коробка передач",
+    "general": "Общее техобслуживание",
 }
 
 
@@ -87,8 +87,9 @@ def _esc(value: Any) -> str:
     """Escape a value for an alert body.
 
     ``quote=False`` for the same reason the bus escapes titles that way: an
-    apostrophe is a letter in half the Uzbek copy here ("G'ildirak", "o'tgan"),
-    and ``&#x27;`` is what an owner sees anywhere the HTML is not rendered.
+    apostrophe is a letter in the transliterated plates and place names that
+    pass through here, and ``&#x27;`` is what an owner sees anywhere the HTML
+    is not rendered.
     """
     return html.escape("" if value is None else str(value), quote=False)
 
@@ -122,31 +123,31 @@ def _remaining_line(days_left: int | None) -> str:
     if days_left is None:
         return ""
     if days_left < 0:
-        return f"<b>Muddati o'tgan:</b> {abs(days_left)} kun"
+        return f"<b>Просрочено:</b> {abs(days_left)} дн."
     if days_left == 0:
-        return "<b>Muddat:</b> bugun tugaydi"
-    return f"<b>Qolgan:</b> {days_left} kun"
+        return "<b>Срок:</b> истекает сегодня"
+    return f"<b>Осталось:</b> {days_left} дн."
 
 
 def _licence_alert(row: dict, severity: AlertSeverity) -> Alert:
     driver_name = row.get("driver_name") or "—"
-    verb = "tugagan" if severity is AlertSeverity.critical else "tugaydi"
+    verb = "истёк" if severity is AlertSeverity.critical else "истекает"
 
     lines = [
-        f"<b>Guvohnoma:</b> {_esc(row.get('license_number') or '—')}",
-        f"<b>Amal qilish muddati:</b> {_esc(row.get('license_expiry') or '—')}",
+        f"<b>Удостоверение:</b> {_esc(row.get('license_number') or '—')}",
+        f"<b>Действительно до:</b> {_esc(row.get('license_expiry') or '—')}",
     ]
     remaining = _remaining_line(row.get("days_left"))
     if remaining:
         lines.append(remaining)
     if severity is AlertSeverity.critical:
-        lines.append("Muddati o'tgan guvohnoma bilan yo'lga chiqish — jarima va sug'urtasiz reys.")
+        lines.append("Выезд с просроченным удостоверением — это штраф и рейс без страховки.")
 
     driver_id = row.get("driver_id")
     return Alert(
         kind=AlertKind.document_expiry,
         severity=severity,
-        title=f"Haydovchi guvohnomasi muddati {verb} — {driver_name}",
+        title=f"Срок водительского удостоверения {verb} — {driver_name}",
         body="\n".join(lines),
         # The bucket is in the key on purpose: it is what turns one licence into
         # three messages as it approaches instead of one and then silence.
@@ -159,19 +160,19 @@ def _licence_alert(row: dict, severity: AlertSeverity) -> Alert:
 def _service_alert(row: dict, severity: AlertSeverity) -> Alert:
     plate = row.get("plate_number") or "—"
     service_type = str(row.get("service_type") or "")
-    label = _SERVICE_LABELS_UZ.get(service_type, service_type or "—")
-    verb = "o'tgan" if severity is AlertSeverity.critical else "yaqinlashdi"
+    label = _SERVICE_LABELS_RU.get(service_type, service_type or "—")
+    verb = "истёк" if severity is AlertSeverity.critical else "приближается"
 
     lines = [
-        f"<b>Mashina:</b> {_esc(row.get('truck_name') or '—')} ({_esc(plate)})",
-        f"<b>Xizmat turi:</b> {_esc(label)}",
+        f"<b>Машина:</b> {_esc(row.get('truck_name') or '—')} ({_esc(plate)})",
+        f"<b>Вид работ:</b> {_esc(label)}",
     ]
     planned = row.get("next_service_date")
     if planned:
-        lines.append(f"<b>Rejalashtirilgan sana:</b> {_esc(planned)}")
+        lines.append(f"<b>Плановая дата:</b> {_esc(planned)}")
     elif severity is AlertSeverity.critical:
         # No date and still overdue means the mileage threshold tripped it.
-        lines.append("<b>Sabab:</b> probeg bo'yicha muddati o'tgan")
+        lines.append("<b>Причина:</b> просрочено по пробегу")
     remaining = _remaining_line(row.get("days_left"))
     if remaining:
         lines.append(remaining)
@@ -183,7 +184,7 @@ def _service_alert(row: dict, severity: AlertSeverity) -> Alert:
         # channel louder or quieter, not its two halves separately.
         kind=AlertKind.maintenance_overdue,
         severity=severity,
-        title=f"Texnik xizmat muddati {verb} — {plate}",
+        title=f"Срок техобслуживания {verb} — {plate}",
         body="\n".join(lines),
         # (truck, service_type) is unique by constraint, so it names the fact as
         # stably as the interval's own id would.

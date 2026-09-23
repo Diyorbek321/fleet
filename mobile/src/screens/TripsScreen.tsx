@@ -1,17 +1,26 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Location from 'expo-location';
 
-import { ApiError } from '../lib/api';
-import { tripsApi, NEXT_STATUS, type Trip, type TripStatus } from '../lib/trips';
+import {
+  tripsApi,
+  type StagePlace,
+  type Trip,
+  type TripStage,
+  type TripStatus,
+} from '../lib/trips';
 import { palette, spacing, typography } from '../theme/theme';
 import { haptics } from '../lib/haptics';
 import { Screen } from '../components/Screen';
-import { Button, Card, EmptyState, Loading, Pill } from '../components/ui';
+import { Button, Card, EmptyState, ErrorBox, Pill } from '../components/ui';
+import { StagePicker } from '../components/StagePicker';
 import { TripDocuments } from '../components/TripDocuments';
 import { TripReportForm } from '../components/TripReportForm';
 
+// Every status the server can send, plus a fallback below: a status added to
+// the backend and not yet known here used to index this map to `undefined` and
+// take the whole screen down on `sc.color`.
 const STATUS_COLOR: Record<TripStatus, { color: string; bg: string }> = {
   draft: { color: palette.faint, bg: palette.surfaceAlt },
   planned: { color: palette.brand, bg: palette.brandLight },
@@ -22,20 +31,32 @@ const STATUS_COLOR: Record<TripStatus, { color: string; bg: string }> = {
   cancelled: { color: palette.danger, bg: palette.dangerBg },
 };
 
+const UNKNOWN_STATUS = { color: palette.faint, bg: palette.surfaceAlt };
+
 export function TripsScreen() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [docsTripId, setDocsTripId] = useState<string | null>(null);
+  const [stageTripId, setStageTripId] = useState<string | null>(null);
   const [reportTripId, setReportTripId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      setTrips(await tripsApi.mine());
+      const mine = await tripsApi.mine();
+      // Guarded, because this screen's whole job here is never to go blank
+      // again: anything but a list would throw inside render, past every
+      // error branch, and put the driver back in front of a white tab.
+      setTrips(Array.isArray(mine) ? mine : []);
+      setError(null);
     } catch (e) {
-      Alert.alert(t('common.error'), e instanceof ApiError ? e.message : '');
+      // Shown on the screen, not only in an alert: an alert is dismissed and
+      // leaves the section looking empty, with nothing saying why and no way
+      // to try again. This tab reported "not working" for exactly that reason.
+      setError(e instanceof Error && e.message ? e.message : t('common.error'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -58,23 +79,26 @@ export function TripsScreen() {
     }
   }, []);
 
-  const advance = useCallback(
-    async (trip: Trip) => {
-      const next = NEXT_STATUS[trip.status];
-      if (!next) return;
+  const markStage = useCallback(
+    async (trip: Trip, stage: TripStage, place: StagePlace) => {
       setBusyId(trip.id);
       void haptics.press();
       try {
         const coords = await currentCoords();
         await tripsApi.advance(trip.id, {
-          to_status: next,
+          stage,
+          stage_place: place,
           latitude: coords?.lat ?? null,
           longitude: coords?.lng ?? null,
         });
         void haptics.success();
+        setStageTripId(null);
         await load();
       } catch (e) {
-        Alert.alert(t('common.error'), e instanceof ApiError ? e.message : '');
+        // `instanceof Error`, not `instanceof ApiError`: a failure that is not
+        // an ApiError is still a failure, and it used to raise an alert with an
+        // empty body that told the driver nothing.
+        Alert.alert(t('common.error'), e instanceof Error ? e.message : '');
       } finally {
         setBusyId(null);
       }
@@ -82,8 +106,9 @@ export function TripsScreen() {
     [currentCoords, load, t],
   );
 
-  if (loading) return <Loading />;
-
+  // The screen chrome renders in every state, including the first load. It
+  // used to return a bare spinner on a near-white background, so a request
+  // that was slow, hung or failing looked identical to a blank screen.
   return (
     <Screen
       title={t('trips.title')}
@@ -95,12 +120,31 @@ export function TripsScreen() {
         load();
       }}
     >
-      {trips.length === 0 ? (
+      {error ? (
+        <ErrorBox
+          message={error}
+          onRetry={() => {
+            setLoading(true);
+            load();
+          }}
+          retryLabel={t('common.retry')}
+        />
+      ) : null}
+      {loading ? (
+        <ActivityIndicator size="large" color={palette.brand} style={styles.spinner} />
+      ) : trips.length === 0 && !error ? (
         <EmptyState icon="cube-outline" title={t('trips.empty')} />
       ) : (
         trips.map((trip) => {
-          const next = NEXT_STATUS[trip.status];
-          const sc = STATUS_COLOR[trip.status];
+          const sc = STATUS_COLOR[trip.status] ?? UNKNOWN_STATUS;
+          const stageLabel = trip.current_stage
+            ? [
+                t(`trips.stage.${trip.current_stage}`),
+                trip.current_stage_place ? t(`trips.place.${trip.current_stage_place}`) : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+            : t('trips.noStageYet');
           return (
             <Card key={trip.id}>
               <View style={styles.row}>
@@ -113,15 +157,22 @@ export function TripsScreen() {
               {trip.cargo_description ? (
                 <Text style={styles.cargo}>{trip.cargo_description}</Text>
               ) : null}
-              <Text style={styles.rate}>
-                {new Intl.NumberFormat('en-US').format(Number(trip.rate))} {trip.currency}
+              <Text style={styles.stage}>
+                {t('trips.currentStage')}: {stageLabel}
               </Text>
-              {next ? (
-                <Button
-                  label={t('trips.advanceTo', { status: t(`trips.status.${next}`) })}
-                  onPress={() => advance(trip)}
-                  loading={busyId === trip.id}
-                  icon="arrow-forward"
+              <Button
+                label={t('trips.markStage')}
+                onPress={() =>
+                  setStageTripId((id) => (id === trip.id ? null : trip.id))
+                }
+                loading={busyId === trip.id}
+                icon={stageTripId === trip.id ? 'chevron-up' : 'checkmark-circle-outline'}
+              />
+              {stageTripId === trip.id ? (
+                <StagePicker
+                  current={trip.current_stage}
+                  busy={busyId === trip.id}
+                  onPick={(stage, place) => markStage(trip, stage, place)}
                 />
               ) : null}
               <Button
@@ -151,5 +202,6 @@ const styles = StyleSheet.create({
   reference: { ...typography.heading, color: palette.ink },
   route: { ...typography.body, marginTop: spacing.xs, color: palette.ink },
   cargo: { ...typography.caption, marginTop: 2 },
-  rate: { ...typography.heading, color: palette.brand, marginTop: spacing.xs, marginBottom: spacing.sm },
+  stage: { ...typography.caption, marginTop: spacing.xs, marginBottom: spacing.sm },
+  spinner: { marginTop: spacing.xxl },
 });

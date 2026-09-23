@@ -144,6 +144,32 @@ class Settings(BaseSettings):
     # manually via the Telegram Bot API.
     public_api_url: str = Field(default="", alias="PUBLIC_API_URL")
 
+    # ---- Reverse geocoding (coordinates → country + city) ----
+    # Owners are told where their cargo is in words, not in decimal degrees.
+    # Disabled in the test suite (see tests/conftest.py) so no test ever
+    # reaches the network; everything degrades to the bare map link when off,
+    # unreachable or rate-limited.
+    geocoding_enabled: bool = Field(default=True, alias="GEOCODING_ENABLED")
+    geocoding_url: str = Field(
+        default="https://nominatim.openstreetmap.org/reverse", alias="GEOCODING_URL"
+    )
+    # Nominatim's usage policy requires a User-Agent that identifies the
+    # application and a way to contact its operator. A generic one gets the
+    # platform's IP blocked, which takes the feature down for every customer.
+    geocoding_user_agent: str = Field(
+        default="FleetWatchPro/1.0 (https://fleet.eduly.uz)", alias="GEOCODING_USER_AGENT"
+    )
+    # Same policy: at most one request per second, platform-wide.
+    geocoding_min_interval_s: float = Field(default=1.0, alias="GEOCODING_MIN_INTERVAL_S")
+    geocoding_timeout_s: float = Field(default=6.0, alias="GEOCODING_TIMEOUT_S")
+    # Places do not move. A month-long cache is what keeps a parked lorry from
+    # costing one lookup per GPS ping.
+    geocoding_cache_ttl_days: int = Field(default=30, alias="GEOCODING_CACHE_TTL_DAYS")
+    # zoom=10 is Nominatim's "city / district" level — the answer we want.
+    # Higher zooms return street addresses nobody asked for and change more often.
+    geocoding_zoom: int = Field(default=10, alias="GEOCODING_ZOOM")
+    geocoding_language: str = Field(default="ru,uz,en", alias="GEOCODING_LANGUAGE")
+
     @property
     def is_prod(self) -> bool:
         return self.env.lower() in {"prod", "production"}

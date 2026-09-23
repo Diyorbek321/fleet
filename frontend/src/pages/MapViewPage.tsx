@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -26,6 +26,8 @@ function statusColor(status: Truck['status']): string {
 }
 
 // A divIcon mirrors the old custom Mapbox marker (colored circle + truck glyph).
+// The plate rides above it as a permanent tooltip — see `.truck-plate` in
+// index.css for why it is a tooltip and not part of the icon.
 function truckIcon(truck: Truck): L.DivIcon {
   return L.divIcon({
     className: 'truck-marker',
@@ -113,7 +115,14 @@ export default function MapViewPage() {
             position={[truck.latitude, truck.longitude]}
             icon={truckIcon(truck)}
             eventHandlers={{ click: () => setSelectedTruck(truck) }}
-          />
+          >
+            {/* Permanent, because the question the map answers at this zoom is
+                "which of these nine dots is Anvar's lorry" — and answering it
+                by clicking each one in turn is not answering it. */}
+            <Tooltip permanent direction="top" offset={[0, -18]} className="truck-plate">
+              {truck.plateNumber || truck.name}
+            </Tooltip>
+          </Marker>
         ))}
 
         <FitToTrucks trucks={visibleTrucks} />

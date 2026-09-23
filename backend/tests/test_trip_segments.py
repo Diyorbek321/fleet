@@ -1,6 +1,7 @@
 """Trip segmentation: moving vs stopped stretches from GPS history."""
 from __future__ import annotations
 
+import itertools
 from datetime import datetime, timedelta, timezone
 
 from httpx import AsyncClient
@@ -13,12 +14,32 @@ async def _create_truck(client: AsyncClient, headers: dict, plate: str = "SEG-1"
     return res.json()["id"]
 
 
-async def _ingest(client: AsyncClient, truck_id: str, points: list[dict]) -> None:
-    """Seed GPS history via the legacy fleet API key (configured in conftest)."""
+# IMEIs are unique platform-wide, so each enrollment in this module needs its
+# own. Tests here share a database, so a fixed constant would collide on the
+# second test rather than fail where the collision belongs.
+_imei_counter = itertools.count(1)
+
+
+async def _ingest(
+    client: AsyncClient, headers: dict, truck_id: str, points: list[dict]
+) -> None:
+    """Seed GPS history the way a real tracker does — enrolled, keyed, scoped.
+
+    There is no fleet-wide key to borrow any more: one belonged to no
+    organization, so ingest could not check that the truck being written to was
+    the caller's. Enrolling a device is now the only way in, here as in prod.
+    """
+    imei = f"35209408700{next(_imei_counter):04d}"
+    enrolled = await client.post(
+        "/api/devices", headers=headers, json={"imei": imei, "truck_id": truck_id}
+    )
+    assert enrolled.status_code in (200, 201), enrolled.text
+    api_key = enrolled.json()["api_key"]
+
     res = await client.post(
         "/api/gps/ingest",
-        headers={"X-API-Key": "legacy-test-key"},
-        json={"points": [{"truck_id": truck_id, **p} for p in points]},
+        headers={"X-API-Key": api_key, "X-IMEI": imei},
+        json={"points": points},
     )
     assert res.status_code == 200, res.text
 
@@ -36,7 +57,7 @@ async def test_segments_split_moving_and_stopped(client: AsyncClient, admin_head
         {"latitude": 41.32, "longitude": 69.22, "speed": 0, "recorded_at": (base + timedelta(minutes=45)).isoformat()},
         {"latitude": 41.33, "longitude": 69.23, "speed": 30, "recorded_at": (base + timedelta(minutes=50)).isoformat()},
     ]
-    await _ingest(client, truck_id, points)
+    await _ingest(client, admin_headers, truck_id, points)
 
     trip = (
         await client.post(
@@ -67,6 +88,7 @@ async def test_get_segments_returns_stored_then_recompute(client: AsyncClient, a
     base = datetime(2026, 6, 24, 9, 0, tzinfo=timezone.utc)
     await _ingest(
         client,
+        admin_headers,
         truck_id,
         [
             {"latitude": 40.0, "longitude": 65.0, "speed": 60, "recorded_at": base.isoformat()},
@@ -103,6 +125,7 @@ async def test_segments_idempotent(client: AsyncClient, admin_headers):
     base = datetime(2026, 6, 24, 10, 0, tzinfo=timezone.utc)
     await _ingest(
         client,
+        admin_headers,
         truck_id,
         [
             {"latitude": 40.0, "longitude": 65.0, "speed": 50, "recorded_at": base.isoformat()},

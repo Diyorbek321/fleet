@@ -210,13 +210,13 @@ def extract_json(answer: str) -> dict[str, Any]:
     """
     match = _JSON_OBJECT_RE.search(answer or "")
     if not match:
-        raise ReceiptScanUnavailable("The reading service returned no JSON")
+        raise ReceiptScanUnavailable("Сервис распознавания не вернул JSON")
     try:
         payload = json.loads(match.group(0))
     except ValueError as exc:
-        raise ReceiptScanUnavailable("The reading service returned invalid JSON") from exc
+        raise ReceiptScanUnavailable("Сервис распознавания вернул некорректный JSON") from exc
     if not isinstance(payload, dict):
-        raise ReceiptScanUnavailable("The reading service returned invalid JSON")
+        raise ReceiptScanUnavailable("Сервис распознавания вернул некорректный JSON")
     return payload
 
 
@@ -327,22 +327,22 @@ def parse_reading(payload: dict[str, Any]) -> ReceiptReading:
     """
     country = _to_country(payload.get("country"))
     if country is None:
-        raise ReceiptUnreadable("Could not tell which country this receipt is from")
+        raise ReceiptUnreadable("Не удалось определить страну по этому чеку")
 
     category = _to_category(payload.get("category"))
     if category is None:
-        raise ReceiptUnreadable("Could not match this receipt to an expense category")
+        raise ReceiptUnreadable("Не удалось подобрать категорию расхода для этого чека")
 
     amount = _to_amount(payload.get("amount"))
     if amount is None:
-        raise ReceiptUnreadable("Could not read a total from this photo")
+        raise ReceiptUnreadable("Не удалось прочитать сумму на этом фото")
 
     currency = payload.get("currency")
     currency = currency.strip().lower() if isinstance(currency, str) else ""
     if currency not in CURRENCIES:
         # A total in an unknown currency is a number with no unit, and the
         # country table has no currency column to record the doubt in.
-        raise ReceiptUnreadable("Could not read the currency on this receipt")
+        raise ReceiptUnreadable("Не удалось прочитать валюту на этом чеке")
 
     confidence = _to_confidence(payload.get("confidence"))
     if currency != _NATIVE_CURRENCY[country]:
@@ -374,7 +374,7 @@ async def call_vision(image: bytes, content_type: str) -> str:
     ``httpx`` exception means, and the upstream detail never reaches the driver.
     """
     if not settings.ai_api_key:
-        raise ReceiptScanNotConfigured("Receipt scanning is not configured on this server")
+        raise ReceiptScanNotConfigured("Распознавание чеков не настроено на этом сервере")
 
     system, user = build_prompt()
     body = {
@@ -408,7 +408,7 @@ async def call_vision(image: bytes, content_type: str) -> str:
         return data["choices"][0]["message"]["content"] or ""
     except Exception as exc:  # noqa: BLE001 — one provider, many failure shapes.
         logger.warning("receipt_scan_call_failed", error=str(exc))
-        raise ReceiptScanUnavailable("The receipt reading service is unavailable") from exc
+        raise ReceiptScanUnavailable("Сервис распознавания чеков недоступен") from exc
 
 
 async def scan_receipt(image: bytes, content_type: str) -> ReceiptReading:

@@ -7,6 +7,8 @@ bot is muted, after which none of the other watchers matter either.
 """
 from __future__ import annotations
 
+from tests.conftest import awake_quiet_hours
+
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -22,7 +24,6 @@ from app.models.trucks import Truck
 from app.services.owner_alerts import bus
 from app.services.owner_alerts.trips import (
     MAX_ALERTS_PER_ORG,
-    _dative,
     _humanize_lateness,
     _place,
     _severity_for_lateness,
@@ -37,36 +38,21 @@ from app.services.telegram import SendResult
 @pytest.mark.parametrize(
     "late,expected",
     [
-        (timedelta(minutes=90), "1 soat"),
-        (timedelta(hours=6), "6 soat"),
-        (timedelta(hours=6, minutes=59), "6 soat"),
-        (timedelta(hours=26), "1 kun 2 soat"),
-        (timedelta(days=2), "2 kun"),
+        (timedelta(minutes=90), "1 ч"),
+        (timedelta(hours=6), "6 ч"),
+        (timedelta(hours=6, minutes=59), "6 ч"),
+        (timedelta(hours=26), "1 дн. 2 ч"),
+        (timedelta(days=2), "2 дн."),
     ],
 )
 def test_lateness_reads_in_the_largest_honest_unit(late: timedelta, expected: str):
-    """"38 soat" makes an owner do arithmetic; "1 kun 14 soat" does not.
+    """"38 ч" makes an owner do arithmetic; "1 дн. 14 ч" does not.
 
     Floored, never rounded up: a message claiming seven hours when it is six
     and a half starts an argument with the driver about a number that did not
     need to be precise.
     """
     assert _humanize_lateness(late) == expected
-
-
-@pytest.mark.parametrize(
-    "place,expected",
-    [
-        ("Moskva", "Moskvaga"),
-        ("Toshkent", "Toshkentga"),
-        ("Bishkek", "Bishkekka"),
-        ("Chirchiq", "Chirchiqqa"),
-    ],
-)
-def test_the_destination_takes_the_dative_its_ending_calls_for(place: str, expected: str):
-    """A flat "+ga" writes "Bishkekga", which reads as foreign to the person
-    paying for the product."""
-    assert _dative(place) == expected
 
 
 def test_a_full_address_is_trimmed_back_to_the_city():
@@ -135,10 +121,9 @@ async def _link_chat(
         chat_id=chat_id,
         min_severity=min_severity,
         muted_kinds=[],
-        # Explicit: the model defaults to a 22→07 quiet window, and a suite
-        # that passes by day and fails at night is worse than no suite.
-        quiet_from_hour=None,
-        quiet_to_hour=None,
+        # Not None — that reads as "no quiet hours" and silently
+        # produces the model's 22:00-07:00 default instead.
+        **awake_quiet_hours(),
     )
     db.add(account)
     await db.commit()
@@ -210,10 +195,10 @@ async def test_a_late_trip_leads_with_the_plate_then_the_driver(db, captured_sen
 
     assert await run(db) == 1
     text = captured_sends[0][1]
-    assert "01A123BC - Anvar - TR-2026-000042 Moskvaga 6 soat kechikdi" in text
-    assert "Holati: <b>yo'lda</b>" in text
-    assert "Yo'nalish: <b>Toshkent → Moskva</b>" in text
-    assert "Reja: <b>" in text
+    assert "01A123BC - Anvar - TR-2026-000042 — опоздание 6 ч" in text
+    assert "Статус: <b>в пути</b>" in text
+    assert "Направление: <b>Toshkent → Moskva</b>" in text
+    assert "План: <b>" in text
 
 
 @pytest.mark.parametrize("status", [TripStatus.delivered, TripStatus.cancelled])
@@ -279,7 +264,7 @@ async def test_a_trip_with_no_truck_or_driver_still_reaches_the_owner(db, captur
     await _trip(db, org, None, None, late_by=timedelta(hours=6))
 
     assert await run(db) == 1
-    assert "mashinasiz - haydovchisiz - TR-2026-000042" in captured_sends[0][1]
+    assert "без машины - без водителя - TR-2026-000042" in captured_sends[0][1]
 
 
 # ── Status changes ───────────────────────────────────────────────────────
@@ -295,14 +280,14 @@ async def test_a_status_change_is_read_back_out_of_the_timeline(db, captured_sen
 
     assert await run(db) == 1
     text = captured_sends[0][1]
-    assert "01A123BC - Anvar - TR-2026-000042 yetkazildi" in text
-    assert "Izoh: CMR imzolandi" in text
+    assert "01A123BC - Anvar - TR-2026-000042 доставлен" in text
+    assert "Примечание: CMR imzolandi" in text
 
 
 async def test_a_status_change_is_announced_once_however_often_the_tick_runs(
     db, captured_sends
 ):
-    """Ninety-six copies of "yetkazildi" is the same thing as a muted bot."""
+    """Ninety-six copies of "доставлен" is the same thing as a muted bot."""
     org, truck, driver = await _fleet(db)
     await _link_chat(db, org.id)
     trip = await _trip(db, org, truck, driver, status=TripStatus.delivered)
@@ -370,7 +355,7 @@ async def test_routine_progress_stays_quiet_for_a_chat_on_its_defaults(db, captu
     await _event(db, cancelled, TripStatus.cancelled)
 
     assert await run(db) == 1
-    assert "TR-2026-000043 bekor qilindi" in captured_sends[0][1]
+    assert "TR-2026-000043 отменён" in captured_sends[0][1]
 
 
 # ── Boundaries ───────────────────────────────────────────────────────────
@@ -451,7 +436,7 @@ async def test_a_fleet_wide_delay_arrives_capped_with_the_rest_rolled_up(db, cap
 
     assert len(captured_sends) == MAX_ALERTS_PER_ORG + 1
     roll_up = captured_sends[-1][1]
-    assert "Yana 4 ta" in roll_up
+    assert "Ещё 4" in roll_up
 
 
 async def test_the_longest_late_truck_is_the_one_that_gets_through(db, captured_sends):

@@ -29,6 +29,7 @@ from app.models.trucks import Truck
 from app.services.cgr import get_cgr_client
 from app.services.daily_updates import send_daily_trip_updates
 from app.services.gps_retention import purge_expired_history
+from app.services.location_labels import refresh_location_addresses
 from app.services.maintenance import refresh_service_statuses
 from app.services.owner_alerts import prune_notification_log
 from app.services.owner_alerts import briefing as owner_briefing
@@ -76,6 +77,20 @@ async def _run_locked(job_name: str, coro_fn) -> None:
         await coro_fn()
     else:
         logger.info("scheduler_job_skipped_locked", job=job_name)
+
+
+async def label_truck_locations() -> None:
+    """Put a country and city on every truck's current position.
+
+    Cheap on a quiet fleet: :mod:`app.services.geocoding` answers from cache
+    for any truck that has not left its ~1 km grid cell, so only trucks that
+    actually moved cost a provider call.
+    """
+    try:
+        async with SessionLocal() as db:
+            await refresh_location_addresses(db)
+    except Exception:  # noqa: BLE001 — never let a job crash the scheduler
+        logger.exception("location_labels_failed")
 
 
 async def check_overdue_maintenance() -> None:
@@ -354,6 +369,9 @@ def start_scheduler() -> AsyncIOScheduler | None:
     async def _gps_retention_job() -> None:
         await _run_locked("purge_gps_history", purge_gps_history)
 
+    async def _location_label_job() -> None:
+        await _run_locked("label_truck_locations", label_truck_locations)
+
     async def _daily_updates_job() -> None:
         # The job itself self-gates on the configured hour of day, so it's
         # safe (and cheap) to invoke on every scheduler tick.
@@ -414,6 +432,20 @@ def start_scheduler() -> AsyncIOScheduler | None:
         trigger="interval",
         minutes=max(interval, 15),
         id="send_daily_trip_updates",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+
+    # Five minutes is the floor, not the period: like the other jobs here the
+    # real interval is SCHEDULER_INTERVAL_MINUTES (15 by default). That is fine
+    # — a place name one tick stale is a cosmetic problem, and the geocoder
+    # cache makes the ticks where nothing moved almost free.
+    scheduler.add_job(
+        _location_label_job,
+        trigger="interval",
+        minutes=max(interval, 5),
+        id="label_truck_locations",
         max_instances=1,
         coalesce=True,
         replace_existing=True,

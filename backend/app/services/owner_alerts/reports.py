@@ -183,41 +183,41 @@ def _uzs(value: float) -> str:
 
 def _period_caption(report: PeriodReport) -> str:
     lines = [
-        f"📊 <b>{report.period.label}</b> — oylik hisobot",
+        f"📊 <b>{report.period.label}</b> — месячный отчёт",
         "",
-        f"Yetkazilgan reyslar: {report.trips_delivered}",
-        f"Daromad: {_uzs(report.revenue)} so'm",
-        f"Xarajat: {_uzs(report.total_cost)} so'm",
-        f"Foyda: <b>{_uzs(report.profit)} so'm</b> ({report.margin_pct}%)",
+        f"Доставлено рейсов: {report.trips_delivered}",
+        f"Выручка: {_uzs(report.revenue)} сум",
+        f"Расходы: {_uzs(report.total_cost)} сум",
+        f"Прибыль: <b>{_uzs(report.profit)} сум</b> ({report.margin_pct}%)",
     ]
     # ``consumption_reliable`` is the report's own answer to whether litres per
     # 100 km may be stated as a fact at all, and a caption is the worst place to
     # overrule it — the caption is the line people quote at a driver.
     if report.consumption_reliable and report.l_per_100km is not None:
-        lines.append(f"Yoqilg'i: {report.l_per_100km} l/100km")
+        lines.append(f"Топливо: {report.l_per_100km} л/100км")
     if report.distance_partial:
-        lines.append("⚠️ Masofa qisman: GPS tarixi butun oyni qamrab olmaydi")
+        lines.append("⚠️ Пробег неполный: история GPS не покрывает весь месяц")
     return "\n".join(lines)
 
 
 def _country_caption(report: CountryExpenseReport, period: Period) -> str:
     lines = [
-        f"🌍 <b>{period.label}</b> — davlatlar bo'yicha xarajat",
+        f"🌍 <b>{period.label}</b> — расходы по странам",
         "",
-        f"Reyslar: {len(report.trips)}",
+        f"Рейсов: {len(report.trips)}",
     ]
     for block in report.countries:
         if block.is_empty:
             continue
         lines.append(f"{block.country.upper()}: {_uzs(block.total)} {block.currency}")
     if report.total_usd is not None:
-        lines.append(f"Jami: <b>${_uzs(report.total_usd)}</b>")
+        lines.append(f"Итого: <b>${_uzs(report.total_usd)}</b>")
     # Named, not hidden: the dollar column is short by whatever was spent in the
     # countries listed here, and the only thing that fixes it is a rate someone
     # has to type into Settings.
     if report.countries_missing_rate:
         codes = ", ".join(code.upper() for code in report.countries_missing_rate)
-        lines.append(f"⚠️ {codes} uchun kurs kiritilmagan — dollar summasi to'liq emas")
+        lines.append(f"⚠️ Для {codes} не задан курс — сумма в долларах неполная")
     elif report.usd_partial:
-        lines.append("⚠️ Ba'zi reyslarda kurs yo'q — dollar summasi to'liq emas")
+        lines.append("⚠️ По части рейсов нет курса — сумма в долларах неполная")
     return "\n".join(lines)

@@ -1,16 +1,26 @@
 export type TruckStatus = 'moving' | 'stopped' | 'offline';
 
+export type TrailerVolume = 'standart' | 'mega';
+
 export interface Truck {
   id: string;
   plateNumber: string;
   name: string;
-  deviceImei: string;
   model?: string;
+  /** Make of the tractor unit, e.g. "MAN". */
+  tractorBrand?: string;
+  /** Make of the semi-trailer, e.g. "Schmitz". Separate because it is a
+   *  separate vehicle: bought, serviced and replaced on its own. */
+  trailerBrand?: string;
+  /** Capacity class of the trailer — what a load is booked against. */
+  trailerVolume?: TrailerVolume;
   driverName?: string;
   status: TruckStatus;
   speed: number;
   latitude: number;
   longitude: number;
+  /** Human-readable place for the coordinates above, when known. */
+  address?: string | null;
   lastUpdate: Date;
   isEnabled: boolean;
 }

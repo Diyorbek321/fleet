@@ -19,14 +19,14 @@ from __future__ import annotations
 
 import html
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 
 import httpx
 
 from app.core.config import settings
 from app.core.logging import logger
-from app.models.enums import TripStatus
+from app.models.enums import StagePlace, TripStage, TripStatus
 
 
 _TELEGRAM_API = "https://api.telegram.org"
@@ -145,46 +145,76 @@ def build_deep_link(token: str) -> str:
 
 # ── Message templates ────────────────────────────────────────────────────
 #
-# All text is authored in Uzbek because that is the market this platform
-# targets and the cargo owner is guaranteed to be a local shipper. Add ru/en
-# variants later based on ``TripSubscription.language`` when we start seeing
-# non-Uzbek subscribers.
+# All text is authored in Russian: it is the working language across the
+# Uzbekistan–Kazakhstan–Russia corridor these trips run, and the one every
+# cargo owner on the route reads. Add uz/en variants later based on
+# ``TripSubscription.language`` when we start seeing subscribers who need them.
 
 
-_STATUS_LABEL_UZ: dict[TripStatus, str] = {
-    TripStatus.draft: "reja tuzilmoqda",
-    TripStatus.planned: "rejalashtirildi",
-    TripStatus.loading: "yuklanmoqda",
-    TripStatus.en_route: "yo'lda",
-    TripStatus.at_border: "chegarada",
-    TripStatus.delivered: "yetkazildi",
-    TripStatus.cancelled: "bekor qilindi",
+_STATUS_LABEL_RU: dict[TripStatus, str] = {
+    TripStatus.draft: "черновик",
+    TripStatus.planned: "запланирован",
+    TripStatus.loading: "погрузка",
+    TripStatus.en_route: "в пути",
+    TripStatus.at_border: "на границе",
+    TripStatus.delivered: "доставлен",
+    TripStatus.cancelled: "отменён",
 }
 
 
 def _status_label(status: TripStatus | None) -> str:
     if status is None:
-        return "noma'lum"
-    return _STATUS_LABEL_UZ.get(status, status.value)
+        return "неизвестно"
+    return _STATUS_LABEL_RU.get(status, status.value)
 
 
 def _fmt_coords(lat: float | None, lng: float | None) -> str:
-    """Google Maps link on any coordinates — reverse-geocoding is a V2 job."""
+    """Google Maps link on any coordinates, with no claim about where that is."""
     if lat is None or lng is None:
-        return "joylashuv hozircha aniqlanmagan"
-    return f'<a href="https://maps.google.com/?q={lat},{lng}">xaritada ko\'rish</a>'
+        return "местоположение пока не определено"
+    return f'<a href="https://maps.google.com/?q={lat},{lng}">посмотреть на карте</a>'
+
+
+def _fmt_location(
+    lat: float | None, lng: float | None, place: str | None, *, with_link: bool = True
+) -> str:
+    """The location block: country and city if we know them, then the map link.
+
+    ``place`` comes from :mod:`app.services.geocoding` and is ``None`` whenever
+    the geocoder was off, unreachable or unsure — in which case this degrades
+    to exactly the link-only line the bot sent before, which is why callers can
+    pass it unconditionally.
+
+    ``with_link=False`` drops the coordinate link for a message that carries a
+    better one of its own; with no place either, the coordinates are still
+    printed, because "where is my cargo" has to be answered somehow.
+    """
+    if not place:
+        if with_link:
+            return _fmt_coords(lat, lng)
+        if lat is None or lng is None:
+            return "местоположение пока не определено"
+        return f"{lat}, {lng}"
+    if not with_link:
+        return html.escape(place, quote=False)
+    # quote=False for the same reason the alert bus uses it: these place names
+    # are transliterated and many of them carry an apostrophe.
+    line = html.escape(place, quote=False)
+    if lat is None or lng is None:
+        return line
+    return f"{line}\n   {_fmt_coords(lat, lng)}"
 
 
 def format_activation(trip_reference: str, cargo: str | None) -> str:
     """First message the cargo owner sees after clicking the deep link."""
     safe_reference = html.escape(trip_reference)
-    cargo_line = f"\n📦 Yuk: {html.escape(cargo)}" if cargo else ""
+    cargo_line = f"\n📦 Груз: {html.escape(cargo)}" if cargo else ""
     return (
-        f"👋 Salom! Siz endi <b>{safe_reference}</b> reysining kuzatuvchisisiz."
+        f"👋 Здравствуйте! Вы подписаны на отслеживание рейса <b>{safe_reference}</b>."
         f"{cargo_line}\n\n"
-        "Har kuni ertalab yukning joylashuvi haqida qisqa xabar olib turasiz. "
-        "Yuk holati o'zgarganda ham darhol xabar beriladi.\n\n"
-        "Sozlamalar: /settings — kunlik/tezkor xabarlarni yoqish yoki o'chirish."
+        "Каждое утро вы будете получать короткое сообщение о том, где находится груз. "
+        "При изменении статуса груза сообщение придёт сразу.\n\n"
+        "Настройки: /settings — включить или отключить ежедневные и срочные сообщения."
     )
 
 
@@ -194,13 +224,14 @@ def format_status_change(
     lat: float | None,
     lng: float | None,
     note: str | None = None,
+    place: str | None = None,
 ) -> str:
     """Event-based push: driver moved the trip through its timeline."""
     note_line = f"\n📝 {html.escape(note)}" if note else ""
     return (
         f"🚚 <b>{html.escape(trip_reference)}</b>\n"
-        f"Holati: <b>{_status_label(to_status)}</b>\n"
-        f"📍 {_fmt_coords(lat, lng)}"
+        f"Статус: <b>{_status_label(to_status)}</b>\n"
+        f"📍 {_fmt_location(lat, lng, place)}"
         f"{note_line}"
     )
 
@@ -213,23 +244,142 @@ def format_daily_update(
     destination: str | None,
     speed_kmh: float | None,
     updated_at: datetime | None,
+    place: str | None = None,
 ) -> str:
     """Morning digest: current status + last-known position + destination."""
-    dest_line = f"\n🎯 Manzil: {html.escape(destination)}" if destination else ""
+    dest_line = f"\n🎯 Пункт назначения: {html.escape(destination)}" if destination else ""
     speed_line = ""
     if speed_kmh and speed_kmh > 5:
-        speed_line = f"\n🏃 Tezlik: {int(speed_kmh)} km/soat"
+        speed_line = f"\n🏃 Скорость: {int(speed_kmh)} км/ч"
     elif speed_kmh is not None:
-        speed_line = "\n⏸ Yuk hozir to'xtab turibdi"
+        speed_line = "\n⏸ Груз сейчас стоит"
     fresh_line = ""
     if updated_at is not None:
-        fresh_line = f"\n🕒 Oxirgi ma'lumot: {updated_at.strftime('%d.%m %H:%M')} UTC"
+        fresh_line = f"\n🕒 Последние данные: {updated_at.strftime('%d.%m %H:%M')} UTC"
     return (
-        f"🌅 Ertalabki xabar — <b>{html.escape(trip_reference)}</b>\n"
-        f"Holati: <b>{_status_label(status)}</b>\n"
-        f"📍 {_fmt_coords(lat, lng)}"
+        f"🌅 Утренняя сводка — <b>{html.escape(trip_reference)}</b>\n"
+        f"Статус: <b>{_status_label(status)}</b>\n"
+        f"📍 {_fmt_location(lat, lng, place)}"
         f"{dest_line}{speed_line}{fresh_line}"
     )
+
+
+# ── The customer's card ──────────────────────────────────────────────────
+#
+# One shape, whatever the reason for sending it: the morning digest and a
+# checkpoint the driver just reported print the same seven lines. A customer
+# who gets two differently-shaped messages about one load reads the second one
+# looking for what changed, which is exactly the work this is meant to save.
+
+_STAGE_LABEL_RU: dict[TripStage, str] = {
+    TripStage.arrived_loading: "Прибыл на погрузку",
+    TripStage.loaded_waiting_docs: "Погрузился, жду документы",
+    TripStage.docs_received_en_route: "Взял документы, еду",
+    TripStage.arrived_border: "На границе",
+    TripStage.crossed_border: "Прошёл границу",
+    TripStage.arrived_customs: "Прибыл на растаможку",
+    TripStage.left_customs: "Выехал с растаможки",
+    TripStage.arrived_unloading: "Прибыл на выгрузку",
+    TripStage.unloaded: "Выгрузился",
+}
+
+_PLACE_LABEL_RU: dict[StagePlace, str] = {
+    StagePlace.uz: "УЗБ",
+    StagePlace.kz: "КЗ",
+    StagePlace.ru: "РФ",
+    StagePlace.uz_kz: "УЗБ–КЗ",
+    StagePlace.kz_ru: "КЗ–РФ",
+}
+
+
+def stage_label(stage: TripStage | None, place: StagePlace | None) -> str:
+    """"На границе УЗБ–КЗ" — the checkpoint and where, in one line.
+
+    Falls back to the coarse status wording when no checkpoint has been
+    reported yet, so a trip that predates the feature still reads as something
+    rather than as a blank.
+    """
+    if stage is None:
+        return "—"
+    label = _STAGE_LABEL_RU.get(stage, stage.value)
+    return f"{label} {_PLACE_LABEL_RU[place]}" if place else label
+
+
+def format_customer_card(
+    *,
+    org_name: str,
+    reference: str,
+    origin: str | None,
+    destination: str | None,
+    loaded_at: datetime | None,
+    plate: str | None,
+    place: str | None,
+    lat: float | None,
+    lng: float | None,
+    eta_customs: date | None,
+    eta_is_measured: bool = False,
+    cargo: str | None = None,
+    note: str | None = None,
+    track_url: str | None = None,
+) -> str:
+    """The lines a cargo owner asked us for, in their order.
+
+    Every line that has no value is dropped rather than printed with a dash: a
+    card with four real lines reads as a status report, the same card padded out
+    with "—" reads as a broken system.
+
+    There is deliberately no status line. The customer's question is where the
+    load is and when it lands, and both are answered above and below where a
+    status would have sat; a word like "в пути" next to a live position and a
+    date only invited "so which is it?" on the phone.
+    """
+    e = lambda v: html.escape(str(v), quote=False)  # noqa: E731
+
+    lines = [f"<b>{e(org_name)}</b>", ""]
+
+    route = " — ".join(p for p in (origin, destination) if p)
+    if route:
+        lines.append(f"Маршрут: <b>{e(route)}</b>")
+    lines.append(f"Рейс: {e(reference)}")
+    if cargo:
+        lines.append(f"Груз: {e(cargo)}")
+    if loaded_at is not None:
+        lines.append(f"Дата погрузки: {loaded_at.strftime('%d.%m.%Y')}")
+    if plate:
+        lines.append(f"ТС: {e(plate)}")
+
+    # The bare-coordinate Google Maps link is the fallback, not the default:
+    # once there is a tracking page the card ends with a link to it, and two
+    # lines a thumb apart both reading "посмотреть на карте" is a question, not
+    # a service. With no tracking page configured the coordinate link is still
+    # the only way to answer "where", so it stays.
+    where = _fmt_location(lat, lng, place, with_link=not track_url)
+    lines.append(f"Текущее местоположение ТС: {where}")
+
+    if eta_customs is not None:
+        # "ориентировочно" is not hedging for its own sake: until a corridor has
+        # a history behind it the date is a formula's answer, and a customer who
+        # is told that plans around it differently.
+        suffix = "" if eta_is_measured else " (ориентировочно)"
+        lines.append(
+            f"Ожидаемая дата прибытия на растаможку: <b>"
+            f"{eta_customs.strftime('%d.%m.%Y')}</b>{suffix}"
+        )
+
+    if note:
+        lines.append(f"📝 {e(note)}")
+
+    if track_url:
+        # Last and visually separate, because it is the only thing in the card
+        # that is an action rather than a fact. A coordinate pair answers
+        # "where" only to someone willing to paste it somewhere; this opens the
+        # lorry on a map with its plate on it, which is what was asked for.
+        lines.append("")
+        lines.append(
+            f'🗺 <a href="{html.escape(track_url, quote=True)}">Посмотреть на карте</a>'
+        )
+
+    return "\n".join(lines)
 
 
 def parse_start_command(text: str) -> str | None:

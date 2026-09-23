@@ -96,7 +96,7 @@ async def _get_org_row(db: AsyncSession, org_id: uuid.UUID):
     """Load one organization with its counts, or 404."""
     row = (await db.execute(_select_orgs_with_counts().where(Organization.id == org_id))).first()
     if row is None:
-        raise HTTPException(status_code=404, detail="Organization not found")
+        raise HTTPException(status_code=404, detail="Компания не найдена")
     return row
 
 
@@ -129,7 +129,7 @@ async def create_organization(
     """
     existing = await db.execute(select(User).where(User.email == data.admin_email))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Этот email уже зарегистрирован")
 
     org = Organization(
         name=data.name,
@@ -254,13 +254,13 @@ async def delete_organization(
         await db.execute(select(Organization).where(Organization.id == org_id))
     ).scalar_one_or_none()
     if org is None:
-        raise HTTPException(status_code=404, detail="Organization not found")
+        raise HTTPException(status_code=404, detail="Компания не найдена")
 
     if org.id == superadmin.org_id:
-        raise HTTPException(status_code=400, detail="Cannot delete your own organization")
+        raise HTTPException(status_code=400, detail="Нельзя удалить собственную компанию")
 
     if confirm != org.name:
-        raise HTTPException(status_code=400, detail="Confirmation does not match the organization name")
+        raise HTTPException(status_code=400, detail="Подтверждение не совпадает с названием компании")
 
     # Recorded before the delete, and with the name copied in: after the
     # commit there is nothing left to describe what was removed. This is the
@@ -303,13 +303,13 @@ async def create_organization_user(
     locked out, which support otherwise cannot fix without touching the database.
     """
     if data.role not in _ASSIGNABLE_ROLES:
-        raise HTTPException(status_code=400, detail="Role must be admin, manager or operator")
+        raise HTTPException(status_code=400, detail="Роль должна быть admin, manager или operator")
 
     await _get_org_row(db, org_id)
 
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Этот email уже зарегистрирован")
 
     user = User(
         org_id=org_id,

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '@/lib/datetime';
 import { AlertTriangle, Check, Eye, Truck as TruckIcon, User, ExternalLink } from 'lucide-react';
 
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,13 +25,14 @@ const statusBadge: Record<MaintenanceRequestStatus, string> = {
   resolved: 'bg-status-moving/20 text-status-moving border-status-moving/30',
 };
 
-function describeError(err: unknown): string {
+function describeError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return err.detail;
   if (err instanceof Error) return err.message;
-  return 'Something went wrong';
+  return fallback;
 }
 
 export function DriverRequests() {
+  const { t } = useTranslation();
   const queryClient = useQueryClient();
 
   const { data: requests = [], isLoading } = useQuery({
@@ -44,10 +46,14 @@ export function DriverRequests() {
       driverDataApi.updateRequestStatus(id, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: REQUESTS_KEY });
-      toast({ title: 'Request updated' });
+      toast({ title: t('maintenance.requests.updated') });
     },
     onError: (err) =>
-      toast({ title: 'Update failed', description: describeError(err), variant: 'destructive' }),
+      toast({
+        title: t('maintenance.requests.updateFailed'),
+        description: describeError(err, t('common.unknown')),
+        variant: 'destructive',
+      }),
   });
 
   const openCount = useMemo(() => requests.filter((r) => r.status === 'open').length, [requests]);
@@ -66,7 +72,7 @@ export function DriverRequests() {
     return (
       <Card className="border-border/50 bg-card">
         <CardContent className="py-12 text-center text-muted-foreground">
-          No issues reported by drivers yet.
+          {t('maintenance.requests.empty')}
         </CardContent>
       </Card>
     );
@@ -75,9 +81,11 @@ export function DriverRequests() {
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Issues reported by drivers from the mobile app.
+        {t('maintenance.requests.intro')}
         {openCount > 0 && (
-          <span className="ml-1 font-medium text-destructive">{openCount} open.</span>
+          <span className="ml-1 font-medium text-destructive">
+            {t('maintenance.requests.openCount', { count: openCount })}
+          </span>
         )}
       </p>
 
@@ -89,8 +97,8 @@ export function DriverRequests() {
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                   <span className="font-medium">{req.title}</span>
-                  <Badge variant="outline" className={cn('capitalize', statusBadge[req.status])}>
-                    {req.status}
+                  <Badge variant="outline" className={cn(statusBadge[req.status])}>
+                    {t(`maintenance.requests.status.${req.status}`)}
                   </Badge>
                 </div>
                 {req.description && (
@@ -98,7 +106,7 @@ export function DriverRequests() {
                 )}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
-                    <User className="h-3 w-3" /> {req.driverName ?? 'Unknown driver'}
+                    <User className="h-3 w-3" /> {req.driverName ?? t('maintenance.requests.unknownDriver')}
                   </span>
                   <span className="flex items-center gap-1">
                     <TruckIcon className="h-3 w-3" /> {req.truckPlate ?? '—'}
@@ -111,7 +119,7 @@ export function DriverRequests() {
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-primary hover:underline"
                     >
-                      <ExternalLink className="h-3 w-3" /> Photo
+                      <ExternalLink className="h-3 w-3" /> {t('maintenance.requests.photo')}
                     </a>
                   )}
                 </div>
@@ -125,7 +133,7 @@ export function DriverRequests() {
                     disabled={updateStatus.isPending}
                     onClick={() => updateStatus.mutate({ id: req.id, status: 'acknowledged' })}
                   >
-                    <Eye className="mr-1.5 h-3.5 w-3.5" /> Acknowledge
+                    <Eye className="mr-1.5 h-3.5 w-3.5" /> {t('maintenance.requests.acknowledge')}
                   </Button>
                 )}
                 {req.status !== 'resolved' && (
@@ -134,7 +142,7 @@ export function DriverRequests() {
                     disabled={updateStatus.isPending}
                     onClick={() => updateStatus.mutate({ id: req.id, status: 'resolved' })}
                   >
-                    <Check className="mr-1.5 h-3.5 w-3.5" /> Resolve
+                    <Check className="mr-1.5 h-3.5 w-3.5" /> {t('maintenance.requests.resolve')}
                   </Button>
                 )}
               </div>

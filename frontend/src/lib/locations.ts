@@ -7,6 +7,10 @@ export interface LiveLocation {
   longitude: number;
   speed: number;
   heading: number | null;
+  /** "Qozog'iston, Sariog'ash" — filled by the backend's labelling job.
+   *  Null until that job has seen this position, and on every WebSocket
+   *  update, which carries coordinates only. */
+  address: string | null;
   recordedAt: Date;
 }
 
@@ -30,10 +34,29 @@ export async function fetchTruckLocations(): Promise<Record<string, LiveLocation
       longitude: loc.longitude,
       speed: loc.speed,
       heading: loc.heading,
+      address: loc.address,
       recordedAt: new Date(loc.recorded_at),
     };
   }
   return map;
+}
+
+/**
+ * Place names only, keyed by truck id.
+ *
+ * Deliberately separate from the live position stream: the WebSocket is the
+ * source of truth for where a truck *is*, and re-seeding the whole location
+ * map every few minutes would rewind every marker to the last REST snapshot.
+ * Labels change slowly (the backend relabels every 5 minutes), so they are
+ * polled on their own and merged in as text.
+ */
+export async function fetchTruckLocationLabels(): Promise<Record<string, string>> {
+  const data = await api<BackendLocation[]>('/api/trucks/locations');
+  const labels: Record<string, string> = {};
+  for (const loc of data) {
+    if (loc.address) labels[loc.truck_id] = loc.address;
+  }
+  return labels;
 }
 
 // Match the backend's app/services/gps.py::status_from_speed.

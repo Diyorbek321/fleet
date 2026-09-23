@@ -1,7 +1,14 @@
-"""Recording what the platform operator did to a customer.
+"""Recording what was done, by whom, to figures somebody relies on.
 
-Kept apart from the routers so there is one definition of an audit event and
-one place that decides what is worth a row.
+Two kinds of event share this module. :func:`record` covers what the platform
+operator did to a customer. :func:`record_change` covers what a customer's own
+staff did to their fleet records — and exists because the money figures are
+editable: a trip can be deleted, its rate rewritten, the USD rate behind every
+cross-border expense report moved by one number. An owner who notices a run has
+gone missing has no other way to find out who removed it.
+
+Both are kept apart from the routers so there is one definition of an audit
+event and one place that decides what is worth a row.
 """
 from __future__ import annotations
 
@@ -25,6 +32,17 @@ ORG_REACTIVATE = "organization.reactivate"
 ORG_DELETE = "organization.delete"
 ORG_USER_CREATE = "organization.user.create"
 SUPPORT_READ = "support.read"
+
+# Inside a tenant. Only mutations that move or destroy a figure someone makes a
+# decision on — not every write. An audit log nobody can read is the same as no
+# audit log, and the fastest way there is to record everything.
+TRIP_UPDATE = "trip.update"
+TRIP_DELETE = "trip.delete"
+TRUCK_DELETE = "truck.delete"
+DRIVER_DELETE = "driver.delete"
+MAINTENANCE_UPDATE = "maintenance.update"
+EXPENSE_DELETE = "driver_expense.delete"
+SETTINGS_UPDATE = "org_settings.update"
 
 # A superadmin opening one customer screen fires half a dozen requests, and a
 # support session would otherwise bury the deliberate actions under hundreds of
@@ -119,3 +137,59 @@ async def record_support_read(
         )
     except Exception:  # noqa: BLE001
         logger.exception("audit_support_read_failed", org_id=str(org.id))
+
+
+def describe_changes(before: dict, after: dict, fields: tuple[str, ...]) -> str | None:
+    """"rate: 42000000 → 38000000", or ``None`` when nothing watched moved.
+
+    Only the named fields, and only the ones that actually changed: a row
+    reading "someone saved this form" answers nothing, and a diff of every
+    column buries the one number that matters.
+    """
+    parts = [
+        f"{field}: {before.get(field)!r} → {after[field]!r}"
+        for field in fields
+        if field in after and after[field] != before.get(field)
+    ]
+    return "; ".join(parts) if parts else None
+
+
+async def record_change(
+    db: AsyncSession,
+    *,
+    actor: User,
+    action: str,
+    org_id: uuid.UUID,
+    target_type: str,
+    target_id: uuid.UUID | None = None,
+    target_label: str | None = None,
+    detail: str | None = None,
+) -> None:
+    """Append one in-tenant event. Never raises, and never commits.
+
+    Left on the caller's session on purpose: the row must land in the same
+    transaction as the change it describes, or a rolled-back delete would leave
+    a log entry for something that never happened — which is worse than no
+    entry, because it sends someone looking for a trip that is still there.
+
+    Like :func:`record`, a logging failure must not fail the action. The
+    difference is that here the action is the customer's, not ours: refusing to
+    delete a trip because the audit write failed would be a strange thing to
+    explain to the person deleting it.
+    """
+    try:
+        db.add(
+            AuditEvent(
+                actor_user_id=actor.id,
+                actor_email=actor.email,
+                action=action,
+                target_org_id=org_id,
+                target_type=target_type,
+                target_id=target_id,
+                target_label=target_label,
+                detail=detail,
+            )
+        )
+        await db.flush()
+    except Exception:  # noqa: BLE001 — see docstring
+        logger.exception("audit_write_failed", action=action)

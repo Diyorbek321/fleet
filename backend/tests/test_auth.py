@@ -47,7 +47,7 @@ async def test_register_is_403_when_public_signup_is_disabled(
         json={"email": "walkin@test.com", "password": "password123", "org_name": "Walk In"},
     )
     assert res.status_code == 403, res.text
-    assert res.json()["detail"] == "Public registration is disabled"
+    assert res.json()["detail"] == "Открытая регистрация отключена"
 
     # Nothing was created, so the credentials do not authenticate either.
     login = await client.post(
@@ -89,7 +89,7 @@ async def test_register_duplicate_email_rejected(client: AsyncClient):
     await client.post("/api/auth/register", json=payload)
     res = await client.post("/api/auth/register", json=payload)
     assert res.status_code == 400
-    assert "already" in res.json()["detail"].lower()
+    assert "зарегистрирован" in res.json()["detail"].lower()
 
 
 async def test_register_weak_password_rejected(client: AsyncClient):

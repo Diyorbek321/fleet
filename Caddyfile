@@ -15,5 +15,22 @@
 {$API_DOMAIN} {
 	encode gzip
 	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	# The live map's WebSocket carries an access token. Current clients send it
+	# as a subprotocol header, but ?token= is still accepted for browser-cached
+	# bundles — and an access log is a plain file that keeps whatever it is
+	# handed. Redact the parameter here so a log copied into a ticket, or a
+	# backup of one, is not a working credential for someone's fleet.
+	log {
+		format filter {
+			wrap console
+			fields {
+				request>uri query {
+					replace token REDACTED
+				}
+			}
+		}
+	}
+
 	reverse_proxy api:8000
 }

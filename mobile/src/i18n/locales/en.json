@@ -45,7 +45,30 @@
       "at_border": "At border",
       "delivered": "Delivered",
       "cancelled": "Cancelled"
-    }
+    },
+    "stage": {
+      "arrived_loading": "Arrived at loading",
+      "loaded_waiting_docs": "Loaded, waiting for papers",
+      "docs_received_en_route": "Papers taken, en route",
+      "arrived_border": "Arrived at the border",
+      "crossed_border": "Crossed the border",
+      "arrived_customs": "Arrived at customs",
+      "left_customs": "Left customs",
+      "arrived_unloading": "Arrived at unloading",
+      "unloaded": "Unloaded"
+    },
+    "place": {
+      "uz": "UZ",
+      "kz": "KZ",
+      "ru": "RU",
+      "uz_kz": "UZ–KZ",
+      "kz_ru": "KZ–RU"
+    },
+    "stagePrompt": "What happened?",
+    "placePrompt": "Where?",
+    "markStage": "Mark",
+    "currentStage": "Current stage",
+    "noStageYet": "No stage marked yet"
   },
   "tripDocs": {
     "category": "Category",
@@ -200,7 +223,10 @@
     "permissionNeeded": "Location permission is required to share your position",
     "foregroundOnly": "Background location is off, so tracking only works while the app is open. Enable \"Allow all the time\" in Settings for always-on tracking.",
     "status": "Status",
-    "lastSent": "Last sent {{time}}"
+    "lastSent": "Last sent {{time}}",
+    "stoppedTitle": "Location sharing stopped",
+    "stoppedBody": "Fleet Watch stopped sharing your location — please reopen the app and sign in again.",
+    "foregroundBody": "Sharing your location with your dispatcher"
   },
   "fuel": {
     "title": "Fuel logs",
@@ -268,7 +294,9 @@
       "revoked": "Pass revoked",
       "none": "No booking",
       "unknown": "Unknown"
-    }
+    },
+    "truck": "Truck",
+    "countryPlaceholder": "China"
   },
   "common": {
     "loading": "Loading…",

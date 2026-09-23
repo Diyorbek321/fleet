@@ -84,11 +84,23 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
             <span className="font-mono font-medium">{truck.speed} km/h</span>
           </div>
 
-          <div className="flex items-center gap-3 text-sm">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">{t('trucks.popup.location')}:</span>
-            <span className="font-mono text-xs">
-              {truck.latitude.toFixed(5)}, {truck.longitude.toFixed(5)}
+          {/*
+            The place name answers the question the coordinates only encode —
+            which country, which city. It is absent until the backend's
+            labelling job has seen this position (and whenever reverse
+            geocoding is switched off), so the coordinates stay underneath
+            rather than being replaced by it.
+          */}
+          <div className="flex items-start gap-3 text-sm">
+            <MapPin className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
+            <span className="text-muted-foreground shrink-0">
+              {t('trucks.popup.location')}:
+            </span>
+            <span className="min-w-0">
+              {truck.address && <span className="block break-words">{truck.address}</span>}
+              <span className="font-mono text-xs text-muted-foreground">
+                {truck.latitude.toFixed(5)}, {truck.longitude.toFixed(5)}
+              </span>
             </span>
           </div>
 

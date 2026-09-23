@@ -8,18 +8,20 @@ from app.models.enums import DriverStatus
 class DriverCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     phone: Optional[str] = Field(default=None, max_length=20)
-    email: Optional[EmailStr] = None
+    phone2: Optional[str] = Field(default=None, max_length=20)
+    phone3: Optional[str] = Field(default=None, max_length=20)
+    adr: bool = False
     license_number: str = Field(min_length=1, max_length=50)
-    license_expiry: Optional[date] = None
     status: Optional[DriverStatus] = DriverStatus.active
     photo_url: Optional[str] = Field(default=None, max_length=500)
 
 class DriverUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     phone: Optional[str] = Field(default=None, max_length=20)
-    email: Optional[EmailStr] = None
+    phone2: Optional[str] = Field(default=None, max_length=20)
+    phone3: Optional[str] = Field(default=None, max_length=20)
+    adr: Optional[bool] = None
     license_number: Optional[str] = Field(default=None, min_length=1, max_length=50)
-    license_expiry: Optional[date] = None
     status: Optional[DriverStatus] = None
     photo_url: Optional[str] = Field(default=None, max_length=500)
 
@@ -27,6 +29,13 @@ class DriverOut(BaseModel):
     id: uuid.UUID
     name: str
     phone: Optional[str]
+    # ``email`` and ``license_expiry`` below are still returned although the
+    # panel no longer asks for either: drivers entered before this change have
+    # them filled in, and a field that stops being collected is not a reason to
+    # stop showing what is already there.
+    phone2: Optional[str] = None
+    phone3: Optional[str] = None
+    adr: bool = False
     email: Optional[str]
     license_number: str
     license_expiry: Optional[date]

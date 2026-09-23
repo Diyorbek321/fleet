@@ -41,6 +41,21 @@ const UNASSIGNED = '__none__';
 
 const TRIPS_KEY = ['trips'] as const;
 
+/** One definition of "a blank create form", shared by the initial state and
+ *  the reset after a successful save — they were copies, and a field added to
+ *  one of them survived the first save and then reappeared on the next. */
+const EMPTY_FORM = {
+  truckId: '',
+  driverId: '',
+  shipper: '',
+  consignee: '',
+  originName: '',
+  destinationName: '',
+  cargoDescription: '',
+  cargoTons: '',
+  notes: '',
+};
+
 const STATUS_FLOW: Record<TripStatus, TripStatus | null> = {
   draft: 'planned',
   planned: 'loading',
@@ -68,7 +83,17 @@ function describeError(err: unknown, fallback: string): string {
 }
 
 function fmtMoney(amount: number, currency: string): string {
+  // A trip with no rate on file prints as a dash, not as "0 UZS": zero is a
+  // number an owner would read as a fact about the load.
+  if (!amount) return '—';
   return `${new Intl.NumberFormat('en-US').format(amount)} ${currency}`;
+}
+
+/** Tonnes in the form, kilogrammes on the wire — the column is kg and every
+ *  report already sums it that way; freight is quoted in tonnes. */
+function tonsToKg(tons: string): number | undefined {
+  const n = Number(tons);
+  return tons.trim() && Number.isFinite(n) && n > 0 ? n * 1000 : undefined;
 }
 
 export default function TripsPage() {
@@ -78,19 +103,7 @@ export default function TripsPage() {
   const queryClient = useQueryClient();
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState({
-    truckId: '',
-    driverId: '',
-    shipper: '',
-    consignee: '',
-    originName: '',
-    destinationName: '',
-    cargoDescription: '',
-    rate: '',
-    currency: 'UZS',
-    isReefer: false,
-    notes: '',
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
 
   const { data: trips = [], isLoading } = useQuery({
     queryKey: TRIPS_KEY,
@@ -109,19 +122,7 @@ export default function TripsPage() {
     mutationFn: tripsApi.create,
     onSuccess: () => {
       setCreateOpen(false);
-      setForm({
-        truckId: '',
-        driverId: '',
-        shipper: '',
-        consignee: '',
-        originName: '',
-        destinationName: '',
-        cargoDescription: '',
-        rate: '',
-        currency: 'UZS',
-        isReefer: false,
-        notes: '',
-      });
+      setForm(EMPTY_FORM);
       invalidate();
       toast({ title: t('trips.created') });
     },
@@ -272,9 +273,7 @@ export default function TripsPage() {
                 originName: form.originName.trim() || undefined,
                 destinationName: form.destinationName.trim() || undefined,
                 cargoDescription: form.cargoDescription.trim() || undefined,
-                rate: form.rate ? Number(form.rate) : undefined,
-                currency: form.currency,
-                isReefer: form.isReefer,
+                cargoWeightKg: tonsToKg(form.cargoTons),
                 notes: form.notes.trim() || undefined,
               });
             }}
@@ -352,47 +351,31 @@ export default function TripsPage() {
                 </Select>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="trip-cargo">{t('trips.cargo')}</Label>
-              <Input
-                id="trip-cargo"
-                value={form.cargoDescription}
-                onChange={(e) => setForm({ ...form, cargoDescription: e.target.value })}
-              />
-            </div>
+            {/* What the load is and how heavy it is, side by side: both are
+                read off the same line of the customer's order. */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="trip-rate">{t('trips.rate')}</Label>
+                <Label htmlFor="trip-cargo">{t('trips.cargo')}</Label>
                 <Input
-                  id="trip-rate"
-                  type="number"
-                  min={0}
-                  value={form.rate}
-                  onChange={(e) => setForm({ ...form, rate: e.target.value })}
+                  id="trip-cargo"
+                  value={form.cargoDescription}
+                  onChange={(e) => setForm({ ...form, cargoDescription: e.target.value })}
                 />
               </div>
               <div className="space-y-2">
-                <Label>{t('trips.currency')}</Label>
-                <Select value={form.currency} onValueChange={(v) => setForm({ ...form, currency: v })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="UZS">UZS</SelectItem>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="RUB">RUB</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="trip-tons">{t('trips.cargoTons')}</Label>
+                <Input
+                  id="trip-tons"
+                  type="number"
+                  min={0}
+                  step="0.1"
+                  inputMode="decimal"
+                  placeholder={t('trips.cargoTonsPlaceholder')}
+                  value={form.cargoTons}
+                  onChange={(e) => setForm({ ...form, cargoTons: e.target.value })}
+                />
               </div>
             </div>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.isReefer}
-                onChange={(e) => setForm({ ...form, isReefer: e.target.checked })}
-              />
-              {t('trips.reeferCargo')}
-            </label>
             <div className="space-y-2">
               <Label htmlFor="trip-notes">{t('trips.notes')}</Label>
               <Textarea

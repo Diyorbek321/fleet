@@ -75,10 +75,10 @@ LOCATION_BUCKET_DP = 3
 
 PANEL_PATH = "/leakage"
 
-_CATEGORY_LABEL_UZ = {
-    "fraud": "Shubhali yoqilg'i quyish",
-    "fuel": "Ortiqcha yoqilg'i sarfi",
-    "stop": "Ruxsatsiz to'xtash",
+_CATEGORY_LABEL_RU = {
+    "fraud": "Подозрительная заправка",
+    "fuel": "Перерасход топлива",
+    "stop": "Стоянка вне точек",
 }
 
 # Worst-first when the cap has to choose. A flagged fill-up is a receipt the
@@ -86,10 +86,10 @@ _CATEGORY_LABEL_UZ = {
 # a long stop is the softest of the three.
 _CATEGORY_PRIORITY = {"fraud": 0, "fuel": 1, "stop": 2}
 
-_REASON_LABEL_UZ = {
-    "oversized_fill": "bak hajmidan ortiq quyilgan",
-    "price_outlier": "narx odatdagidan yuqori",
-    "excess_consumption": "masofaga nisbatan sarf haqiqatga to'g'ri kelmaydi",
+_REASON_LABEL_RU = {
+    "oversized_fill": "залито больше объёма бака",
+    "price_outlier": "цена выше обычной",
+    "excess_consumption": "расход не сходится с пройденным расстоянием",
 }
 
 
@@ -135,17 +135,17 @@ def _local(moment: datetime) -> datetime:
     return moment.astimezone(report_tz())
 
 
-def _duration_uz(minutes: float) -> str:
+def _duration_ru(minutes: float) -> str:
     hours, mins = divmod(int(round(minutes)), 60)
-    return f"{hours} soat {mins} daqiqa" if hours else f"{mins} daqiqa"
+    return f"{hours} ч {mins} мин" if hours else f"{mins} мин"
 
 
 def _maps_link(lat: float, lng: float) -> str:
-    return f'<a href="https://maps.google.com/?q={lat},{lng}">xaritada ko\'rish</a>'
+    return f'<a href="https://maps.google.com/?q={lat},{lng}">посмотреть на карте</a>'
 
 
 def _title(category: str, plate: str | None) -> str:
-    return f"{_CATEGORY_LABEL_UZ[category]} — {plate or '—'}"
+    return f"{_CATEGORY_LABEL_RU[category]} — {plate or '—'}"
 
 
 # ── Findings (pure: analytics dict in, alert material out) ───────────────
@@ -161,11 +161,11 @@ def _fuel_findings(report: dict, today: str) -> list[_Finding]:
         waste = float(truck.get("estimated_waste_cost") or 0)
         body = "\n".join(
             [
-                f"<b>{float(truck['l_per_100km']):.1f} L/100km</b>"
-                f" — avtopark me'yori {float(truck['baseline_l_per_100km']):.1f} L/100km",
-                f"{days} kunda: {_money(float(truck['liters']))} L"
-                f" / {_money(float(truck['distance_km']))} km",
-                f"Taxminiy ortiqcha xarajat: <b>{_money(waste)}</b>",
+                f"<b>{float(truck['l_per_100km']):.1f} л/100км</b>"
+                f" — норма по автопарку {float(truck['baseline_l_per_100km']):.1f} л/100км",
+                f"За {days} дн.: {_money(float(truck['liters']))} л"
+                f" / {_money(float(truck['distance_km']))} км",
+                f"Ориентировочный перерасход: <b>{_money(waste)}</b>",
             ]
         )
         findings.append(
@@ -190,8 +190,8 @@ def _stop_findings(report: dict) -> list[_Finding]:
         minutes = float(stop["duration_minutes"])
         body = "\n".join(
             [
-                f"Davomiyligi: <b>{_duration_uz(minutes)}</b>",
-                f"Boshlangan: {started.strftime('%d.%m %H:%M')}",
+                f"Длительность: <b>{_duration_ru(minutes)}</b>",
+                f"Начало: {started.strftime('%d.%m %H:%M')}",
                 _maps_link(stop["latitude"], stop["longitude"]),
             ]
         )
@@ -214,17 +214,17 @@ def _fraud_findings(report: dict) -> list[_Finding]:
     findings = []
     for event in report.get("events", []):
         reasons = ", ".join(
-            _REASON_LABEL_UZ.get(reason, reason) for reason in event.get("reasons", [])
+            _REASON_LABEL_RU.get(reason, reason) for reason in event.get("reasons", [])
         )
         cost = float(event.get("total_cost") or 0)
         lines = [
-            f"Sabab: <b>{html.escape(reasons)}</b>",
-            f"{float(event['liters']):.0f} L × {_money(float(event['cost_per_liter']))}"
+            f"Причина: <b>{html.escape(reasons)}</b>",
+            f"{float(event['liters']):.0f} л × {_money(float(event['cost_per_liter']))}"
             f" = <b>{_money(cost)}</b>",
-            f"Sana: {_local(event['filled_at']).strftime('%d.%m %H:%M')}",
+            f"Дата: {_local(event['filled_at']).strftime('%d.%m %H:%M')}",
         ]
         if event.get("fuel_station"):
-            lines.append(f"Zapravka: {html.escape(event['fuel_station'])}")
+            lines.append(f"АЗС: {html.escape(event['fuel_station'])}")
         findings.append(
             _Finding(
                 category="fraud",
@@ -260,14 +260,14 @@ def _summary_alert(remainder: list[_Finding], today: str) -> Alert:
     for finding in remainder:
         counts[finding.category] = counts.get(finding.category, 0) + 1
     lines = [
-        f"• {_CATEGORY_LABEL_UZ[category]} — {count} ta"
+        f"• {_CATEGORY_LABEL_RU[category]} — {count}"
         for category, count in sorted(counts.items(), key=lambda kv: _CATEGORY_PRIORITY[kv[0]])
     ]
-    lines.append("Qolganlari keyingi tekshiruvlarda yuboriladi.")
+    lines.append("Остальные будут отправлены при следующих проверках.")
     return Alert(
         kind=AlertKind.leakage,
         severity=AlertSeverity.warning,
-        title=f"Yana {len(remainder)} ta yo'qotish hodisasi aniqlandi",
+        title=f"Обнаружено ещё {len(remainder)} случаев потерь",
         body="\n".join(lines),
         dedupe_key=f"leakage:summary:{today}",
         dedupe_ttl_hours=24,

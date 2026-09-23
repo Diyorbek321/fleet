@@ -7,12 +7,15 @@ import uz from './locales/uz.json';
 import ru from './locales/ru.json';
 
 export const SUPPORTED_LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'uz', label: 'O‘zbekcha' },
   { code: 'ru', label: 'Русский' },
+  { code: 'uz', label: 'O‘zbekcha' },
+  { code: 'en', label: 'English' },
 ] as const;
 
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]['code'];
+
+/** The language everyone gets until they pick another one themselves. */
+export const DEFAULT_LANGUAGE: LanguageCode = 'ru';
 
 void i18n
   .use(LanguageDetector)
@@ -23,11 +26,15 @@ void i18n
       uz: { translation: uz },
       ru: { translation: ru },
     },
-    fallbackLng: 'en',
+    fallbackLng: DEFAULT_LANGUAGE,
     supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
     interpolation: { escapeValue: false },
     detection: {
-      order: ['localStorage', 'navigator'],
+      // Only the saved choice is consulted. The browser locale is deliberately
+      // not in the chain: this panel is sold to Russian-speaking fleets, and a
+      // laptop shipped with an English Windows must not decide the language for
+      // a dispatcher who never asked for it.
+      order: ['localStorage'],
       caches: ['localStorage'],
       lookupLocalStorage: 'fleet_language',
     },

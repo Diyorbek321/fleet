@@ -25,6 +25,7 @@ from app.schemas.me import (
     ShiftOut,
     ShiftStartIn,
 )
+from app.services.geofences import evaluate_track
 from app.services.gps import upsert_latest_location
 
 router = APIRouter(prefix=PREFIX, tags=TAGS)
@@ -84,7 +85,7 @@ async def start_shift(
         select(Shift).where(Shift.driver_id == driver.id, Shift.status == ShiftStatus.active)
     )
     if existing.scalars().first():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A shift is already active")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Смена уже открыта")
 
     truck = await assigned_truck(db, driver.id)
     shift = Shift(
@@ -111,7 +112,7 @@ async def end_shift(
     )
     shift = res.scalars().first()
     if shift is None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="No active shift")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Нет открытой смены")
 
     shift.status = ShiftStatus.ended
     shift.ended_at = datetime.now(timezone.utc)
@@ -129,7 +130,14 @@ async def ping_location(
     driver: Driver = Depends(get_current_driver),
     db: AsyncSession = Depends(get_db),
 ):
-    """Driver's phone streams its GPS position to their assigned truck."""
+    """Driver's phone streams its GPS position to their assigned truck.
+
+    This is the same pipeline as ``POST /api/gps/ingest``; only the credential
+    differs. It evaluates geofences too — a truck is inside the depot or it is
+    not, and which device happened to report the fix is not something the fence
+    should care about. While this path skipped that step, a fleet running on
+    phones instead of trackers had geofences that silently never fired.
+    """
     truck = await require_assigned_truck(db, driver.id)
     await upsert_latest_location(
         db=db,
@@ -139,10 +147,19 @@ async def ping_location(
         speed=data.speed,
         heading=data.heading,
         recorded_at=data.recorded_at,
+        truck=truck,
+    )
+    events = await evaluate_track(
+        db=db,
+        truck_id=truck.id,
+        points=[(data.latitude, data.longitude, data.recorded_at)],
+        org_id=truck.org_id,
     )
     await db.commit()
+
     # Live map fan-out is scoped to the truck's organization.
-    await ws_manager.broadcast_to_org(str(truck.org_id), {
+    org_id = str(truck.org_id)
+    await ws_manager.broadcast_to_org(org_id, {
         "type": "truck_location_update",
         "truck_id": str(truck.id),
         "lat": data.latitude,
@@ -151,6 +168,16 @@ async def ping_location(
         "heading": data.heading,
         "recorded_at": (data.recorded_at or datetime.now(timezone.utc)).isoformat(),
     })
+    for ev in events:
+        await ws_manager.broadcast_to_org(org_id, {
+            "type": "geofence_event",
+            "truck_id": str(truck.id),
+            "geofence_id": str(ev.geofence_id),
+            "event": ev.event.value,
+            "lat": float(ev.latitude),
+            "lng": float(ev.longitude),
+            "recorded_at": ev.recorded_at.isoformat(),
+        })
     return {"message": "ok", "truck_id": str(truck.id)}
 
 

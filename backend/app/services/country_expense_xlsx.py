@@ -39,39 +39,39 @@ LITRES = "#,##0.0"
 KM = "#,##0.0"
 RATE = "#,##0.00"
 
-COUNTRY_LABELS = {"uz": "O'zbekiston", "kz": "Qozog'iston", "ru": "Rossiya"}
+COUNTRY_LABELS = {"uz": "Узбекистан", "kz": "Казахстан", "ru": "Россия"}
 
 # The driver's form is in Russian, so the categories keep the words the person
 # who filled it in actually used — a translated label makes a dispatcher check
 # whether it means the same line.
 CATEGORY_LABELS = {
-    "fuel": "Yoqilg'i (GSM)",
-    "insurance": "Sug'urta",
+    "fuel": "Топливо (ГСМ)",
+    "insurance": "Страховка",
     "platon": "Платон",
-    "food": "Ovqat",
+    "food": "Питание",
     "traffic_police": "ГАИ",
     "adblue": "AdBlue",
-    "fine": "Jarima",
-    "spare_parts": "Zapchast",
-    "repair": "Ta'mir",
-    "refund": "Qaytim",
-    "parking": "Stoyanka",
-    "phone": "Telefon",
-    "transport": "Transport",
-    "shower": "Dush",
-    "groceries": "Oziq-ovqat",
-    "parking_paperwork": "Stoyanka rasmiylashtirish",
-    "taxi": "Taksi",
-    "carwash": "Moyka",
+    "fine": "Штраф",
+    "spare_parts": "Запчасти",
+    "repair": "Ремонт",
+    "refund": "Возврат",
+    "parking": "Стоянка",
+    "phone": "Телефон",
+    "transport": "Транспорт",
+    "shower": "Душ",
+    "groceries": "Продукты",
+    "parking_paperwork": "Оформление стоянки",
+    "taxi": "Такси",
+    "carwash": "Мойка",
 }
 
 RATE_SOURCE_LABELS = {
-    "trip": "reys kursi",
-    "org": "tashkilot kursi",
-    "mixed": "aralash",
+    "trip": "курс рейса",
+    "org": "курс компании",
+    "mixed": "смешанный",
 }
 
-CARD_LABELS = {"doha": "DOHA karta", "e1card": "E1 karta"}
+CARD_LABELS = {"doha": "Карта DOHA", "e1card": "Карта E1"}
 
 
 def _country_label(code: str) -> str:
@@ -110,31 +110,31 @@ def _money(ws, row: int, col: int, value, fmt: str = MONEY):
 
 def _title(ws, report: CountryExpenseReport, subtitle: str) -> int:
     scope = report.organization or "Fleet"
-    ws["A1"] = f"{scope} — davlatlar bo'yicha reys xarajatlari"
+    ws["A1"] = f"{scope} — расходы по рейсам в разрезе стран"
     ws["A1"].font = _TITLE_FONT
-    ws["A2"] = f"Davr: {report.start:%d.%m.%Y} – {report.end:%d.%m.%Y} · {subtitle}"
-    ws["A3"] = f"Tayyorlandi: {report.generated_at:%d.%m.%Y %H:%M} UTC"
+    ws["A2"] = f"Период: {report.start:%d.%m.%Y} – {report.end:%d.%m.%Y} · {subtitle}"
+    ws["A3"] = f"Сформирован: {report.generated_at:%d.%m.%Y %H:%M} UTC"
     ws["A3"].font = _MUTED_FONT
     return 5
 
 
 def _sheet_countries(ws, report: CountryExpenseReport) -> None:
-    row = _title(ws, report, f"{len(report.trips)} ta reys")
+    row = _title(ws, report, f"рейсов: {len(report.trips)}")
     _widths(ws, [30, 16, 16, 14, 16])
 
     for block in report.countries:
         if block.total == 0 and block.fuel_liters == 0:
             continue
         ws.cell(row=row, column=1, value=_country_label(block.country)).font = _TOTAL_FONT
-        note = RATE_SOURCE_LABELS.get(block.rate_source or "", "kurs yo'q")
+        note = RATE_SOURCE_LABELS.get(block.rate_source or "", "курс не задан")
         if block.rate:
             ws.cell(row=row, column=2, value=f"1 USD = {block.rate:,.2f} {block.currency} ({note})")
         else:
-            ws.cell(row=row, column=2, value="Kurs kiritilmagan — USD hisoblanmadi")
+            ws.cell(row=row, column=2, value="Курс не задан — USD не рассчитан")
         ws.cell(row=row, column=2).font = _MUTED_FONT
         row += 1
 
-        _headers(ws, row, ["Nima uchun", block.currency, "USD", "Litr", "Ulushi"])
+        _headers(ws, row, ["Назначение", block.currency, "USD", "Литры", "Доля"])
         row += 1
 
         for line in block.lines:
@@ -147,7 +147,7 @@ def _sheet_countries(ws, report: CountryExpenseReport) -> None:
                 share.number_format = "0.0%"
             row += 1
 
-        ws.cell(row=row, column=1, value="Jami").font = _TOTAL_FONT
+        ws.cell(row=row, column=1, value="Итого").font = _TOTAL_FONT
         cell = _money(ws, row, 2, block.total, WHOLE_MONEY)
         if cell:
             cell.font = _TOTAL_FONT
@@ -160,9 +160,9 @@ def _sheet_countries(ws, report: CountryExpenseReport) -> None:
         row += 2
 
     if report.cards:
-        ws.cell(row=row, column=1, value="Kartadagi yoqilg'i (davlatga taqsimlanmaydi)").font = _TOTAL_FONT
+        ws.cell(row=row, column=1, value="Топливо по картам (не распределяется по странам)").font = _TOTAL_FONT
         row += 1
-        _headers(ws, row, ["Karta", "Summa", "", "Litr", ""])
+        _headers(ws, row, ["Карта", "Сумма", "", "Литры", ""])
         row += 1
         for card in report.cards:
             ws.cell(row=row, column=1, value=CARD_LABELS.get(card.column, card.column))
@@ -171,7 +171,7 @@ def _sheet_countries(ws, report: CountryExpenseReport) -> None:
             row += 1
         row += 1
 
-    ws.cell(row=row, column=1, value="Jami (USD)").font = _TOTAL_FONT
+    ws.cell(row=row, column=1, value="Итого (USD)").font = _TOTAL_FONT
     cell = _money(ws, row, 3, report.total_usd, MONEY)
     if cell:
         cell.font = _TOTAL_FONT
@@ -180,19 +180,19 @@ def _sheet_countries(ws, report: CountryExpenseReport) -> None:
         ws.cell(
             row=row + 1,
             column=1,
-            value=f"Diqqat: {missing} uchun kurs yo'q — USD jami to'liq emas.",
+            value=f"Внимание: для {missing} не задан курс — итог в USD неполный.",
         ).font = _MUTED_FONT
 
 
 def _sheet_trips(ws, report: CountryExpenseReport) -> None:
-    row = _title(ws, report, "har bir reys bir qator")
+    row = _title(ws, report, "по одной строке на рейс")
     header_row = row
 
-    labels = ["Reys", "Mashina", "Haydovchi", "Sana", "Yo'nalish", "km"]
+    labels = ["Рейс", "Машина", "Водитель", "Дата", "Направление", "км"]
     for block_country in ("uz", "kz", "ru"):
         currency = {"uz": "UZS", "kz": "KZT", "ru": "RUB"}[block_country]
         labels += [f"{_country_label(block_country)} ({currency})", f"{_country_label(block_country)} (USD)"]
-    labels.append("Jami (USD)")
+    labels.append("Итого (USD)")
     _headers(ws, header_row, labels)
     _widths(ws, [16, 18, 18, 12, 30, 10, 16, 14, 16, 14, 16, 14, 14])
     row += 1
@@ -221,12 +221,12 @@ def _sheet_trips(ws, report: CountryExpenseReport) -> None:
 
 
 def _sheet_lines(ws, report: CountryExpenseReport) -> None:
-    row = _title(ws, report, "har bir xarajat qatori")
+    row = _title(ws, report, "по одной строке на расход")
     header_row = row
     _headers(
         ws,
         header_row,
-        ["Reys", "Mashina", "Sana", "Davlat", "Nima uchun", "Summa", "Valyuta", "USD", "Litr", "Kurs manbai"],
+        ["Рейс", "Машина", "Дата", "Страна", "Назначение", "Сумма", "Валюта", "USD", "Литры", "Источник курса"],
     )
     _widths(ws, [16, 18, 12, 16, 26, 16, 10, 14, 10, 16])
     row += 1
@@ -248,7 +248,7 @@ def _sheet_lines(ws, report: CountryExpenseReport) -> None:
                 ws.cell(
                     row=row,
                     column=10,
-                    value=RATE_SOURCE_LABELS.get(block.rate_source or "", "kurs yo'q"),
+                    value=RATE_SOURCE_LABELS.get(block.rate_source or "", "курс не задан"),
                 )
                 row += 1
 
@@ -259,11 +259,11 @@ def build_workbook(report: CountryExpenseReport) -> bytes:
     wb = Workbook()
 
     ws = wb.active
-    ws.title = "Davlatlar"
+    ws.title = "Страны"
     _sheet_countries(ws, report)
 
-    _sheet_trips(wb.create_sheet("Reyslar"), report)
-    _sheet_lines(wb.create_sheet("Tafsilot"), report)
+    _sheet_trips(wb.create_sheet("Рейсы"), report)
+    _sheet_lines(wb.create_sheet("Детализация"), report)
 
     buf = BytesIO()
     wb.save(buf)
@@ -272,7 +272,7 @@ def build_workbook(report: CountryExpenseReport) -> bytes:
 
 def filename_for(report: CountryExpenseReport) -> str:
     """A name that says which range — and which truck — the file holds."""
-    scope = "reys-xarajatlari"
+    scope = "rashody-po-reysam"
     if report.truck_id:
         plate = next((t.plate_number for t in report.trips if t.plate_number), None)
         if plate:

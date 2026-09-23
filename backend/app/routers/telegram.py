@@ -60,7 +60,7 @@ def _feature_enabled() -> None:
     """Guard used by every telegram-owned route. 404 when disabled so we don't
     advertise the endpoint at all in envs where the bot isn't configured."""
     if not settings.telegram_configured:
-        raise HTTPException(status_code=404, detail="Not found")
+        raise HTTPException(status_code=404, detail="Не найдено")
 
 
 @webhook_router.post("/webhook")
@@ -84,7 +84,7 @@ async def telegram_webhook(
     expected = settings.telegram_webhook_secret.strip()
     if expected and x_telegram_bot_api_secret_token != expected:
         logger.warning("telegram_webhook_secret_mismatch")
-        raise HTTPException(status_code=401, detail="Invalid webhook secret")
+        raise HTTPException(status_code=401, detail="Неверный секрет webhook")
 
     try:
         await _handle_update(db, payload)
@@ -131,7 +131,7 @@ async def _handle_update(db: AsyncSession, update: dict[str, Any]) -> None:
         await _stop_all_for_chat(db, chat_id)
         await send_message(
             chat_id,
-            "🛑 Barcha xabarlar o'chirildi. Yangi reys uchun dispetcherdan yangi havola so'rang.",
+            "🛑 Все сообщения отключены. Для нового рейса попросите у диспетчера новую ссылку.",
         )
         return
 
@@ -143,8 +143,8 @@ async def _handle_update(db: AsyncSession, update: dict[str, Any]) -> None:
         # Bare /start (no token) — friendly onboarding blurb.
         await send_message(
             chat_id,
-            "👋 Salom! Bu yuk kuzatuv boti. Dispetcher yuborgan havolani bosing yoki "
-            "<code>/start trip_TOKEN</code> ko'rinishida token yuboring.",
+            "👋 Здравствуйте! Это бот отслеживания грузов. Нажмите ссылку, которую прислал "
+            "диспетчер, или отправьте токен в виде <code>/start trip_TOKEN</code>.",
         )
         return
 
@@ -152,9 +152,9 @@ async def _handle_update(db: AsyncSession, update: dict[str, Any]) -> None:
     # their way back without a human having to intervene.
     await send_message(
         chat_id,
-        "🤖 Buyruqlar:\n"
-        "/settings — obunalar va sozlamalar\n"
-        "/stop — barcha xabarlarni o'chirish",
+        "🤖 Команды:\n"
+        "/settings — подписки и настройки\n"
+        "/stop — отключить все сообщения",
     )
 
 
@@ -172,7 +172,7 @@ async def _activate_subscription(
     if sub is None:
         await send_message(
             chat_id,
-            "❌ Havola noto'g'ri yoki eskirgan. Dispetcherdan yangisini so'rang.",
+            "❌ Ссылка неверна или устарела. Попросите у диспетчера новую.",
         )
         return
 
@@ -191,7 +191,7 @@ async def _activate_subscription(
         sub.language = lang[:10]
     await db.commit()
 
-    ref = trip.reference if trip else "reys"
+    ref = trip.reference if trip else "рейс"
     cargo = trip.cargo_description if trip else None
     await send_message(chat_id, format_activation(ref, cargo))
 
@@ -217,7 +217,7 @@ async def _send_settings(db: AsyncSession, chat_id: str) -> None:
         await db.execute(select(TripSubscription).where(TripSubscription.chat_id == chat_id))
     ).scalars().all()
     if not subs:
-        await send_message(chat_id, "Sizda hozircha faol obuna yo'q.")
+        await send_message(chat_id, "У вас пока нет активных подписок.")
         return
 
     # Batch-fetch all referenced trips in one query instead of one query per
@@ -228,14 +228,14 @@ async def _send_settings(db: AsyncSession, chat_id: str) -> None:
     ).scalars().all()
     trip_by_id = {t.id: t for t in trips}
 
-    lines = ["📋 <b>Faol obunalar:</b>"]
+    lines = ["📋 <b>Активные подписки:</b>"]
     for sub in subs:
         trip = trip_by_id.get(sub.trip_id)
         ref = trip.reference if trip else str(sub.trip_id)[:8]
         daily = "✅" if sub.daily_enabled else "❌"
         event = "✅" if sub.event_enabled else "❌"
-        lines.append(f"• <b>{ref}</b> — kunlik: {daily}, tezkor: {event}")
-    lines.append("\nBarcha xabarlarni o'chirish: /stop")
+        lines.append(f"• <b>{ref}</b> — ежедневно: {daily}, срочно: {event}")
+    lines.append("\nОтключить все сообщения: /stop")
     await send_message(chat_id, "\n".join(lines))
 
 
@@ -302,7 +302,7 @@ async def create_subscription(
         await db.execute(select(Trip).where(Trip.id == data.trip_id, Trip.org_id == org))
     ).scalar_one_or_none()
     if trip is None:
-        raise HTTPException(status_code=404, detail="Trip not found")
+        raise HTTPException(status_code=404, detail="Рейс не найден")
 
     sub = TripSubscription(
         org_id=org,
@@ -345,7 +345,7 @@ async def delete_subscription(
         )
     ).scalar_one_or_none()
     if sub is None:
-        raise HTTPException(status_code=404, detail="Subscription not found")
+        raise HTTPException(status_code=404, detail="Подписка не найдена")
     await db.delete(sub)
     await db.commit()
     return Response(status_code=204)

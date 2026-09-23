@@ -3,19 +3,25 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, date
 import uuid
-from app.models.enums import TruckStatus
+from app.models.enums import TrailerVolume, TruckStatus
 
 class TruckCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     plate_number: str = Field(min_length=1, max_length=20)
     model: Optional[str] = None
     year: Optional[int] = Field(default=None, ge=1900, le=2100)
+    tractor_brand: Optional[str] = Field(default=None, max_length=60)
+    trailer_brand: Optional[str] = Field(default=None, max_length=60)
+    trailer_volume: Optional[TrailerVolume] = None
 
 class TruckUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     plate_number: Optional[str] = Field(default=None, min_length=1, max_length=20)
     model: Optional[str] = None
     year: Optional[int] = Field(default=None, ge=1900, le=2100)
+    tractor_brand: Optional[str] = Field(default=None, max_length=60)
+    trailer_brand: Optional[str] = Field(default=None, max_length=60)
+    trailer_volume: Optional[TrailerVolume] = None
     status: Optional[TruckStatus] = None
     fuel_level: Optional[float] = Field(default=None, ge=0, le=100)
     mileage: Optional[float] = Field(default=None, ge=0)
@@ -26,6 +32,9 @@ class TruckOut(BaseModel):
     plate_number: str
     model: Optional[str]
     year: Optional[int]
+    tractor_brand: Optional[str] = None
+    trailer_brand: Optional[str] = None
+    trailer_volume: Optional[TrailerVolume] = None
     status: TruckStatus
     fuel_level: float
     mileage: float

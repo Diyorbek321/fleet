@@ -23,8 +23,12 @@ class ConnectionManager:
     def __init__(self) -> None:
         self._by_org: Dict[str, Set[WebSocket]] = {}
 
-    async def connect(self, websocket: WebSocket, org_id: str) -> None:
-        await websocket.accept()
+    async def connect(
+        self, websocket: WebSocket, org_id: str, subprotocol: str | None = None
+    ) -> None:
+        # A browser that offered subprotocols fails the handshake unless the
+        # server echoes one back, so the router hands us the one it picked.
+        await websocket.accept(subprotocol=subprotocol)
         self._by_org.setdefault(org_id, set()).add(websocket)
 
     def disconnect(self, websocket: WebSocket, org_id: str) -> None:

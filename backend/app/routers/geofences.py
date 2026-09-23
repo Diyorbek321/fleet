@@ -30,7 +30,7 @@ async def _get_owned_fence(db: AsyncSession, geofence_id: uuid.UUID, org: uuid.U
         await db.execute(select(Geofence).where(Geofence.id == geofence_id, Geofence.org_id == org))
     ).scalar_one_or_none()
     if not fence:
-        raise HTTPException(status_code=404, detail="Geofence not found")
+        raise HTTPException(status_code=404, detail="Геозона не найдена")
     return fence
 
 

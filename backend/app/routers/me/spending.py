@@ -14,9 +14,10 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.deps.auth import get_current_driver
+from app.deps.auth import get_current_driver, get_current_user
 from app.models.driver_app import DriverExpense
 from app.models.drivers import Driver
+from app.models.users import User
 from app.models.maintenance import FuelLog
 from app.routers.me._common import (
     PREFIX,
@@ -27,6 +28,7 @@ from app.routers.me._common import (
     require_assigned_truck,
 )
 from app.schemas.maintenance import FuelLogCreate, FuelLogOut
+from app.services import audit
 from app.schemas.me import ExpenseCreate, ExpenseOut
 
 router = APIRouter(prefix=PREFIX, tags=TAGS)
@@ -106,7 +108,7 @@ async def my_expenses(
             start = date(int(year_s), int(mon_s), 1)
             end = date(start.year + (start.month == 12), (start.month % 12) + 1, 1)
         except (ValueError, IndexError):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="month must be YYYY-MM")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="month должен быть в формате YYYY-MM")
         stmt = stmt.where(DriverExpense.spent_at >= start, DriverExpense.spent_at < end)
     stmt = stmt.order_by(desc(DriverExpense.spent_at), desc(DriverExpense.created_at)).limit(min(limit, 500))
     res = await db.execute(stmt)
@@ -143,6 +145,7 @@ async def add_expense(
 async def delete_expense(
     expense_id: uuid.UUID,
     driver: Driver = Depends(get_current_driver),
+    actor: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
     res = await db.execute(
@@ -152,6 +155,21 @@ async def delete_expense(
     )
     expense = res.scalar_one_or_none()
     if expense is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Expense not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Расход не найден")
+
+    # Drivers correct their own mistakes here, which is why the route exists and
+    # stays. But a deleted expense is also the difference between cash that
+    # reconciles and cash that does not, and the cash watcher is one of the six
+    # things that alerts the owner — so removing one leaves a trace.
+    await audit.record_change(
+        db,
+        actor=actor,
+        action=audit.EXPENSE_DELETE,
+        org_id=expense.org_id,
+        target_type="driver_expense",
+        target_id=expense.id,
+        target_label=driver.name,
+        detail=f"amount: {expense.amount!r}; category: {expense.category.value}",
+    )
     await db.delete(expense)
     await db.commit()

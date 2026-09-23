@@ -9,6 +9,8 @@ the bot muted.
 """
 from __future__ import annotations
 
+from tests.conftest import awake_quiet_hours
+
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -57,7 +59,7 @@ def test_a_service_overdue_on_mileage_is_critical_despite_a_future_date():
 
 def test_the_dedupe_key_carries_the_bucket_so_one_licence_speaks_three_times():
     """Without the bucket in the key the first message wins and the escalation
-    never happens: the owner hears "30 kun qoldi" and nothing after that."""
+    never happens: the owner hears "осталось 30 дн." and nothing after that."""
     row = {"driver_id": "d-1", "driver_name": "Vali", "license_number": "AA1"}
     keys = {
         expiry._licence_alert(
@@ -97,8 +99,8 @@ def test_an_expired_licence_message_says_how_long_ago_and_why_it_matters():
         },
         AlertSeverity.critical,
     )
-    assert "tugagan" in alert.title
-    assert "12 kun" in alert.body
+    assert "истёк" in alert.title
+    assert "12 дн." in alert.body
     assert alert.path == "/drivers/d-1"
     assert alert.kind is AlertKind.document_expiry
 
@@ -118,7 +120,7 @@ def test_a_drivers_name_cannot_smuggle_markup_into_the_body():
         AlertSeverity.warning,
     )
     assert "&lt;b&gt;hack&lt;/b&gt;" in alert.body
-    assert "Moy almashtirish" in alert.body
+    assert "Замена масла" in alert.body
     assert alert.kind is AlertKind.maintenance_overdue
 
 
@@ -172,8 +174,9 @@ async def _org_with_chat(
             # No quiet window: this suite is about escalation and dedupe, and a
             # default 22→07 window would make every assertion depend on the
             # wall-clock hour the CI runner happened to start at.
-            quiet_from_hour=None,
-            quiet_to_hour=None,
+            # Not None — that reads as "no quiet hours" and silently
+            # produces the model's 22:00-07:00 default instead.
+            **awake_quiet_hours(),
         )
     )
     await db.commit()
@@ -229,7 +232,7 @@ async def test_an_expiring_licence_reaches_the_owner(db, captured):
     chat_id, text = captured[0]
     assert chat_id == "900001"
     assert "Vali Aliyev" in text
-    assert "20 kun" in text
+    assert "20 дн." in text
 
 
 async def test_the_same_licence_is_not_repeated_on_the_next_tick(db, captured):
@@ -259,7 +262,7 @@ async def test_a_licence_crossing_into_the_next_bucket_is_announced_again(db, ca
     assert await run(db) == 1
 
     assert len(captured) == 3
-    assert "tugagan" in captured[2][1]
+    assert "истёк" in captured[2][1]
 
 
 async def test_an_overdue_service_interval_arrives_as_critical(db, captured):
@@ -268,7 +271,7 @@ async def test_an_overdue_service_interval_arrives_as_critical(db, captured):
 
     assert await run(db) == 1
     assert "🚨" in captured[0][1]
-    assert "probeg" in captured[0][1]
+    assert "пробегу" in captured[0][1]
 
     kinds = (await db.execute(select(NotificationLog.kind))).scalars().all()
     assert kinds == [AlertKind.maintenance_overdue.value]
@@ -277,12 +280,12 @@ async def test_an_overdue_service_interval_arrives_as_critical(db, captured):
 async def test_a_past_service_date_is_critical_even_before_the_status_job_runs(db, captured):
     """``refresh_service_statuses`` flips the status, but it is a separate job on
     a separate tick. Reading only ``status`` would report a service two weeks
-    past its date as a gentle "yaqinlashdi"."""
+    past its date as a gentle "приближается"."""
     org_id = await _org_with_chat(db)
     await _interval(db, org_id, days=-14, status=ServiceStatus.scheduled)
 
     assert await run(db) == 1
-    assert "o'tgan" in captured[0][1]
+    assert "Просрочено" in captured[0][1]
 
 
 async def test_a_document_beyond_the_horizon_stays_silent(db, captured):
@@ -346,13 +349,13 @@ async def test_a_backlog_is_spread_across_ticks_urgent_first(db, captured):
     """
     org_id = await _org_with_chat(db)
     for i in range(3):
-        await _driver(db, org_id, days=-10, name=f"Muddati o'tgan {i}")
+        await _driver(db, org_id, days=-10, name=f"Просрочен {i}")
     for i in range(14):
         await _driver(db, org_id, days=25, name=f"Uzoq {i}")
 
     first = await run(db)
     assert first == expiry._MAX_ALERTS_PER_ORG_PER_RUN
-    assert sum("Muddati o'tgan" in text for _, text in captured) == 3
+    assert sum("Просрочен" in text for _, text in captured) == 3
 
     second = await run(db)
     assert first + second == 17

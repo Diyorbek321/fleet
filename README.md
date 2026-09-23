@@ -189,6 +189,10 @@ reality.
 - [x] Drivers management UI (CRUD + truck assignment)
 - [x] Reports (fleet summary + per-truck distance from GPS history)
 - [x] Rate limiting (slowapi) + prod secret guard + structured logging
+- [x] **Per-device GPS auth off the event loop** — bcrypt runs in a worker thread and a verified key is cached, so ingest no longer stalls the process for ~200 ms per ping
+- [x] **In-tenant audit trail** — trip deletes/rate edits, exchange-rate changes, truck/driver deletes and expense deletions are recorded, and the owner can read their own log at `GET /api/audit`
+- [x] **Plates are unique per fleet**, not platform-wide
+- [x] **WebSocket token travels in `Sec-WebSocket-Protocol`**, not the query string where every proxy logs it
 - [x] Dockerfile (production image: migrations + uvicorn)
 - [x] Maintenance backend wiring (CRUD + APScheduler overdue checks + safety-score recalc)
 - [x] Geofencing (circular zones + enter/exit events, live WS broadcast)
@@ -213,8 +217,17 @@ and ~200 other device models.
 
 2. Device/Traccar forwards positions to `POST /api/gps/ingest` with headers:
    - `X-API-Key: <api_key>`
-   - `X-IMEI: <imei>`
-   - JSON body: `{"points":[{"latitude":…, "longitude":…, "speed":…}]}` — `truck_id` is optional when the device is assigned.
+   - `X-IMEI: <imei>` — **required**; both halves identify the device
+   - JSON body: `{"points":[{"latitude":…, "longitude":…, "speed":…}]}` — `truck_id` is optional when the device is assigned, and may only ever name a truck in the device's own organization.
+
+   Batches are handled as batches: a tracker that buffered offline and flushes
+   fifty points writes fifty history rows, one latest-position update, one
+   WebSocket frame, and every geofence crossing the track actually made.
+
+   There is no fleet-wide key. `GPS_API_KEYS` is gone — a shared key belonged
+   to no organization, so ingest had nothing to check the target truck against
+   and a holder could write onto any customer's fleet. The API refuses to start
+   in production if one is still configured.
 
 ## i18n
 

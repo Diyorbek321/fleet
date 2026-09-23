@@ -64,7 +64,7 @@ def _style_bars(chart: BarChart, *, title: str, height: float, width: float,
     series, so a legend would name the one thing already in the title.
 
     ``values`` turns the per-bar figures off for the charts that sit under
-    their own table. A full so'm figure is nine digits wide, and on the longest
+    their own table. A full sum figure is nine digits wide, and on the longest
     negative bar it reaches the axis and prints through the truck's name.
     Shortening those labels to millions would have been the better fix, but
     openpyxl drops a ``numFmt`` set on a label list — so the choice is the full
@@ -81,12 +81,12 @@ def _style_bars(chart: BarChart, *, title: str, height: float, width: float,
     # "low" parks them at the left edge, clear of the plot either way.
     chart.x_axis.tickLblPos = "low"
     if money:
-        # Axis ticks in so'm run to nine digits and eat a third of the plot
+        # Axis ticks in sum run to nine digits and eat a third of the plot
         # width. The double comma is Excel's "scale by a thousand, twice".
         chart.y_axis.numFmt = '#,##0,,"M"'
 
 
-# So'm has no minor unit in practice — nobody invoices in tiyin.
+# The sum has no minor unit in practice — nobody invoices in tiyin.
 MONEY = "#,##0"
 LITRES = "#,##0.0"
 KM = "#,##0.0"
@@ -119,39 +119,39 @@ def _print_setup(ws) -> None:
 def build_workbook(report: PeriodReport) -> bytes:
     wb = Workbook()
 
-    # ── Xulosa ───────────────────────────────────────────────────────────────
+    # ── Сводка ───────────────────────────────────────────────────────────────
     ws = wb.active
-    ws.title = "Xulosa"
+    ws.title = "Сводка"
 
     ws["A1"] = f"{report.organization} — {report.period.label}"
     ws["A1"].font = _TITLE_FONT
-    ws["A2"] = f"Davr: {report.period.start:%d.%m.%Y} – {report.period.end:%d.%m.%Y}"
-    ws["A3"] = f"Tayyorlandi: {report.generated_at:%d.%m.%Y %H:%M} UTC"
+    ws["A2"] = f"Период: {report.period.start:%d.%m.%Y} – {report.period.end:%d.%m.%Y}"
+    ws["A3"] = f"Сформирован: {report.generated_at:%d.%m.%Y %H:%M} UTC"
     ws["A3"].font = Font(color="6B7280", size=9)
 
     # Costs are written negative so the column adds up to the profit line on
     # its own. An accountant checking the arithmetic should not have to know
     # which rows to subtract.
     rows: list[tuple[str, object, str]] = [
-        ("Yetkazilgan reyslar", report.trips_delivered, COUNT),
-        ("Jarayondagi reyslar", report.trips_in_progress, COUNT),
+        ("Доставлено рейсов", report.trips_delivered, COUNT),
+        ("Рейсов в работе", report.trips_in_progress, COUNT),
         ("", "", ""),
-        ("Daromad", report.revenue, MONEY),
-        ("Yoqilg'i xarajati", -report.fuel_cost, MONEY),
-        ("Haydovchi xarajatlari", -report.expense_cost, MONEY),
-        ("Texnik xizmat", -report.maintenance_cost, MONEY),
-        ("Jami xarajat", -report.total_cost, MONEY),
-        ("Sof foyda", report.profit, MONEY),
-        ("Rentabellik, %", report.margin_pct, "#,##0.0"),
+        ("Выручка", report.revenue, MONEY),
+        ("Расходы на топливо", -report.fuel_cost, MONEY),
+        ("Расходы водителей", -report.expense_cost, MONEY),
+        ("Техобслуживание", -report.maintenance_cost, MONEY),
+        ("Итого расходы", -report.total_cost, MONEY),
+        ("Чистая прибыль", report.profit, MONEY),
+        ("Рентабельность, %", report.margin_pct, "#,##0.0"),
         ("", "", ""),
-        ("Bosib o'tilgan yo'l, km", report.distance_km, KM),
-        ("Yoqilg'i, litr", report.fuel_liters, LITRES),
+        ("Пройдено, км", report.distance_km, KM),
+        ("Топливо, л", report.fuel_liters, LITRES),
         # Suppressed rather than shown with a footnote: a number in a cell
         # gets copied into someone else's workbook, and the caveat does not
         # travel with it.
         (
-            "Sarfiyot, L/100km",
-            report.l_per_100km if report.consumption_reliable else "ma'lumot yetarli emas",
+            "Расход, л/100км",
+            report.l_per_100km if report.consumption_reliable else "недостаточно данных",
             "#,##0.0" if report.consumption_reliable else "General",
         ),
     ]
@@ -164,7 +164,7 @@ def build_workbook(report: PeriodReport) -> bytes:
         ws.cell(row=row, column=1, value=label)
         cell = ws.cell(row=row, column=2, value=value)
         cell.number_format = fmt
-        if label in ("Sof foyda", "Jami xarajat"):
+        if label in ("Чистая прибыль", "Итого расходы"):
             ws.cell(row=row, column=1).font = _TOTAL_FONT
             cell.font = _TOTAL_FONT
         row += 1
@@ -174,10 +174,10 @@ def build_workbook(report: PeriodReport) -> bytes:
             row=row + 1,
             column=1,
             value=(
-                "Sarfiyot ko'rsatilmadi: quyilgan yoqilg'i yoqilgan yoqilg'i emas — "
-                "bakda qolgani keyingi davrga o'tadi. Qisqa davrda bu farq natijani "
-                "buzadi. Oylik hisobotga yoki Leakage sahifasiga qarang: u har bir "
-                "mashinani flot medianasiga solishtiradi."
+                "Расход не показан: залитое топливо — это не сожжённое топливо, "
+                "остаток в баке переходит на следующий период. На коротком периоде "
+                "эта разница искажает результат. Смотрите месячный отчёт или страницу "
+                "«Потери»: там каждая машина сравнивается с медианой по автопарку."
             ),
         ).font = Font(color="B45309", italic=True)
         row += 1
@@ -190,8 +190,8 @@ def build_workbook(report: PeriodReport) -> bytes:
             row=row + 1,
             column=1,
             value=(
-                "Diqqat: davrning bir qismi GPS saqlash muddatidan eski. "
-                "Masofa va L/100km to'liq emas."
+                "Внимание: часть периода старше срока хранения GPS-данных. "
+                "Пробег и л/100км неполные."
             ),
         ).font = Font(color="B45309", italic=True)
         row += 1
@@ -204,22 +204,22 @@ def build_workbook(report: PeriodReport) -> bytes:
     # KPI block above carries the costs as negatives so the column sums to the
     # profit line, which is right for arithmetic and wrong for a pie.
     cost_top = row + 2
-    ws.cell(row=cost_top, column=1, value="Xarajat tarkibi").font = _SECTION_FONT
+    ws.cell(row=cost_top, column=1, value="Структура расходов").font = _SECTION_FONT
     cost_rows = [
-        ("Yoqilg'i", report.fuel_cost),
-        ("Haydovchi xarajatlari", report.expense_cost),
-        ("Texnik xizmat", report.maintenance_cost),
+        ("Топливо", report.fuel_cost),
+        ("Расходы водителей", report.expense_cost),
+        ("Техобслуживание", report.maintenance_cost),
     ]
     for offset, (label, value) in enumerate(cost_rows, start=1):
         ws.cell(row=cost_top + offset, column=1, value=label)
         ws.cell(row=cost_top + offset, column=2, value=value).number_format = MONEY
 
     result_top = cost_top + len(cost_rows) + 2
-    ws.cell(row=result_top, column=1, value="Moliyaviy natija").font = _SECTION_FONT
+    ws.cell(row=result_top, column=1, value="Финансовый результат").font = _SECTION_FONT
     result_rows = [
-        ("Daromad", report.revenue),
-        ("Jami xarajat", report.total_cost),
-        ("Sof foyda", report.profit),
+        ("Выручка", report.revenue),
+        ("Итого расходы", report.total_cost),
+        ("Чистая прибыль", report.profit),
     ]
     for offset, (label, value) in enumerate(result_rows, start=1):
         ws.cell(row=result_top + offset, column=1, value=label)
@@ -228,7 +228,7 @@ def build_workbook(report: PeriodReport) -> bytes:
     # ── Charts ───────────────────────────────────────────────────────────────
     if report.total_cost > 0:
         pie = PieChart()
-        pie.title = "Xarajat tarkibi"
+        pie.title = "Структура расходов"
         pie.height, pie.width = 8.5, 12
         pie.add_data(
             Reference(ws, min_col=2, min_row=cost_top + 1, max_row=cost_top + len(cost_rows)),
@@ -248,7 +248,7 @@ def build_workbook(report: PeriodReport) -> bytes:
 
     bars = BarChart()
     bars.type = "col"
-    _style_bars(bars, title="Daromad, xarajat, foyda", height=8.5, width=12)
+    _style_bars(bars, title="Выручка, расходы, прибыль", height=8.5, width=12)
     bars.add_data(
         Reference(ws, min_col=2, min_row=result_top + 1, max_row=result_top + len(result_rows)),
         titles_from_data=False,
@@ -267,12 +267,12 @@ def build_workbook(report: PeriodReport) -> bytes:
     _widths(ws, [30, 20])
     _print_setup(ws)
 
-    # ── Mashinalar ───────────────────────────────────────────────────────────
-    ws = wb.create_sheet("Mashinalar")
+    # ── Машины ───────────────────────────────────────────────────────────────
+    ws = wb.create_sheet("Машины")
     _headers(ws, 1, [
-        "Mashina", "Davlat raqami", "Reys", "Daromad", "Yoqilg'i",
-        "Haydovchi xarajati", "Texnik xizmat", "Jami xarajat", "Foyda",
-        "Yo'l, km", "Litr", "L/100km",
+        "Машина", "Госномер", "Рейсы", "Выручка", "Топливо",
+        "Расходы водителя", "Техобслуживание", "Итого расходы", "Прибыль",
+        "Пробег, км", "Литры", "л/100км",
     ])
     for i, line in enumerate(report.trucks, start=2):
         values = [
@@ -303,7 +303,7 @@ def build_workbook(report: PeriodReport) -> bytes:
         chart_height = 0.9 * len(report.trucks) + 3
         profit = BarChart()
         profit.type = "bar"  # horizontal: truck names are long
-        _style_bars(profit, title="Mashina bo'yicha foyda", height=chart_height, width=17,
+        _style_bars(profit, title="Прибыль по машинам", height=chart_height, width=17,
                     values=False)
         profit.add_data(Reference(ws, min_col=9, min_row=1, max_row=last), titles_from_data=True)
         profit.set_categories(Reference(ws, min_col=1, min_row=2, max_row=last))
@@ -317,7 +317,7 @@ def build_workbook(report: PeriodReport) -> bytes:
         if any(line.l_per_100km is not None for line in report.trucks):
             burn = BarChart()
             burn.type = "bar"
-            _style_bars(burn, title="Sarfiyot, L/100km", height=chart_height, width=17,
+            _style_bars(burn, title="Расход, л/100км", height=chart_height, width=17,
                         money=False)
             burn.add_data(Reference(ws, min_col=12, min_row=1, max_row=last),
                           titles_from_data=True)
@@ -326,9 +326,9 @@ def build_workbook(report: PeriodReport) -> bytes:
             ws.add_chart(burn, f"G{last + 3}")
     _print_setup(ws)
 
-    # ── Haydovchilar ─────────────────────────────────────────────────────────
-    ws = wb.create_sheet("Haydovchilar")
-    _headers(ws, 1, ["Haydovchi", "Reys", "Daromad", "Xarajat"])
+    # ── Водители ─────────────────────────────────────────────────────────────
+    ws = wb.create_sheet("Водители")
+    _headers(ws, 1, ["Водитель", "Рейсы", "Выручка", "Расходы"])
     for i, driver in enumerate(report.drivers, start=2):
         values = [driver.name, driver.trips, driver.revenue, driver.expense_cost]
         for col, value in enumerate(values, start=1):
@@ -345,7 +345,7 @@ def build_workbook(report: PeriodReport) -> bytes:
         last = len(report.drivers) + 1
         earned = BarChart()
         earned.type = "bar"
-        _style_bars(earned, title="Haydovchi bo'yicha daromad",
+        _style_bars(earned, title="Выручка по водителям",
                     height=0.9 * len(report.drivers) + 3, width=17, values=False)
         earned.add_data(Reference(ws, min_col=3, min_row=1, max_row=last), titles_from_data=True)
         earned.set_categories(Reference(ws, min_col=1, min_row=2, max_row=last))
@@ -360,5 +360,5 @@ def build_workbook(report: PeriodReport) -> bytes:
 
 def filename_for(report: PeriodReport) -> str:
     """A filename that sorts chronologically in a folder full of them."""
-    kind = "oylik" if report.period.kind == "month" else "haftalik"
-    return f"hisobot-{kind}-{report.period.start:%Y-%m-%d}.xlsx"
+    kind = "mesyachnyy" if report.period.kind == "month" else "nedelnyy"
+    return f"otchet-{kind}-{report.period.start:%Y-%m-%d}.xlsx"

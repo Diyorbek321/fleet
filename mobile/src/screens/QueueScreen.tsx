@@ -183,7 +183,7 @@ export function QueueScreen() {
                 label={t('queue.queueTime')}
                 value={formatWindow(status.queue_at, status.queue_until)}
               />
-              <Row label="Truck" value={status.plate} />
+              <Row label={t('queue.truck')} value={status.plate} />
             </>
           ) : (
             <EmptyState icon="flag-outline" title={t('queue.noBooking')} />
@@ -227,7 +227,7 @@ export function QueueScreen() {
               icon="flag-outline"
               value={country}
               onChangeText={setCountry}
-              placeholder="China"
+              placeholder={t('queue.countryPlaceholder')}
             />
             <Button
               label={t('queue.startWatch')}

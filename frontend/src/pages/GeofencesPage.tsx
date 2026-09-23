@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '@/lib/datetime';
 import { LogIn, LogOut, MapPin, Plus, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';

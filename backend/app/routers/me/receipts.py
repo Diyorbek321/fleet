@@ -63,7 +63,7 @@ async def scan_receipt_photo(
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Upload a JPEG, PNG or WebP photo",
+            detail="Загрузите фото в формате JPEG, PNG или WebP",
         )
 
     # Starlette knows the size before the body is buffered for a spooled upload,
@@ -72,19 +72,19 @@ async def scan_receipt_photo(
     if isinstance(declared, int) and declared > MAX_IMAGE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Photo too large (max 8MB)",
+            detail="Фото слишком большое (максимум 8 МБ)",
         )
 
     image = await file.read()
     if len(image) > MAX_IMAGE_BYTES:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Photo too large (max 8MB)",
+            detail="Фото слишком большое (максимум 8 МБ)",
         )
     if not image:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="The uploaded photo is empty",
+            detail="Загруженное фото пустое",
         )
 
     try:

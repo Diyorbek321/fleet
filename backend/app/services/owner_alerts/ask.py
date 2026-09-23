@@ -15,8 +15,9 @@ one wrong number about money outweighs every right one.
 **The organization comes from the chat, never from the model.** ``org_id`` is
 read off the :class:`TelegramAccount` row Telegram's own chat id resolved to and
 passed to every service call; no argument can change it. The plate lookup is
-scoped too — ``trucks.plate_number`` is unique table-wide, so an unscoped one
-would cheerfully report another company's truck.
+scoped too, and now must be: ``plate_number`` is unique per organization rather
+than platform-wide, so two customers may legitimately hold the same plate and an
+unscoped lookup would report whichever row came back first.
 
 **The numbers are measured here; the model only phrases them.** Each capability
 renders a plain-text fact sheet from the existing services, and every digit in
@@ -145,10 +146,18 @@ _LATIN = re.compile(r"[A-Za-z]")
 
 
 def detect_language(text: str) -> str:
-    """``"uz"`` or ``"ru"`` — the language the answer must be written in."""
+    """``"uz"`` or ``"ru"`` — the language the answer must be written in.
+
+    Russian is the fallback, matching the rest of the platform: a question with
+    no letters at all ("01A123BC?") carries no signal, and answering it in
+    Uzbek would contradict every other message this owner receives.
+    """
     if any(ch in _UZBEK_CYRILLIC for ch in text):
         return "uz"
-    return "ru" if len(_CYRILLIC.findall(text)) > len(_LATIN.findall(text)) else "uz"
+    latin = len(_LATIN.findall(text))
+    if latin == 0:
+        return "ru"
+    return "ru" if len(_CYRILLIC.findall(text)) > latin else "uz"
 
 
 # Every user-facing string, Uzbek and Russian side by side: a phrase added in
@@ -387,9 +396,10 @@ def _fmt_date(value: date) -> str:
 async def _find_truck(db: AsyncSession, org_id: uuid.UUID, plate: str) -> Truck | None:
     """The org's truck for a plate typed by hand, or ``None``.
 
-    Scoped to ``org_id`` before anything else: ``plate_number`` is unique across
-    the whole table, so the unscoped version of this function answers questions
-    about other companies' trucks.
+    Scoped to ``org_id`` before anything else. ``plate_number`` is unique per
+    organization, not platform-wide, so two customers may legitimately hold the
+    same plate and an unscoped lookup would answer a question about whichever
+    company's row came back first.
 
     Owners type plates from memory, with and without spaces, so the comparison
     ignores punctuation and a unique partial match is accepted. Two partial
@@ -656,7 +666,7 @@ def build_answer_prompt(question: str, facts: Facts, lang: str) -> tuple[str, st
     """Phrase the fact sheet. Every rule here exists to stop an invented number."""
     system = (
         f"You answer the owner of an Uzbek trucking company in their Telegram chat. Write "
-        f"entirely in {LANGUAGE_NAMES.get(lang, 'Uzbek')}, in short plain sentences.\n"
+        f"entirely in {LANGUAGE_NAMES.get(lang, 'Russian')}, in short plain sentences.\n"
         "Rules that override everything else:\n"
         "- Answer only from the facts below. They are everything the system knows.\n"
         "- Use ONLY the numbers in the facts. Copy each one exactly as written, digit for "

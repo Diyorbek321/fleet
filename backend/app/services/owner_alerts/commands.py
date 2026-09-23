@@ -80,32 +80,32 @@ def parse_owner_start(text: str) -> str | None:
     return token
 
 
-# ── Uzbek labels ─────────────────────────────────────────────────────────
+# ── Russian labels ───────────────────────────────────────────────────────
 
-_KIND_LABEL_UZ: dict[AlertKind, str] = {
-    AlertKind.trip_status: "Reys holati",
-    AlertKind.trip_delay: "Reys kechikishi",
-    AlertKind.leakage: "Yo'qotishlar",
-    AlertKind.document_expiry: "Hujjat muddati",
-    AlertKind.maintenance_overdue: "Texnik xizmat",
-    AlertKind.cash_mismatch: "Kassa farqi",
-    AlertKind.border_queue: "Chegara navbati",
-    AlertKind.report_ready: "Hisobotlar",
-    AlertKind.briefing: "Kunlik xulosa",
+_KIND_LABEL_RU: dict[AlertKind, str] = {
+    AlertKind.trip_status: "Статус рейса",
+    AlertKind.trip_delay: "Опоздание рейса",
+    AlertKind.leakage: "Потери",
+    AlertKind.document_expiry: "Срок документов",
+    AlertKind.maintenance_overdue: "Техобслуживание",
+    AlertKind.cash_mismatch: "Расхождение по кассе",
+    AlertKind.border_queue: "Очередь на границе",
+    AlertKind.report_ready: "Отчёты",
+    AlertKind.briefing: "Ежедневная сводка",
 }
 
-_SEVERITY_LABEL_UZ: dict[AlertSeverity, str] = {
-    AlertSeverity.info: "hammasi",
-    AlertSeverity.warning: "ogohlantirish va muhim",
-    AlertSeverity.critical: "faqat muhim",
+_SEVERITY_LABEL_RU: dict[AlertSeverity, str] = {
+    AlertSeverity.info: "все",
+    AlertSeverity.warning: "предупреждения и важные",
+    AlertSeverity.critical: "только важные",
 }
 
 _HELP_TEXT = (
-    "🤖 <b>Buyruqlar</b>\n"
-    "/settings — joriy sozlamalar\n"
-    "/stop — xabarlarni to'xtatish\n"
-    "/help — shu ro'yxat\n\n"
-    "Sozlamalarni panelda o'zgartirasiz: <i>Sozlamalar → Telegram</i>."
+    "🤖 <b>Команды</b>\n"
+    "/settings — текущие настройки\n"
+    "/stop — остановить сообщения\n"
+    "/help — этот список\n\n"
+    "Настройки меняются в панели: <i>Настройки → Telegram</i>."
 )
 
 
@@ -126,7 +126,7 @@ async def activate_owner_chat(
         await db.execute(select(TelegramAccount).where(TelegramAccount.token == token))
     ).scalar_one_or_none()
     if account is None:
-        return "❌ Havola noto'g'ri yoki eskirgan. Administratordan yangisini so'rang."
+        return "❌ Ссылка неверна или устарела. Попросите у администратора новую."
 
     account.chat_id = chat_id
     account.activated_at = account.activated_at or datetime.now(timezone.utc)
@@ -141,11 +141,11 @@ async def activate_owner_chat(
     org = (
         await db.execute(select(Organization).where(Organization.id == account.org_id))
     ).scalar_one_or_none()
-    org_name = org.name if org else "kompaniya"
+    org_name = org.name if org else "компания"
     return (
-        f"✅ Ulandi — <b>{org_name}</b>.\n\n"
-        "Endi muhim voqealar haqida shu chatga xabar keladi: reys holati, "
-        "yo'qotishlar, hujjat muddati, kassa farqi va hisobotlar.\n\n"
+        f"✅ Подключено — <b>{org_name}</b>.\n\n"
+        "Теперь в этот чат будут приходить сообщения о важных событиях: статус рейса, "
+        "потери, сроки документов, расхождения по кассе и отчёты.\n\n"
         + _HELP_TEXT
     )
 
@@ -162,8 +162,8 @@ async def _cmd_start(_db: AsyncSession, accounts: list[TelegramAccount], _arg: s
     live = [a for a in accounts if a.is_active]
     if not live:
         return (
-            "⏸ Xabarlar hozir o'chirilgan. Qayta yoqish uchun administratordan "
-            "yangi havola so'rang."
+            "⏸ Сообщения сейчас отключены. Чтобы включить их снова, попросите "
+            "у администратора новую ссылку."
         )
     return _HELP_TEXT
 
@@ -179,28 +179,29 @@ async def _cmd_stop(db: AsyncSession, accounts: list[TelegramAccount], _arg: str
         account.is_active = False
     await db.commit()
     return (
-        "🛑 Xabarlar to'xtatildi. Qayta yoqish uchun administratordan yangi havola so'rang."
+        "🛑 Сообщения остановлены. Чтобы включить их снова, попросите у администратора "
+        "новую ссылку."
     )
 
 
 async def _cmd_settings(_db: AsyncSession, accounts: list[TelegramAccount], _arg: str) -> str:
-    lines = ["⚙️ <b>Sozlamalar</b>"]
+    lines = ["⚙️ <b>Настройки</b>"]
     for account in accounts:
-        name = account.label or "chat"
-        state = "yoqilgan" if account.is_active else "o'chirilgan"
+        name = account.label or "чат"
+        state = "включено" if account.is_active else "отключено"
         lines.append(f"\n• <b>{name}</b> — {state}")
-        lines.append(f"  Daraja: {_SEVERITY_LABEL_UZ.get(account.min_severity, '—')}")
+        lines.append(f"  Уровень: {_SEVERITY_LABEL_RU.get(account.min_severity, '—')}")
         known = {m.value for m in AlertKind}
         muted = [
-            _KIND_LABEL_UZ[AlertKind(k)] for k in (account.muted_kinds or []) if k in known
+            _KIND_LABEL_RU[AlertKind(k)] for k in (account.muted_kinds or []) if k in known
         ]
-        lines.append("  O'chirilgan turlar: " + (", ".join(muted) if muted else "yo'q"))
+        lines.append("  Отключённые типы: " + (", ".join(muted) if muted else "нет"))
         if account.quiet_from_hour is not None and account.quiet_to_hour is not None:
             lines.append(
-                f"  Tungi tinchlik: {account.quiet_from_hour:02d}:00–"
+                f"  Ночная тишина: {account.quiet_from_hour:02d}:00–"
                 f"{account.quiet_to_hour:02d}:00"
             )
-    lines.append("\nO'zgartirish: panel → <i>Sozlamalar → Telegram</i>, yoki /stop.")
+    lines.append("\nИзменить: панель → <i>Настройки → Telegram</i>, либо /stop.")
     return "\n".join(lines)
 
 

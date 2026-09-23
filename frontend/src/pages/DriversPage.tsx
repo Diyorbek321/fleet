@@ -37,6 +37,16 @@ import { toast } from '@/hooks/use-toast';
 
 const DRIVERS_KEY = ['drivers'] as const;
 
+const EMPTY_FORM = {
+  name: '',
+  phone: '',
+  phone2: '',
+  phone3: '',
+  adr: false,
+  licenseNumber: '',
+  status: 'active' as DriverStatus,
+};
+
 function describeError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return err.detail;
   if (err instanceof Error) return err.message;
@@ -51,14 +61,7 @@ export default function DriversPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<Driver | null>(null);
-  const [form, setForm] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    licenseNumber: '',
-    licenseExpiry: '',
-    status: 'active' as DriverStatus,
-  });
+  const [form, setForm] = useState(EMPTY_FORM);
   const [assignTruckId, setAssignTruckId] = useState<string>('');
 
   const { data: drivers = [], isLoading } = useQuery({
@@ -73,14 +76,7 @@ export default function DriversPage() {
     mutationFn: driversApi.create,
     onSuccess: () => {
       setCreateOpen(false);
-      setForm({
-        name: '',
-        phone: '',
-        email: '',
-        licenseNumber: '',
-        licenseExpiry: '',
-        status: 'active',
-      });
+      setForm(EMPTY_FORM);
       invalidate();
       toast({ title: t('drivers.created') });
     },
@@ -194,9 +190,18 @@ export default function DriversPage() {
                 className="cursor-pointer"
                 onClick={() => navigate(`/drivers/${d.id}`)}
               >
-                <TableCell className="font-medium">{d.name}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    {d.name}
+                    {d.adr && <Badge variant="outline">{t('drivers.adrShort')}</Badge>}
+                  </div>
+                </TableCell>
                 <TableCell className="font-mono text-xs">{d.licenseNumber}</TableCell>
-                <TableCell>{d.phone ?? '—'}</TableCell>
+                {/* All the numbers, not just the first: the point of holding
+                    three is that the dispatcher can see the next one to try. */}
+                <TableCell className="whitespace-pre-line text-sm">
+                  {d.phones.length > 0 ? d.phones.join('\n') : '—'}
+                </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Select
                     value={d.status}
@@ -270,8 +275,9 @@ export default function DriversPage() {
                 name: form.name.trim(),
                 licenseNumber: form.licenseNumber.trim(),
                 phone: form.phone.trim() || undefined,
-                email: form.email.trim() || undefined,
-                licenseExpiry: form.licenseExpiry || undefined,
+                phone2: form.phone2.trim() || undefined,
+                phone3: form.phone3.trim() || undefined,
+                adr: form.adr,
                 status: form.status,
               });
             }}
@@ -295,33 +301,53 @@ export default function DriversPage() {
                 onChange={(e) => setForm({ ...form, licenseNumber: e.target.value })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="d-phone">{t('drivers.phone')}</Label>
-                <Input
-                  id="d-phone"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="d-email">{t('drivers.email')}</Label>
-                <Input
-                  id="d-email"
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </div>
+            {/* Three numbers, one per row: they are dictated over the phone
+                one after another, and a two-column grid made the second and
+                third read as a pair of different things. */}
+            <div className="space-y-2">
+              <Label htmlFor="d-phone">{t('drivers.phone')}</Label>
+              <Input
+                id="d-phone"
+                inputMode="tel"
+                placeholder={t('drivers.phonePlaceholder')}
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="d-expiry">{t('drivers.licenseExpiry')}</Label>
+              <Label htmlFor="d-phone2">{t('drivers.phone2')}</Label>
               <Input
-                id="d-expiry"
-                type="date"
-                value={form.licenseExpiry}
-                onChange={(e) => setForm({ ...form, licenseExpiry: e.target.value })}
+                id="d-phone2"
+                inputMode="tel"
+                placeholder={t('drivers.phonePlaceholder')}
+                value={form.phone2}
+                onChange={(e) => setForm({ ...form, phone2: e.target.value })}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="d-phone3">{t('drivers.phone3')}</Label>
+              <Input
+                id="d-phone3"
+                inputMode="tel"
+                placeholder={t('drivers.phonePlaceholder')}
+                value={form.phone3}
+                onChange={(e) => setForm({ ...form, phone3: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>{t('drivers.adr')}</Label>
+              <Select
+                value={form.adr ? 'yes' : 'no'}
+                onValueChange={(v) => setForm({ ...form, adr: v === 'yes' })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no">{t('common.no')}</SelectItem>
+                  <SelectItem value="yes">{t('common.yes')}</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>

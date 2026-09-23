@@ -6,19 +6,40 @@ from sqlalchemy import String, Integer, DateTime, Numeric, Enum, ForeignKey, Uni
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
-from app.models.enums import TruckStatus
+from app.models.enums import TrailerVolume, TruckStatus
 
 class Truck(Base):
     __tablename__ = "trucks"
+    # Plates are unique *within a fleet*, not across the platform. A global
+    # constraint meant one customer adding a plate could be told it already
+    # exists — which is both a wrong answer (it does not exist in their fleet)
+    # and a disclosure that some other company on the platform owns that truck.
+    # It also made a truck sold from one fleet to another unaddable until the
+    # seller deleted their record.
+    __table_args__ = (
+        UniqueConstraint("org_id", "plate_number", name="uq_trucks_org_plate"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     org_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    plate_number: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    plate_number: Mapped[str] = mapped_column(String(20), nullable=False)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # A rig is two vehicles that are bought, serviced and written off
+    # separately, so the make of each is its own field. One combined "model"
+    # column forced dispatchers to type "MAN TGX / Schmitz" as free text, which
+    # no report could ever group by.
+    tractor_brand: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    trailer_brand: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # Nullable: a tractor with no trailer attached has no capacity class, and
+    # defaulting one would make every such truck bookable for a load it cannot
+    # physically take.
+    trailer_volume: Mapped[TrailerVolume | None] = mapped_column(
+        Enum(TrailerVolume, name="trailer_volume"), nullable=True
+    )
     status: Mapped[TruckStatus] = mapped_column(Enum(TruckStatus, name="truck_status"), default=TruckStatus.offline, nullable=False)
     fuel_level: Mapped[float] = mapped_column(Numeric(5, 2), default=0, nullable=False)   # 0-100
     mileage: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)     # km

@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { Truck } from '@/types';
 import { useTrucks } from '@/contexts/TruckContext';
+import { useTranslation } from 'react-i18next';
 
 interface MapControlsProps {
   trucks: Truck[];
@@ -18,6 +19,7 @@ interface MapControlsProps {
 
 export function MapControls({ trucks }: MapControlsProps) {
   const { setSelectedTruck, refreshTrucks } = useTrucks();
+  const { t } = useTranslation();
 
   const handleTruckSelect = (truckId: string) => {
     const truck = trucks.find((t) => t.id === truckId);
@@ -32,7 +34,7 @@ export function MapControls({ trucks }: MapControlsProps) {
         <Select onValueChange={handleTruckSelect}>
           <SelectTrigger className="w-48 bg-card border-border shadow-card">
             <Focus className="mr-2 h-4 w-4" />
-            <SelectValue placeholder="Jump to truck" />
+            <SelectValue placeholder={t('map.jumpToTruck')} />
           </SelectTrigger>
           <SelectContent className="bg-popover">
             {trucks
@@ -49,6 +51,8 @@ export function MapControls({ trucks }: MapControlsProps) {
           variant="secondary"
           size="icon"
           onClick={() => refreshTrucks()}
+          title={t('map.refresh')}
+          aria-label={t('map.refresh')}
           className="bg-card border border-border shadow-card hover:bg-secondary"
         >
           <RotateCcw className="h-4 w-4" />

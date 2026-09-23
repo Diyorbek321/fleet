@@ -2,8 +2,8 @@
 
 Called from both dispatcher-side (``/api/trips/{id}/advance``) and driver-side
 (``/api/me/trips/{id}/advance``) after the commit that stored the new status,
-so the cargo owner learns "yuk chegaraga yetdi" in real time regardless of
-who moved the trip through the timeline.
+so the cargo owner learns "груз на границе" in real time regardless of who
+moved the trip through the timeline.
 
 Best-effort: any failure (missing subscription, blocked bot, Telegram
 outage) is logged and swallowed. Trip advancement must never fail because
@@ -22,7 +22,9 @@ from app.core.logging import logger
 from app.models.enums import TripStatus
 from app.models.notifications import TripSubscription
 from app.models.trips import Trip
-from app.services.telegram import format_status_change, send_message
+from app.services import geocoding
+from app.services.telegram import send_message
+from app.services.trip_cards import build_customer_card
 
 
 async def notify_trip_status_change(
@@ -58,13 +60,14 @@ async def notify_trip_status_change(
     if not subs:
         return 0
 
-    text = format_status_change(
-        trip.reference,
-        to_status,
-        float(latitude) if latitude is not None else None,
-        float(longitude) if longitude is not None else None,
-        note,
-    )
+    lat = float(latitude) if latitude is not None else None
+    lng = float(longitude) if longitude is not None else None
+
+    # One lookup for the whole subscriber list: they are all being told about
+    # the same lorry standing in the same spot. Returns None whenever the
+    # geocoder is off or unreachable, and the message then reads exactly as it
+    # did before — the location line is decoration, the message is the product.
+    place = await geocoding.describe(lat, lng)
 
     sent = 0
     for sub in subs:
@@ -72,6 +75,21 @@ async def notify_trip_status_change(
         # so the type checker is happy.
         if not sub.chat_id:
             continue
+
+        # The same card the morning digest sends. A customer who is told about a
+        # border crossing and then, at 07:00, gets a differently-shaped message
+        # about the same lorry has to re-read both to see what moved.
+        #
+        # Built per subscriber, not once for the list, because the map link
+        # carries the recipient's own token — and a card assembled one way for
+        # one recipient and another way for the next is how two shapes creep
+        # back in. The extra cost is a couple of queries and an arrival
+        # estimate per watcher of one trip, off the request path entirely:
+        # this whole function runs as a background task.
+        text = await build_customer_card(
+            db, trip, lat=lat, lng=lng, place=place, note=note, token=sub.token
+        )
+
         result = await send_message(sub.chat_id, text)
         if result.ok:
             sent += 1

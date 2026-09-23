@@ -46,7 +46,7 @@ git clone https://github.com/<you>/fleet-watch-pro.git
 cd fleet-watch-pro
 cp .env.prod.example .env.prod
 nano .env.prod          # set APP_DOMAIN, API_DOMAIN, POSTGRES_PASSWORD,
-                        # JWT_SECRET_KEY, GPS_API_KEYS
+                        # JWT_SECRET_KEY, POSTGRES_PASSWORD
 ```
 
 Generate the JWT secret with:

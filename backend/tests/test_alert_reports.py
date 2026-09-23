@@ -9,6 +9,8 @@ failures look like working software right up until an owner mutes the bot.
 """
 from __future__ import annotations
 
+from tests.conftest import awake_quiet_hours
+
 import uuid
 from datetime import date, datetime, timezone
 
@@ -63,11 +65,9 @@ async def _org_with_chat(db, *, name="Zafar Logistics", chat_id="900001", rates=
             token=uuid.uuid4().hex,
             chat_id=chat_id,
             min_severity=AlertSeverity.info,
-            # No quiet window: the suite runs at whatever hour CI happens to
-            # start, and the default 22→07 would make these tests pass or fail
-            # depending on the clock.
-            quiet_from_hour=None,
-            quiet_to_hour=None,
+            # Not None — that reads as "no quiet hours" and silently
+            # produces the model's 22:00-07:00 default instead.
+            **awake_quiet_hours(),
         )
     )
     await db.commit()
@@ -147,8 +147,8 @@ async def test_each_month_is_its_own_fact_so_the_next_close_still_arrives(db, ca
     assert await run(db, today=date(2026, 10, 1)) == 1
 
     assert [doc["filename"] for doc in captured_docs] == [
-        "hisobot-oylik-2026-08-01.xlsx",
-        "hisobot-oylik-2026-09-01.xlsx",
+        "otchet-mesyachnyy-2026-08-01.xlsx",
+        "otchet-mesyachnyy-2026-09-01.xlsx",
     ]
 
 
@@ -176,9 +176,9 @@ async def test_the_workbook_covers_last_month_not_the_one_that_just_started(db, 
 
     await run(db, today=FIRST_OF_SEPTEMBER)
 
-    assert captured_docs[0]["filename"] == "hisobot-oylik-2026-08-01.xlsx"
+    assert captured_docs[0]["filename"] == "otchet-mesyachnyy-2026-08-01.xlsx"
     assert "2026 avgust" in captured_docs[0]["caption"]
-    assert "Yetkazilgan reyslar: 1" in captured_docs[0]["caption"]
+    assert "Доставлено рейсов: 1" in captured_docs[0]["caption"]
 
 
 async def test_the_month_boundary_is_a_tashkent_one_not_a_utc_one(db, captured_docs):
@@ -194,7 +194,7 @@ async def test_the_month_boundary_is_a_tashkent_one_not_a_utc_one(db, captured_d
 
     await run(db, today=FIRST_OF_SEPTEMBER)
 
-    assert "Yetkazilgan reyslar: 1" in captured_docs[0]["caption"]
+    assert "Доставлено рейсов: 1" in captured_docs[0]["caption"]
 
 
 async def test_the_caption_carries_the_numbers_someone_would_read_on_a_phone(db, captured_docs):
@@ -205,8 +205,8 @@ async def test_the_caption_carries_the_numbers_someone_would_read_on_a_phone(db,
     await run(db, today=FIRST_OF_SEPTEMBER)
 
     caption = captured_docs[0]["caption"]
-    assert "50 000 000 so'm" in caption  # grouped the way the amount is written here
-    assert "Foyda" in caption
+    assert "50 000 000 сум" in caption  # grouped the way the amount is written here
+    assert "Прибыль" in caption
 
 
 def test_the_caption_withholds_a_consumption_figure_the_report_calls_unreliable():
@@ -225,10 +225,10 @@ def test_the_caption_withholds_a_consumption_figure_the_report_calls_unreliable(
         trucks_moved=3,
         fills=1,  # one fill covering three trucks: the ratio means nothing
     )
-    assert "l/100km" not in reports._period_caption(report)
+    assert "л/100км" not in reports._period_caption(report)
 
     report.fills = 5
-    assert "l/100km" in reports._period_caption(report)
+    assert "л/100км" in reports._period_caption(report)
 
 
 # ── Who gets one ─────────────────────────────────────────────────────────
@@ -303,8 +303,8 @@ async def test_the_country_breakdown_travels_with_the_close(db, captured_docs):
     assert await run(db, today=FIRST_OF_SEPTEMBER) == 2
 
     names = [doc["filename"] for doc in captured_docs]
-    assert names[0] == "hisobot-oylik-2026-08-01.xlsx"
-    assert names[1] == "reys-xarajatlari-20260801-20260831.xlsx"
+    assert names[0] == "otchet-mesyachnyy-2026-08-01.xlsx"
+    assert names[1] == "rashody-po-reysam-20260801-20260831.xlsx"
     assert "450 000 KZT" in captured_docs[1]["caption"]
     assert "$957" in captured_docs[1]["caption"]  # 450 000 KZT at the org's own rate
     # Real workbooks, not the empty bytes a swallowed render would leave behind.
@@ -321,7 +321,7 @@ async def test_a_month_whose_drivers_filed_no_forms_sends_only_the_period_report
     await _delivered_trip(db, org_id, delivered=MID_AUGUST)
 
     assert await run(db, today=FIRST_OF_SEPTEMBER) == 1
-    assert [doc["filename"] for doc in captured_docs] == ["hisobot-oylik-2026-08-01.xlsx"]
+    assert [doc["filename"] for doc in captured_docs] == ["otchet-mesyachnyy-2026-08-01.xlsx"]
 
 
 async def test_the_caption_says_when_the_dollar_column_is_incomplete(db, captured_docs):
@@ -335,8 +335,8 @@ async def test_the_caption_says_when_the_dollar_column_is_incomplete(db, capture
     await run(db, today=FIRST_OF_SEPTEMBER)
 
     country_caption = captured_docs[1]["caption"]
-    assert "KZ uchun kurs kiritilmagan" in country_caption
-    assert "Jami: $" not in country_caption
+    assert "Для KZ не задан курс" in country_caption
+    assert "Итого: $" not in country_caption
 
 
 # ── Surviving a bad tick ─────────────────────────────────────────────────
@@ -391,8 +391,8 @@ async def test_an_org_with_two_linked_chats_is_computed_once_and_served_twice(
             token=uuid.uuid4().hex,
             chat_id="900002",
             min_severity=AlertSeverity.info,
-            quiet_from_hour=None,
-            quiet_to_hour=None,
+            # Not None: a None here silently becomes the 22:00–07:00 default.
+            **awake_quiet_hours(),
         )
     )
     await db.commit()

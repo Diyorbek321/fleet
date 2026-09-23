@@ -23,7 +23,7 @@ same five lines, just without the connective tissue.
 
 Scope and window:
 
-* The day summarised is yesterday in **local** (Asia/Tashkent) terms, so "kecha"
+* The day summarised is yesterday in **local** (Asia/Tashkent) terms, so "вчера"
   means the day the owner means. A UTC day would file the first five hours of
   every morning under the wrong date.
 * One GPS scan per organization covers that day, and
@@ -137,31 +137,31 @@ def _group(value: int) -> str:
 
 
 def _count(key: str, label: str, value: int) -> Figure:
-    return Figure(key=key, label=label, text=f"{_group(int(value))} ta", value=float(int(value)))
+    return Figure(key=key, label=label, text=f"{_group(int(value))}", value=float(int(value)))
 
 
 def _money(key: str, label: str, value: float) -> Figure:
     # UZS across the board, matching ``PeriodReport.currency``: trips carry a
     # per-trip currency code for cross-border loads, but every money total in
-    # this product is already stated in so'm and inventing a second convention
+    # this product is already stated in sum and inventing a second convention
     # here would make two screens disagree.
     rounded = round(float(value))
-    return Figure(key=key, label=label, text=f"{_group(rounded)} so'm", value=float(rounded))
+    return Figure(key=key, label=label, text=f"{_group(rounded)} сум", value=float(rounded))
 
 
 def _distance(key: str, label: str, value: float) -> Figure:
     rounded = round(float(value))
-    return Figure(key=key, label=label, text=f"{_group(rounded)} km", value=float(rounded))
+    return Figure(key=key, label=label, text=f"{_group(rounded)} км", value=float(rounded))
 
 
 def _liters(key: str, label: str, value: float) -> Figure:
     rounded = round(float(value))
-    return Figure(key=key, label=label, text=f"{_group(rounded)} l", value=float(rounded))
+    return Figure(key=key, label=label, text=f"{_group(rounded)} л", value=float(rounded))
 
 
 def _hours(key: str, label: str, value: float) -> Figure:
     rounded = round(float(value), 1)
-    return Figure(key=key, label=label, text=f"{rounded:.1f} soat", value=rounded)
+    return Figure(key=key, label=label, text=f"{rounded:.1f} ч", value=rounded)
 
 
 # ── Facts ────────────────────────────────────────────────────────────────
@@ -194,17 +194,17 @@ class BriefingFacts:
         a figure ends up quotable-but-unverified; there is only one list.
         """
         return [
-            _count("delivered", "kecha yetkazilgan reyslar", self.delivered_trips),
-            _money("revenue", "kecha tushgan daromad", self.delivered_revenue),
-            _count("on_road", "hozir yo'ldagi mashinalar", self.on_the_road),
-            _distance("distance", "kecha bosib o'tilgan yo'l", self.distance_km),
-            _liters("liters", "kecha quyilgan yoqilg'i", self.fuel_liters),
-            _money("fuel_cost", "yoqilg'i uchun to'langan pul", self.fuel_cost),
-            _money("expenses", "haydovchilarning kecha qilgan xarajati", self.expense_cost),
-            _count("stops", "ruxsatsiz to'xtashlar", self.unauthorized_stops),
-            _hours("idle", "bekor turgan vaqt", self.idle_hours),
-            _count("overdue", "muddati o'tgan hujjat va texnik xizmatlar", self.overdue_items),
-            _count("soon", "muddati yaqinlashayotganlar", self.expiring_soon),
+            _count("delivered", "рейсов доставлено вчера", self.delivered_trips),
+            _money("revenue", "выручка за вчера", self.delivered_revenue),
+            _count("on_road", "машин сейчас в рейсе", self.on_the_road),
+            _distance("distance", "пройдено вчера", self.distance_km),
+            _liters("liters", "залито топлива вчера", self.fuel_liters),
+            _money("fuel_cost", "потрачено на топливо", self.fuel_cost),
+            _money("expenses", "расходы водителей за вчера", self.expense_cost),
+            _count("stops", "стоянок вне точек", self.unauthorized_stops),
+            _hours("idle", "время простоя", self.idle_hours),
+            _count("overdue", "просроченных документов и ТО", self.overdue_items),
+            _count("soon", "с приближающимся сроком", self.expiring_soon),
         ]
 
 
@@ -304,18 +304,18 @@ def render_plain(facts: BriefingFacts) -> list[str]:
 
     This is what ships when no API key is configured, and what ships when the
     model's answer fails verification. Zeros are printed rather than hidden: an
-    owner needs "kecha 0 ta reys yetkazildi" to read as a fact about the fleet,
+    owner needs "вчера доставлено 0 рейсов" to read as a fact about the fleet,
     not as a line the digest forgot.
     """
     t = {figure.key: f"<b>{figure.text}</b>" for figure in facts.figures()}
     return [
-        f"🚚 Reyslar — kecha {t['delivered']} yetkazildi, daromad {t['revenue']}. "
-        f"Hozir yo'lda {t['on_road']} mashina bor.",
-        f"🛣 Yo'l — kecha {t['distance']} bosib o'tildi.",
-        f"⛽ Yoqilg'i — {t['liters']} quyildi, {t['fuel_cost']} to'landi.",
-        f"💵 Xarajat — haydovchilar kecha {t['expenses']} sarfladi.",
-        f"⚠️ Diqqat — {t['stops']} ruxsatsiz to'xtash ({t['idle']} bekor turish), "
-        f"{t['overdue']} hujjat/xizmat muddati o'tgan, {t['soon']} muddati yaqinlashmoqda.",
+        f"🚚 Рейсы — вчера доставлено {t['delivered']}, выручка {t['revenue']}. "
+        f"Сейчас в рейсе {t['on_road']} машин.",
+        f"🛣 Пробег — вчера пройдено {t['distance']}.",
+        f"⛽ Топливо — залито {t['liters']}, оплачено {t['fuel_cost']}.",
+        f"💵 Расходы — водители вчера потратили {t['expenses']}.",
+        f"⚠️ Внимание — {t['stops']} стоянок вне точек ({t['idle']} простоя), "
+        f"{t['overdue']} документов и ТО просрочено, {t['soon']} приближается по сроку.",
     ]
 
 
@@ -329,7 +329,7 @@ def build_prompt(facts: BriefingFacts) -> tuple[str, str]:
     would put a stray ``24`` in the prose, and the verifier — correctly — cannot
     tell that digit apart from an invented litre count.
     """
-    lang = LANGUAGE_NAMES["uz"]
+    lang = LANGUAGE_NAMES["ru"]
     system = (
         f"You write a five-line morning briefing for the owner of an Uzbek trucking "
         f"company. Write entirely in {lang}, in short plain sentences an owner reads "
@@ -344,7 +344,7 @@ def build_prompt(facts: BriefingFacts) -> tuple[str, str]:
         "characters."
     )
     lines = "\n".join(f"- {figure.label}: {figure.text}" for figure in facts.figures())
-    user = f"Kechagi kun raqamlari:\n{lines}"
+    user = f"Цифры за вчерашний день:\n{lines}"
     return system, user
 
 
@@ -489,7 +489,7 @@ def build_alert(facts: BriefingFacts, lines: list[str]) -> Alert:
     return Alert(
         kind=AlertKind.briefing,
         severity=AlertSeverity.warning,
-        title=f"Ertalabki xulosa · {facts.day.strftime('%d.%m.%Y')}",
+        title=f"Утренняя сводка · {facts.day.strftime('%d.%m.%Y')}",
         body="\n".join(lines),
         # Keyed on the day, so the four ticks inside the delivery window and a
         # worker restart all resolve to the one fact: this day was reported.

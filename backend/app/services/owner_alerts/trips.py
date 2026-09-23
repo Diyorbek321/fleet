@@ -18,7 +18,7 @@ re-tuned without touching the request path that earns the money.
 
 Both messages lead with the plate, then the driver, then the reference:
 
-    01A123BC - Anvar - TR-2026-000042 Moskvaga 6 soat kechikdi
+    01A123BC - Anvar - TR-2026-000042 — опоздание 6 ч
 
 An owner knows their fleet as "Anvar's truck", not as TR-2026-000042; the
 reference comes third, for whoever has to look the trip up afterwards.
@@ -45,8 +45,8 @@ from app.models.trucks import Truck
 from app.services.owner_alerts.bus import Alert, AlertKind, AlertSeverity, notify_owner
 from app.services.period_reports import report_tz
 
-# One Uzbek word per trip status, shared with the cargo-owner bot: the owner and
-# their own customer must never read two different names for the same state.
+# One Russian word per trip status, shared with the cargo-owner bot: the owner
+# and their own customer must never read two different names for the same state.
 from app.services.telegram import _status_label
 
 __all__ = ["run"]
@@ -96,14 +96,14 @@ MAX_ALERTS_PER_ORG = 5
 SETTLED_STATUSES = (TripStatus.delivered, TripStatus.cancelled)
 
 # Past-tense phrasing, not the state labels: this announces something that
-# happened, so "yo'lga chiqdi" rather than "yo'lda". Statuses missing from this
-# map (draft, planned, loading) are dispatcher bookkeeping — real work, but not
-# the owner's phone at 14:20 on a Tuesday.
+# happened, so "выехал" rather than "в пути". Statuses missing from this map
+# (draft, planned, loading) are dispatcher bookkeeping — real work, but not the
+# owner's phone at 14:20 on a Tuesday.
 _TRANSITION_PHRASE: dict[TripStatus, str] = {
-    TripStatus.en_route: "yo'lga chiqdi",
-    TripStatus.at_border: "chegaraga yetdi",
-    TripStatus.delivered: "yetkazildi",
-    TripStatus.cancelled: "bekor qilindi",
+    TripStatus.en_route: "выехал",
+    TripStatus.at_border: "прибыл на границу",
+    TripStatus.delivered: "доставлен",
+    TripStatus.cancelled: "отменён",
 }
 
 _TRANSITION_SEVERITY: dict[TripStatus, AlertSeverity] = {
@@ -114,8 +114,8 @@ _TRANSITION_SEVERITY: dict[TripStatus, AlertSeverity] = {
     TripStatus.cancelled: AlertSeverity.warning,
 }
 
-_NO_TRUCK = "mashinasiz"
-_NO_DRIVER = "haydovchisiz"
+_NO_TRUCK = "без машины"
+_NO_DRIVER = "без водителя"
 _MAX_PLACE_CHARS = 40
 _MAX_NOTE_CHARS = 200
 
@@ -125,7 +125,8 @@ _MAX_NOTE_CHARS = 200
 
 def _esc(value: str) -> str:
     """Escape for the HTML body. ``quote=False`` for the same reason the bus
-    uses it: half the Uzbek copy contains an apostrophe."""
+    uses it: the transliterated plates and place names passing through here
+    carry apostrophes."""
     return html.escape(value, quote=False)
 
 
@@ -141,21 +142,6 @@ def _place(name: str | None) -> str | None:
     return head[:_MAX_PLACE_CHARS] or None
 
 
-def _dative(place: str) -> str:
-    """Uzbek dative: "Moskva" → "Moskvaga", "Chirchiq" → "Chirchiqqa".
-
-    The suffix assimilates to the final consonant (-ka after k, -qa after q),
-    and getting it wrong is the kind of small wrongness that makes a product
-    read as foreign to the person paying for it.
-    """
-    tail = place[-1:].lower()
-    if tail == "k":
-        return place + "ka"
-    if tail == "q":
-        return place + "qa"
-    return place + "ga"
-
-
 def _humanize_lateness(late: timedelta) -> str:
     """How late, in the largest unit that is still honest. Floors rather than
     rounds: claiming seven hours when it is six and a half invites an argument
@@ -165,10 +151,10 @@ def _humanize_lateness(late: timedelta) -> str:
     hours, minutes = divmod(minutes, 60)
     days, hours = divmod(hours, 24)
     if days:
-        return f"{days} kun {hours} soat" if hours else f"{days} kun"
+        return f"{days} дн. {hours} ч" if hours else f"{days} дн."
     if hours:
-        return f"{hours} soat"
-    return f"{minutes} daqiqa"
+        return f"{hours} ч"
+    return f"{minutes} мин"
 
 
 def _local(moment: datetime) -> str:
@@ -180,7 +166,7 @@ def _headline(plate: str | None, driver: str | None, reference: str) -> str:
 
 
 def _route_line(origin: str | None, destination: str | None) -> str | None:
-    """"Toshkent → Moskva", or whichever half is known."""
+    """"Ташкент → Москва", or whichever half is known."""
     start, end = _place(origin), _place(destination)
     if start and end:
         route = f"{_esc(start)} → {_esc(end)}"
@@ -188,7 +174,7 @@ def _route_line(origin: str | None, destination: str | None) -> str | None:
         route = _esc(start or end or "")
     else:
         return None
-    return f"Yo'nalish: <b>{route}</b>"
+    return f"Направление: <b>{route}</b>"
 
 
 def _severity_for_lateness(late: timedelta) -> AlertSeverity:
@@ -337,14 +323,14 @@ def _today_key() -> str:
 
 def _remainder_alert(kind: AlertKind, count: int, today: str) -> Alert:
     """One line standing in for everything the cap held back."""
-    noun = "kechikkan reys" if kind is AlertKind.trip_delay else "reys yangiligi"
+    noun = "опоздавших рейсов" if kind is AlertKind.trip_delay else "новостей по рейсам"
     return Alert(
         kind=kind,
         severity=AlertSeverity.info,
-        title=f"Yana {count} ta {noun} bor",
+        title=f"Ещё {count} {noun}",
         body=(
-            "Ro'yxat uzun bo'lgani uchun qolgani keyingi tekshiruvda yuboriladi.\n"
-            "Hammasini panelda ko'rish mumkin."
+            "Список длинный, поэтому остальное будет отправлено при следующей проверке.\n"
+            "Всё целиком можно посмотреть в панели."
         ),
         dedupe_key=f"{kind.value}:overflow:{today}",
         dedupe_ttl_hours=DEDUPE_TTL_HOURS,
@@ -385,11 +371,9 @@ async def _send_late_batch(db: AsyncSession, rows, now: datetime) -> int:
         late = now - row.scheduled_end
         severity = _severity_for_lateness(late)
 
-        destination = _place(row.destination_name)
-        where = f"{_dative(destination)} " if destination else ""
         body = [
-            f"Reja: <b>{_esc(_local(row.scheduled_end))}</b>",
-            f"Holati: <b>{_esc(_status_label(row.status))}</b>",
+            f"План: <b>{_esc(_local(row.scheduled_end))}</b>",
+            f"Статус: <b>{_esc(_status_label(row.status))}</b>",
         ]
         route = _route_line(row.origin_name, row.destination_name)
         if route:
@@ -402,8 +386,8 @@ async def _send_late_batch(db: AsyncSession, rows, now: datetime) -> int:
                 kind=AlertKind.trip_delay,
                 severity=severity,
                 title=(
-                    f"{_headline(row.plate_number, row.driver_name, row.reference)} "
-                    f"{where}{_humanize_lateness(late)} kechikdi"
+                    f"{_headline(row.plate_number, row.driver_name, row.reference)}"
+                    f" — опоздание {_humanize_lateness(late)}"
                 ),
                 body="\n".join(body),
                 dedupe_key=_late_key(row, now),
@@ -446,9 +430,9 @@ async def _send_status_batch(db: AsyncSession, rows) -> int:
         route = _route_line(row.origin_name, row.destination_name)
         if route:
             body.append(route)
-        body.append(f"Vaqt: <b>{_esc(_local(row.recorded_at))}</b>")
+        body.append(f"Время: <b>{_esc(_local(row.recorded_at))}</b>")
         if row.note:
-            body.append(f"Izoh: {_esc(row.note[:_MAX_NOTE_CHARS])}")
+            body.append(f"Примечание: {_esc(row.note[:_MAX_NOTE_CHARS])}")
 
         sent += await notify_owner(
             db,

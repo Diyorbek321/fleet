@@ -14,7 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '@/lib/datetime';
 
 interface AppNotification {
   id: string;
@@ -91,13 +91,13 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80 bg-popover">
-              <DropdownMenuLabel className="font-semibold">Notifications</DropdownMenuLabel>
+              <DropdownMenuLabel className="font-semibold">{t('notifications.title')}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <div className="max-h-[300px] overflow-y-auto">
                 {notifications.length === 0 ? (
                   <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
                     <Bell className="h-6 w-6 text-muted-foreground/60" />
-                    <p className="text-sm text-muted-foreground">No notifications yet</p>
+                    <p className="text-sm text-muted-foreground">{t('notifications.empty')}</p>
                   </div>
                 ) : (
                   notifications.map((notification) => (

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Plus, Search, Filter, MapPin, Clock, MoreHorizontal, Pencil, Power, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,11 +32,12 @@ import { useTrucks } from '@/contexts/TruckContext';
 import { TruckFormModal } from '@/components/trucks/TruckFormModal';
 import { Truck, TruckStatus } from '@/types';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '@/lib/datetime';
 
 export default function TrucksPage() {
   const { trucks, isLoading, setSelectedTruck, toggleTruckEnabled, removeTruck } = useTrucks();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<TruckStatus | 'all'>('all');
@@ -81,7 +83,7 @@ export default function TrucksPage() {
   };
 
   const handleDelete = (truck: Truck) => {
-    if (window.confirm(`Delete ${truck.name} (${truck.plateNumber})? This cannot be undone.`)) {
+    if (window.confirm(t('trucks.confirmDelete', { name: truck.name, plate: truck.plateNumber }))) {
       removeTruck(truck.id);
     }
   };
@@ -111,14 +113,14 @@ export default function TrucksPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Trucks</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{t('trucks.title')}</h1>
           <p className="text-muted-foreground">
-            Manage your fleet vehicles and tracking devices
+            {t('trucks.subtitle')}
           </p>
         </div>
         <Button onClick={handleAddNew} className="bg-primary hover:bg-primary/90">
           <Plus className="mr-2 h-4 w-4" />
-          Add New Truck
+          {t('trucks.addNew')}
         </Button>
       </div>
 
@@ -129,7 +131,7 @@ export default function TrucksPage() {
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search trucks, plates, drivers..."
+                placeholder={t('trucks.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9 bg-secondary/50 border-0"
@@ -138,13 +140,13 @@ export default function TrucksPage() {
             <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as TruckStatus | 'all')}>
               <SelectTrigger className="w-full sm:w-40 bg-secondary/50 border-0">
                 <Filter className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Status" />
+                <SelectValue placeholder={t('trucks.statusFilter')} />
               </SelectTrigger>
               <SelectContent className="bg-popover">
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="moving">Moving</SelectItem>
-                <SelectItem value="stopped">Stopped</SelectItem>
-                <SelectItem value="offline">Offline</SelectItem>
+                <SelectItem value="all">{t('trucks.allStatus')}</SelectItem>
+                <SelectItem value="moving">{t('trucks.status.moving')}</SelectItem>
+                <SelectItem value="stopped">{t('trucks.status.stopped')}</SelectItem>
+                <SelectItem value="offline">{t('trucks.status.offline')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -157,12 +159,12 @@ export default function TrucksPage() {
           <Table>
             <TableHeader>
               <TableRow className="border-border/50 hover:bg-transparent">
-                <TableHead className="text-muted-foreground">Truck</TableHead>
-                <TableHead className="text-muted-foreground">Driver</TableHead>
-                <TableHead className="text-muted-foreground">Status</TableHead>
-                <TableHead className="text-muted-foreground">Speed</TableHead>
-                <TableHead className="text-muted-foreground hidden md:table-cell">Location</TableHead>
-                <TableHead className="text-muted-foreground">Last Update</TableHead>
+                <TableHead className="text-muted-foreground">{t('trucks.colTruck')}</TableHead>
+                <TableHead className="text-muted-foreground">{t('trucks.colDriver')}</TableHead>
+                <TableHead className="text-muted-foreground">{t('trucks.colStatus')}</TableHead>
+                <TableHead className="text-muted-foreground">{t('trucks.colSpeed')}</TableHead>
+                <TableHead className="text-muted-foreground hidden md:table-cell">{t('trucks.colLocation')}</TableHead>
+                <TableHead className="text-muted-foreground">{t('trucks.colLastUpdate')}</TableHead>
                 <TableHead className="text-muted-foreground w-12"></TableHead>
               </TableRow>
             </TableHeader>
@@ -170,7 +172,7 @@ export default function TrucksPage() {
               {filteredTrucks.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                    No trucks found matching your criteria
+                    {t('trucks.empty')}
                   </TableCell>
                 </TableRow>
               ) : (
@@ -195,13 +197,13 @@ export default function TrucksPage() {
                     <TableCell>
                       <Badge
                         variant="outline"
-                        className={cn('capitalize', statusBadgeClasses[truck.status])}
+                        className={cn(statusBadgeClasses[truck.status])}
                       >
-                        {truck.status}
+                        {t(`trucks.status.${truck.status}`)}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <span className="font-mono text-sm">{truck.speed} km/h</span>
+                      <span className="font-mono text-sm">{truck.speed} {t('common.kmh')}</span>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -227,19 +229,19 @@ export default function TrucksPage() {
                         <DropdownMenuContent align="end" className="bg-popover">
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); navigate(`/trucks/${truck.id}`); }}>
                             <MapPin className="mr-2 h-4 w-4" />
-                            View details
+                            {t('trucks.viewDetails')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewOnMap(truck); }}>
                             <MapPin className="mr-2 h-4 w-4" />
-                            View on map
+                            {t('trucks.viewOnMap')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEdit(truck); }}>
                             <Pencil className="mr-2 h-4 w-4" />
-                            Edit
+                            {t('common.edit')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleTruckEnabled(truck.id); }}>
                             <Power className="mr-2 h-4 w-4" />
-                            {truck.isEnabled ? 'Disable' : 'Enable'}
+                            {truck.isEnabled ? t('trucks.disable') : t('trucks.enable')}
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
@@ -247,7 +249,7 @@ export default function TrucksPage() {
                             onClick={(e) => { e.stopPropagation(); handleDelete(truck); }}
                           >
                             <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
+                            {t('common.delete')}
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>

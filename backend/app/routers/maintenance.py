@@ -12,6 +12,7 @@ from app.core.database import get_db
 from app.deps.auth import get_org_id, require_role
 from app.models.maintenance import MaintenanceRecord, FuelLog, ServiceInterval
 from app.models.trucks import Truck
+from app.services import audit
 from app.models.enums import ServiceStatus, UserRole
 from app.schemas.maintenance import (
     MaintenanceRecordCreate, MaintenanceRecordUpdate, MaintenanceRecordOut,
@@ -28,7 +29,7 @@ async def _owned_truck_or_404(db: AsyncSession, truck_id: uuid.UUID, org: uuid.U
         await db.execute(select(Truck).where(Truck.id == truck_id, Truck.org_id == org))
     ).scalar_one_or_none()
     if not truck:
-        raise HTTPException(status_code=404, detail="Truck not found")
+        raise HTTPException(status_code=404, detail="Машина не найдена")
     return truck
 
 
@@ -97,13 +98,18 @@ async def log_maintenance(
     await db.refresh(rec)
     return rec
 
+# Cost is the figure that matters here; a corrected odometer reading or a
+# reworded note is not worth a row.
+_AUDITED_MAINTENANCE_FIELDS = ("cost", "service_type", "performed_at")
+
+
 @router.put("/maintenance/{record_id}", response_model=MaintenanceRecordOut)
 async def update_maintenance(
     record_id: uuid.UUID,
     data: MaintenanceRecordUpdate,
     db: AsyncSession = Depends(get_db),
     org: uuid.UUID = Depends(get_org_id),
-    _user=Depends(_MANAGE),
+    actor=Depends(_MANAGE),
 ):
     rec = (
         await db.execute(
@@ -113,10 +119,28 @@ async def update_maintenance(
         )
     ).scalar_one_or_none()
     if not rec:
-        raise HTTPException(status_code=404, detail="Record not found")
+        raise HTTPException(status_code=404, detail="Запись не найдена")
 
-    for k, v in data.model_dump(exclude_unset=True).items():
+    payload = data.model_dump(exclude_unset=True)
+    before = {f: getattr(rec, f, None) for f in _AUDITED_MAINTENANCE_FIELDS}
+
+    for k, v in payload.items():
         setattr(rec, k, v)
+
+    # A repair cost is spend against a truck; edited after the fact it moves the
+    # per-truck figures an owner compares trucks on.
+    changed = audit.describe_changes(before, payload, _AUDITED_MAINTENANCE_FIELDS)
+    if changed:
+        await audit.record_change(
+            db,
+            actor=actor,
+            action=audit.MAINTENANCE_UPDATE,
+            org_id=org,
+            target_type="maintenance_record",
+            target_id=rec.id,
+            target_label=rec.service_type.value if rec.service_type else None,
+            detail=changed,
+        )
 
     await db.commit()
     await db.refresh(rec)

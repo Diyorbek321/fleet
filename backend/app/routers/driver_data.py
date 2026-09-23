@@ -91,7 +91,7 @@ async def update_maintenance_request_status(
         )
     ).scalar_one_or_none()
     if req is None:
-        raise HTTPException(status_code=404, detail="Maintenance request not found")
+        raise HTTPException(status_code=404, detail="Заявка на обслуживание не найдена")
 
     req.status = data.status
     await db.commit()
@@ -136,7 +136,7 @@ async def list_driver_expenses(
         await db.execute(select(Driver.id).where(Driver.id == driver_id, Driver.org_id == user.org_id))
     ).scalar_one_or_none()
     if driver is None:
-        raise HTTPException(status_code=404, detail="Driver not found")
+        raise HTTPException(status_code=404, detail="Водитель не найден")
 
     stmt = (
         select(DriverExpense, Truck.plate_number)
@@ -150,7 +150,7 @@ async def list_driver_expenses(
             start = date(int(year_s), int(mon_s), 1)
             end = date(int(year_s) + (1 if int(mon_s) == 12 else 0), (int(mon_s) % 12) + 1, 1)
         except (ValueError, IndexError):
-            raise HTTPException(status_code=400, detail="month must be YYYY-MM")
+            raise HTTPException(status_code=400, detail="month должен быть в формате YYYY-MM")
         stmt = stmt.where(DriverExpense.spent_at >= start, DriverExpense.spent_at < end)
 
     rows = (await db.execute(stmt)).all()
@@ -185,7 +185,7 @@ async def list_driver_shifts(
         await db.execute(select(Driver.id).where(Driver.id == driver_id, Driver.org_id == user.org_id))
     ).scalar_one_or_none()
     if driver is None:
-        raise HTTPException(status_code=404, detail="Driver not found")
+        raise HTTPException(status_code=404, detail="Водитель не найден")
 
     stmt = (
         select(Shift, Truck.plate_number)

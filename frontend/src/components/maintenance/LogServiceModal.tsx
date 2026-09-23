@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMaintenance } from '@/contexts/MaintenanceContext';
 import { useTrucks } from '@/contexts/TruckContext';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -9,16 +10,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ServiceType } from '@/types';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { format } from '@/lib/datetime';
 
-const serviceTypeLabels: Record<ServiceType, string> = {
-  oil_change: 'Oil Change',
-  tire_rotation: 'Tire Rotation',
-  brake_inspection: 'Brake Inspection',
-  engine_service: 'Engine Service',
-  transmission: 'Transmission',
-  other: 'Other',
-};
+/** Kept in display order; the label itself comes from `maintenance.serviceTypes`. */
+const SERVICE_TYPES: ServiceType[] = [
+  'oil_change',
+  'tire_rotation',
+  'brake_inspection',
+  'engine_service',
+  'transmission',
+  'other',
+];
 
 interface LogServiceModalProps {
   open: boolean;
@@ -27,6 +29,7 @@ interface LogServiceModalProps {
 }
 
 export function LogServiceModal({ open, onOpenChange, intervalId }: LogServiceModalProps) {
+  const { t } = useTranslation();
   const { serviceIntervals, addMaintenanceRecord } = useMaintenance();
   const { trucks } = useTrucks();
   
@@ -58,7 +61,7 @@ export function LogServiceModal({ open, onOpenChange, intervalId }: LogServiceMo
     e.preventDefault();
     
     if (!formData.truckId || !formData.serviceType || !formData.mileage || !formData.cost) {
-      toast.error('Please fill in all required fields');
+      toast.error(t('maintenance.serviceModal.required'));
       return;
     }
     
@@ -72,7 +75,7 @@ export function LogServiceModal({ open, onOpenChange, intervalId }: LogServiceMo
       notes: formData.notes || undefined,
     });
     
-    toast.success('Service logged successfully');
+    toast.success(t('maintenance.serviceModal.success'));
     onOpenChange(false);
     
     // Reset form
@@ -91,22 +94,22 @@ export function LogServiceModal({ open, onOpenChange, intervalId }: LogServiceMo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Log Service</DialogTitle>
+          <DialogTitle>{t('maintenance.serviceModal.title')}</DialogTitle>
           <DialogDescription>
-            Record a completed maintenance service
+            {t('maintenance.serviceModal.description')}
           </DialogDescription>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="truck">Truck *</Label>
+              <Label htmlFor="truck">{t('maintenance.serviceModal.truck')}</Label>
               <Select
                 value={formData.truckId}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, truckId: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select truck" />
+                  <SelectValue placeholder={t('maintenance.serviceModal.selectTruck')} />
                 </SelectTrigger>
                 <SelectContent>
                   {trucks.filter(t => t.isEnabled).map(truck => (
@@ -119,18 +122,18 @@ export function LogServiceModal({ open, onOpenChange, intervalId }: LogServiceMo
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="serviceType">Service Type *</Label>
+              <Label htmlFor="serviceType">{t('maintenance.serviceModal.serviceType')}</Label>
               <Select
                 value={formData.serviceType}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, serviceType: value as ServiceType }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select service" />
+                  <SelectValue placeholder={t('maintenance.serviceModal.selectService')} />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(serviceTypeLabels).map(([value, label]) => (
+                  {SERVICE_TYPES.map((value) => (
                     <SelectItem key={value} value={value}>
-                      {label}
+                      {t(`maintenance.serviceTypes.${value}`)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -140,7 +143,7 @@ export function LogServiceModal({ open, onOpenChange, intervalId }: LogServiceMo
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="date">Date *</Label>
+              <Label htmlFor="date">{t('maintenance.serviceModal.date')}</Label>
               <Input
                 id="date"
                 type="date"
@@ -150,11 +153,11 @@ export function LogServiceModal({ open, onOpenChange, intervalId }: LogServiceMo
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="mileage">Mileage *</Label>
+              <Label htmlFor="mileage">{t('maintenance.serviceModal.mileage')}</Label>
               <Input
                 id="mileage"
                 type="number"
-                placeholder="e.g., 50000"
+                placeholder={t('maintenance.serviceModal.mileagePlaceholder')}
                 value={formData.mileage}
                 onChange={(e) => setFormData(prev => ({ ...prev, mileage: e.target.value }))}
               />
@@ -163,22 +166,22 @@ export function LogServiceModal({ open, onOpenChange, intervalId }: LogServiceMo
           
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="cost">Cost ($) *</Label>
+              <Label htmlFor="cost">{t('maintenance.serviceModal.cost')}</Label>
               <Input
                 id="cost"
                 type="number"
                 step="0.01"
-                placeholder="e.g., 85.00"
+                placeholder={t('maintenance.serviceModal.costPlaceholder')}
                 value={formData.cost}
                 onChange={(e) => setFormData(prev => ({ ...prev, cost: e.target.value }))}
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="vendor">Vendor</Label>
+              <Label htmlFor="vendor">{t('maintenance.serviceModal.vendor')}</Label>
               <Input
                 id="vendor"
-                placeholder="Service provider name"
+                placeholder={t('maintenance.serviceModal.vendorPlaceholder')}
                 value={formData.vendor}
                 onChange={(e) => setFormData(prev => ({ ...prev, vendor: e.target.value }))}
               />
@@ -186,10 +189,10 @@ export function LogServiceModal({ open, onOpenChange, intervalId }: LogServiceMo
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="notes">Notes</Label>
+            <Label htmlFor="notes">{t('maintenance.serviceModal.notes')}</Label>
             <Textarea
               id="notes"
-              placeholder="Additional details about the service..."
+              placeholder={t('maintenance.serviceModal.notesPlaceholder')}
               value={formData.notes}
               onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
             />
@@ -197,9 +200,9 @@ export function LogServiceModal({ open, onOpenChange, intervalId }: LogServiceMo
           
           <div className="flex justify-end gap-3 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
-            <Button type="submit">Log Service</Button>
+            <Button type="submit">{t('maintenance.serviceModal.title')}</Button>
           </div>
         </form>
       </DialogContent>

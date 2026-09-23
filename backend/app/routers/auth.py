@@ -74,11 +74,11 @@ async def register(request: Request, data: RegisterIn = Body(...), db: AsyncSess
     self-assign ``admin``.
     """
     if not settings.allow_public_registration:
-        raise HTTPException(status_code=403, detail="Public registration is disabled")
+        raise HTTPException(status_code=403, detail="Открытая регистрация отключена")
 
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Этот email уже зарегистрирован")
 
     org = Organization(name=data.org_name)
     db.add(org)
@@ -111,11 +111,11 @@ async def create_user(
     ``POST /api/drivers/{id}/create-login`` so they are linked to a Driver profile.
     """
     if data.role not in _ORG_ASSIGNABLE_ROLES:
-        raise HTTPException(status_code=400, detail="Role must be admin, manager or operator")
+        raise HTTPException(status_code=400, detail="Роль должна быть admin, manager или operator")
 
     existing = await db.execute(select(User).where(User.email == data.email))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+        raise HTTPException(status_code=400, detail="Этот email уже зарегистрирован")
 
     user = User(
         org_id=admin.org_id,
@@ -152,7 +152,7 @@ async def _get_colleague(db: AsyncSession, user_id: uuid.UUID, admin: User) -> U
         )
     ).scalar_one_or_none()
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
     return user
 
 
@@ -191,11 +191,11 @@ async def update_user(
     if "role" in payload and payload["role"] is not None:
         new_role: UserRole = payload["role"]
         if target.id == admin.id:
-            raise HTTPException(status_code=400, detail="Cannot change your own role")
+            raise HTTPException(status_code=400, detail="Нельзя изменить собственную роль")
         if target.role is UserRole.driver:
-            raise HTTPException(status_code=400, detail="Cannot change a driver's role")
+            raise HTTPException(status_code=400, detail="Роль водителя изменить нельзя")
         if new_role not in _ORG_ASSIGNABLE_ROLES:
-            raise HTTPException(status_code=400, detail="Role must be admin, manager or operator")
+            raise HTTPException(status_code=400, detail="Роль должна быть admin, manager или operator")
         target.role = new_role
 
     if payload.get("password"):
@@ -227,7 +227,7 @@ async def delete_user(
     """
     target = await _get_colleague(db, user_id, admin)
     if target.id == admin.id:
-        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+        raise HTTPException(status_code=400, detail="Нельзя удалить самого себя")
 
     await db.delete(target)
     await db.commit()
@@ -252,9 +252,9 @@ async def login(request: Request, data: LoginIn = Body(...), db: AsyncSession = 
     row = res.first()
     user = row[0] if row else None
     if not user or not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверный логин или пароль")
     if not row[1] and user.role is not UserRole.superadmin:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Organization is suspended")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Компания заблокирована")
 
     subject = _token_subject(user)
     access = create_access_token(subject)
@@ -275,21 +275,21 @@ async def refresh_token(data: RefreshIn, db: AsyncSession = Depends(get_db)):
     token = data.refresh_token
     # Confirm token exists in store first (allows revoke)
     if not await refresh_store.exists(token):
-        raise HTTPException(status_code=401, detail="Refresh token revoked or expired")
+        raise HTTPException(status_code=401, detail="Refresh-токен отозван или истёк")
 
     try:
         payload = decode_token(token)
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid refresh token")
+        raise HTTPException(status_code=401, detail="Неверный refresh-токен")
 
     if payload.get("type") != "refresh":
-        raise HTTPException(status_code=401, detail="Not a refresh token")
+        raise HTTPException(status_code=401, detail="Это не refresh-токен")
 
     # Optionally: ensure user still exists
     try:
         user_id = uuid.UUID(payload.get("userId", ""))
     except (ValueError, TypeError):
-        raise HTTPException(status_code=401, detail="Invalid token payload")
+        raise HTTPException(status_code=401, detail="Неверное содержимое токена")
     res = await db.execute(
         select(User, Organization.is_active)
         .join(Organization, Organization.id == User.org_id)
@@ -297,7 +297,7 @@ async def refresh_token(data: RefreshIn, db: AsyncSession = Depends(get_db)):
     )
     row = res.first()
     if row is None:
-        raise HTTPException(status_code=401, detail="User not found")
+        raise HTTPException(status_code=401, detail="Пользователь не найден")
     user, org_is_active = row
 
     # The whole point of the stamp: this endpoint mints new tokens from an old
@@ -305,10 +305,10 @@ async def refresh_token(data: RefreshIn, db: AsyncSession = Depends(get_db)):
     # reset would keep renewing itself past it.
     if token_predates_password_change(payload, user.password_changed_at):
         await refresh_store.revoke(token)
-        raise HTTPException(status_code=401, detail="Password changed — please sign in again")
+        raise HTTPException(status_code=401, detail="Пароль изменён — войдите заново")
 
     if not org_is_active and user.role is not UserRole.superadmin:
-        raise HTTPException(status_code=403, detail="Organization is suspended")
+        raise HTTPException(status_code=403, detail="Компания заблокирована")
 
     subject = _token_subject(user)
     access = create_access_token(subject)
@@ -353,9 +353,9 @@ async def change_password(
     online guessing oracle against a token whose owner may have walked away.
     """
     if not verify_password(data.current_password, user.password_hash):
-        raise HTTPException(status_code=400, detail="Current password is incorrect")
+        raise HTTPException(status_code=400, detail="Текущий пароль неверен")
     if verify_password(data.new_password, user.password_hash):
-        raise HTTPException(status_code=400, detail="New password must be different")
+        raise HTTPException(status_code=400, detail="Новый пароль должен отличаться от текущего")
 
     user.password_hash = hash_password(data.new_password)
     user.password_changed_at = datetime.now(timezone.utc)

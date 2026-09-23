@@ -19,6 +19,8 @@ owner always learning which of the three happened instead of hearing silence.
 """
 from __future__ import annotations
 
+from tests.conftest import awake_quiet_hours
+
 import uuid
 from datetime import date, datetime, timedelta, timezone
 
@@ -201,8 +203,9 @@ async def _org(db, *, name: str = "Silk Road", chat_id: str | None = "810001", *
                 token=uuid.uuid4().hex,
                 chat_id=chat_id,
                 min_severity=AlertSeverity.info,
-                quiet_from_hour=None,
-                quiet_to_hour=None,
+                # Not None — that reads as "no quiet hours" and silently
+                # produces the model's 22:00-07:00 default instead.
+                **awake_quiet_hours(),
             )
         )
     await db.commit()
@@ -581,8 +584,9 @@ async def test_two_companies_in_one_chat_are_told_apart(db, model):
                 token=uuid.uuid4().hex,
                 chat_id="810002",
                 created_at=base + timedelta(days=index),
-                quiet_from_hour=None,
-                quiet_to_hour=None,
+                # Not None — that reads as "no quiet hours" and silently
+                # produces the model's 22:00-07:00 default instead.
+                **awake_quiet_hours(),
             )
         )
     await db.commit()
@@ -615,9 +619,9 @@ async def test_the_commands_that_were_here_first_still_answer(db, model):
     see what the bot is set to."""
     await _org(db)
 
-    assert "Sozlamalar" in await commands.handle_owner_message(db, "810001", "/settings")
-    assert "Buyruqlar" in await commands.handle_owner_message(db, "810001", "/help")
-    assert "to'xtatildi" in await commands.handle_owner_message(db, "810001", "/stop")
+    assert "Настройки" in await commands.handle_owner_message(db, "810001", "/settings")
+    assert "Команды" in await commands.handle_owner_message(db, "810001", "/help")
+    assert "остановлены" in await commands.handle_owner_message(db, "810001", "/stop")
 
 
 async def test_a_chat_with_no_owner_link_is_still_none_of_our_business(db, model):

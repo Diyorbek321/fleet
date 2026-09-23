@@ -217,14 +217,14 @@ async def test_suspension_blocks_the_customer_and_is_reversible(
     # not baked into the JWT.
     blocked = await client.get("/api/trucks", headers=customer_headers)
     assert blocked.status_code == 403, blocked.text
-    assert blocked.json()["detail"] == "Organization is suspended"
+    assert blocked.json()["detail"] == "Компания заблокирована"
 
     # And they cannot log in again to get a fresh one.
     relogin = await client.post(
         "/api/auth/login", json={"email": "boss@unpaid.uz", "password": "password123"}
     )
     assert relogin.status_code == 403, relogin.text
-    assert relogin.json()["detail"] == "Organization is suspended"
+    assert relogin.json()["detail"] == "Компания заблокирована"
 
     # The platform operator is unaffected by a customer's suspension.
     assert (await client.get("/api/organizations", headers=superadmin_headers)).status_code == 200
@@ -459,7 +459,7 @@ async def test_suspended_company_cannot_refresh_its_way_back_in(
 
     blocked = await client.post("/api/auth/refresh", json={"refresh_token": refresh})
     assert blocked.status_code == 403, blocked.text
-    assert blocked.json()["detail"] == "Organization is suspended"
+    assert blocked.json()["detail"] == "Компания заблокирована"
 
     # Un-suspending restores it — the token was rejected, not consumed.
     await client.patch(

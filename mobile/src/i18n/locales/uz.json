@@ -45,7 +45,30 @@
       "at_border": "Chegarada",
       "delivered": "Yetkazilgan",
       "cancelled": "Bekor qilingan"
-    }
+    },
+    "stage": {
+      "arrived_loading": "Yuklashga yetib keldi",
+      "loaded_waiting_docs": "Yuklandi, hujjat kutilyapti",
+      "docs_received_en_route": "Hujjat olindi, yo‘ldaman",
+      "arrived_border": "Chegaraga yetib keldi",
+      "crossed_border": "Chegaradan o‘tdi",
+      "arrived_customs": "Rastamojkaga yetib keldi",
+      "left_customs": "Rastamojkadan chiqdi",
+      "arrived_unloading": "Tushirishga yetib keldi",
+      "unloaded": "Yuk tushirildi"
+    },
+    "place": {
+      "uz": "UZB",
+      "kz": "QOZ",
+      "ru": "RF",
+      "uz_kz": "UZB–QOZ",
+      "kz_ru": "QOZ–RF"
+    },
+    "stagePrompt": "Nima bo‘ldi?",
+    "placePrompt": "Qayerda?",
+    "markStage": "Belgilash",
+    "currentStage": "Joriy bosqich",
+    "noStageYet": "Bosqich hali belgilanmagan"
   },
   "tripDocs": {
     "category": "Turkum",
@@ -200,7 +223,10 @@
     "permissionNeeded": "Joylashuvni ulashish uchun ruxsat kerak",
     "foregroundOnly": "Fon rejimidagi joylashuv o‘chiq, shuning uchun kuzatuv faqat ilova ochiq turganda ishlaydi. Doimiy kuzatuv uchun sozlamalarda «Doim ruxsat berish»ni yoqing.",
     "status": "Holat",
-    "lastSent": "Oxirgi yuborilgan: {{time}}"
+    "lastSent": "Oxirgi yuborilgan: {{time}}",
+    "stoppedTitle": "Joylashuv uzatish to‘xtadi",
+    "stoppedBody": "Fleet Watch joylashuvingizni uzatishni to‘xtatdi — ilovani ochib, qaytadan kiring.",
+    "foregroundBody": "Joylashuv dispetcherga uzatilmoqda"
   },
   "fuel": {
     "title": "Yoqilg‘i yozuvlari",
@@ -268,7 +294,9 @@
       "revoked": "Ruxsat bekor qilindi",
       "none": "Bron yo‘q",
       "unknown": "Noma’lum"
-    }
+    },
+    "truck": "Mashina",
+    "countryPlaceholder": "Xitoy"
   },
   "common": {
     "loading": "Yuklanmoqda…",

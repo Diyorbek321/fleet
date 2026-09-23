@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
-import { addDays, isAfter, isBefore } from 'date-fns';
+import { addDays, isAfter, isBefore } from '@/lib/datetime';
 import type { ServiceInterval, MaintenanceRecord, FuelLog, FuelStats, ServiceType } from '@/types';
 import { maintenanceApi, type BackendServiceInterval, type BackendMaintenanceRecord, type BackendFuelLog } from '@/lib/maintenance';
 import { useAuth } from '@/contexts/AuthContext';

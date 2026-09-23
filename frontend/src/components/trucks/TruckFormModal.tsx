@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
@@ -19,20 +20,58 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useTrucks } from '@/contexts/TruckContext';
 import { logger } from '@/lib/logger';
-import { Truck } from '@/types';
+import { Truck, TrailerVolume } from '@/types';
 
-const truckSchema = z.object({
-  plateNumber: z.string().min(1, 'Plate number is required').max(20, 'Plate number is too long'),
-  name: z.string().min(1, 'Truck name is required').max(50, 'Name is too long'),
-  deviceImei: z.string().min(15, 'IMEI must be at least 15 digits').max(17, 'IMEI is too long'),
-  model: z.string().max(50, 'Model name is too long').optional(),
-  driverName: z.string().max(50, 'Driver name is too long').optional(),
-});
+type Translate = ReturnType<typeof useTranslation>['t'];
 
-type TruckFormData = z.infer<typeof truckSchema>;
+/** The two capacity classes the market quotes; mirrors the backend enum. */
+const TRAILER_VOLUMES: TrailerVolume[] = ['standart', 'mega'];
+
+// Radix's Select cannot hold an empty-string value, so a sentinel stands in
+// for "this tractor has no trailer on it".
+const NO_VOLUME = '__none__';
+
+const buildTruckSchema = (t: Translate) =>
+  z.object({
+    plateNumber: z
+      .string()
+      .min(1, t('trucks.form.plateRequired'))
+      .max(20, t('trucks.form.plateTooLong')),
+    name: z.string().min(1, t('trucks.form.nameRequired')).max(50, t('trucks.form.nameTooLong')),
+    model: z.string().max(50, t('trucks.form.modelTooLong')).optional(),
+    tractorBrand: z.string().max(60, t('trucks.form.brandTooLong')).optional(),
+    trailerBrand: z.string().max(60, t('trucks.form.brandTooLong')).optional(),
+    trailerVolume: z.enum(['standart', 'mega']).optional(),
+    driverName: z.string().max(50, t('trucks.form.driverTooLong')).optional(),
+  });
+
+type TruckFormData = z.infer<ReturnType<typeof buildTruckSchema>>;
+
+/** One definition of "what this form starts with", used by both the initial
+ *  mount and the reset when a different truck is opened. Kept as a function
+ *  because the two used to be copies and drifted the first time a field was
+ *  added to one of them. */
+function defaultsFor(truck: Truck | null): TruckFormData {
+  return {
+    plateNumber: truck?.plateNumber || '',
+    name: truck?.name || '',
+    model: truck?.model || '',
+    tractorBrand: truck?.tractorBrand || '',
+    trailerBrand: truck?.trailerBrand || '',
+    trailerVolume: truck?.trailerVolume,
+    driverName: truck?.driverName || '',
+  };
+}
 
 interface TruckFormModalProps {
   open: boolean;
@@ -41,32 +80,22 @@ interface TruckFormModalProps {
 }
 
 export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
+  const { t } = useTranslation();
   const { addTruck, updateTruck } = useTrucks();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const truckSchema = React.useMemo(() => buildTruckSchema(t), [t]);
 
   const isEditing = !!truck;
 
   const form = useForm<TruckFormData>({
     resolver: zodResolver(truckSchema),
-    defaultValues: {
-      plateNumber: truck?.plateNumber || '',
-      name: truck?.name || '',
-      deviceImei: truck?.deviceImei || '',
-      model: truck?.model || '',
-      driverName: truck?.driverName || '',
-    },
+    defaultValues: defaultsFor(truck),
   });
 
   // Reset form when truck changes
   React.useEffect(() => {
     if (open) {
-      form.reset({
-        plateNumber: truck?.plateNumber || '',
-        name: truck?.name || '',
-        deviceImei: truck?.deviceImei || '',
-        model: truck?.model || '',
-        driverName: truck?.driverName || '',
-      });
+      form.reset(defaultsFor(truck));
     }
   }, [truck, open, form]);
 
@@ -79,8 +108,10 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
         await addTruck({
           plateNumber: data.plateNumber,
           name: data.name,
-          deviceImei: data.deviceImei,
           model: data.model || '',
+          tractorBrand: data.tractorBrand || undefined,
+          trailerBrand: data.trailerBrand || undefined,
+          trailerVolume: data.trailerVolume,
           driverName: data.driverName || '',
           isEnabled: true,
         });
@@ -95,13 +126,13 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md bg-card border-border">
+      <DialogContent className="sm:max-w-md bg-card border-border max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit Truck' : 'Add New Truck'}</DialogTitle>
+          <DialogTitle>{isEditing ? t('trucks.form.editTitle') : t('trucks.form.addTitle')}</DialogTitle>
           <DialogDescription>
             {isEditing
-              ? 'Update the truck details below.'
-              : 'Enter the details for your new truck.'}
+              ? t('trucks.form.editDescription')
+              : t('trucks.form.addDescription')}
           </DialogDescription>
         </DialogHeader>
 
@@ -112,10 +143,10 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
               name="plateNumber"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Plate Number *</FormLabel>
+                  <FormLabel>{t('trucks.form.plate')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="ABC 1234"
+                      placeholder={t('trucks.form.platePlaceholder')}
                       className="bg-secondary/50 border-0"
                       {...field}
                     />
@@ -130,10 +161,10 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Truck Name *</FormLabel>
+                  <FormLabel>{t('trucks.form.name')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="e.g., Freightliner Cascadia"
+                      placeholder={t('trucks.form.namePlaceholder')}
                       className="bg-secondary/50 border-0"
                       {...field}
                     />
@@ -143,19 +174,74 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
               )}
             />
 
+            {/* A rig is two vehicles, so it takes two makes. Side by side
+                because they are filled in together, off one registration. */}
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="tractorBrand"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('trucks.form.tractorBrand')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('trucks.form.tractorBrandPlaceholder')}
+                        className="bg-secondary/50 border-0"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="trailerBrand"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('trucks.form.trailerBrand')}</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={t('trucks.form.trailerBrandPlaceholder')}
+                        className="bg-secondary/50 border-0"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
-              name="deviceImei"
+              name="trailerVolume"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Device IMEI *</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="GPS tracker IMEI number"
-                      className="bg-secondary/50 border-0"
-                      {...field}
-                    />
-                  </FormControl>
+                  <FormLabel>{t('trucks.form.trailerVolume')}</FormLabel>
+                  <Select
+                    value={field.value ?? NO_VOLUME}
+                    onValueChange={(v) =>
+                      field.onChange(v === NO_VOLUME ? undefined : (v as TrailerVolume))
+                    }
+                  >
+                    <FormControl>
+                      <SelectTrigger className="bg-secondary/50 border-0">
+                        <SelectValue placeholder={t('trucks.form.trailerVolumeNone')} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NO_VOLUME}>
+                        {t('trucks.form.trailerVolumeNone')}
+                      </SelectItem>
+                      {TRAILER_VOLUMES.map((v) => (
+                        <SelectItem key={v} value={v}>
+                          {t(`trucks.volume.${v}`)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -166,10 +252,10 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
               name="model"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Model (Optional)</FormLabel>
+                  <FormLabel>{t('trucks.form.model')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="e.g., Cascadia 2024"
+                      placeholder={t('trucks.form.modelPlaceholder')}
                       className="bg-secondary/50 border-0"
                       {...field}
                     />
@@ -184,10 +270,10 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
               name="driverName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Driver Name (Optional)</FormLabel>
+                  <FormLabel>{t('trucks.form.driverName')}</FormLabel>
                   <FormControl>
                     <Input
-                      placeholder="Assigned driver"
+                      placeholder={t('trucks.form.driverPlaceholder')}
                       className="bg-secondary/50 border-0"
                       {...field}
                     />
@@ -199,18 +285,18 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
 
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={onClose}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
+                    {t('common.saving')}
                   </>
                 ) : isEditing ? (
-                  'Update Truck'
+                  t('trucks.form.update')
                 ) : (
-                  'Add Truck'
+                  t('trucks.form.create')
                 )}
               </Button>
             </div>

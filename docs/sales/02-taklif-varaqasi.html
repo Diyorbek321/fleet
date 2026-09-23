@@ -1,0 +1,175 @@
+<meta charset="utf-8">
+<title>FleetWatch — Предложение</title>
+<style>
+@page { size: A4; margin: 8mm 10mm; }
+* { box-sizing: border-box; }
+body { font-family: "Noto Sans","DejaVu Sans",sans-serif; font-size: 7.6pt; line-height: 1.26; color: #1B2432; margin: 0; }
+h1,h2,h3,h4 { margin: 0; font-weight: 800; }
+
+.top { background: #0F2440; color: #fff; padding: 4.5mm 6mm; border-radius: 2mm; margin-bottom: 3mm; position: relative; }
+.top .brand { font-size: 17pt; letter-spacing: -0.5px; line-height: 1; }
+.top .brand span { color: #E8A33D; }
+.top .tag { font-size: 9.5pt; color: #C7D5E8; margin-top: 1.8mm; font-weight: 500; }
+.top .for { position: absolute; right: 6mm; top: 5mm; text-align: right; font-size: 7.4pt; color: #8FA2BD; line-height: 1.45; }
+.top .for b { color: #E8A33D; display: block; font-size: 7.8pt; letter-spacing: 1px; }
+
+h3.bar { font-size: 9pt; color: #0F2440; border-bottom: 2px solid #E8A33D; padding-bottom: 1mm; margin: 3mm 0 2mm 0; text-transform: uppercase; letter-spacing: 0.6px; }
+
+.cols { display: table; width: 100%; border-spacing: 2.5mm 0; table-layout: fixed; }
+.cols > div { display: table-cell; vertical-align: top; }
+
+.p { border: 1px solid #DCE3EC; border-top: 3px solid #C0392B; border-radius: 1.5mm; padding: 2.5mm; }
+.p .h { font-weight: 800; color: #0F2440; font-size: 8.6pt; margin-bottom: 1mm; }
+.p .t { color: #6B7688; font-size: 7pt; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 700; }
+.p .s { margin-top: 1.6mm; padding-top: 1.6mm; border-top: 1px dashed #DCE3EC; }
+.p .s .t { color: #1F6B41; }
+
+.feat { display: table; width: 100%; border-spacing: 2.5mm 0; table-layout: fixed; }
+.feat > div { display: table-cell; vertical-align: top; background: #F5F8FC; border-radius: 1.5mm; padding: 2.5mm; }
+.feat .hh { font-weight: 800; color: #0F2440; font-size: 8.4pt; margin-bottom: 1.2mm; padding-bottom: 1mm; border-bottom: 1px solid #DCE3EC; }
+.feat ul { margin: 0; padding-left: 3.4mm; }
+.feat li { margin-bottom: 0.6mm; }
+
+.finds { background: #FDF6EA; border-left: 4px solid #E8A33D; padding: 2.2mm 3mm; margin: 2.5mm 0; font-size: 7.5pt; }
+.finds b { color: #8A5A12; font-size: 8pt; }
+.finds .row { display: table; width: 100%; border-spacing: 2.5mm 0; table-layout: fixed; margin-top: 1mm; }
+.finds .row > div { display: table-cell; }
+.finds .n { color: #8A5A12; font-weight: 800; }
+
+table.price { width: 100%; border-collapse: collapse; font-size: 7.5pt; }
+table.price th { background: #0F2440; color: #fff; padding: 1.4mm 2mm; text-align: left; font-size: 7.3pt; font-weight: 700; }
+table.price th.c, table.price td.c { text-align: center; }
+table.price td { border-bottom: 1px solid #E3E8EF; padding: 1.2mm 2mm; }
+table.price tr:nth-child(even) td { background: #F7F9FC; }
+table.price tr.last td { background: #0F2440; color: #fff; font-weight: 800; border: none; padding: 1.8mm 2mm; }
+table.price tr.last td.c { color: #E8A33D; font-size: 8.6pt; }
+.note { font-size: 6.9pt; color: #6B7688; margin-top: 1mm; }
+
+.steps { display: table; width: 100%; border-spacing: 2.5mm 0; table-layout: fixed; }
+.steps > div { display: table-cell; vertical-align: top; }
+.steps .in { border: 1px solid #DCE3EC; border-radius: 1.5mm; padding: 2mm 2.5mm; }
+.steps .d { font-weight: 800; color: #0F2440; font-size: 8pt; }
+.steps .d i { display: inline-block; width: 4.6mm; height: 4.6mm; line-height: 4.6mm; border-radius: 50%; background: #E8A33D; color: #fff; text-align: center; font-size: 7.4pt; font-style: normal; margin-right: 1.4mm; }
+.steps .x { font-size: 7.3pt; color: #43506A; margin-top: 0.8mm; }
+
+.foot { margin-top: 2.2mm; display: table; width: 100%; table-layout: fixed; border-spacing: 2.5mm 0; }
+.foot > div { display: table-cell; vertical-align: middle; }
+.contact { background: #0F2440; color: #fff; border-radius: 2mm; padding: 3.2mm 4mm; }
+.contact .l { font-size: 7pt; color: #8FA2BD; letter-spacing: 1px; text-transform: uppercase; }
+.contact .v { font-size: 10.5pt; font-weight: 800; margin-top: 0.6mm; line-height: 1.25; }
+.contact .v small { font-weight: 400; color: #C7D5E8; font-size: 8pt; }
+.cta { border: 2px dashed #E8A33D; border-radius: 2mm; padding: 2.2mm 3mm; }
+.cta .q { font-size: 9pt; font-weight: 800; color: #0F2440; }
+.cta .a { font-size: 7.5pt; color: #43506A; margin-top: 0.8mm; }
+.mini { font-size: 6.7pt; color: #8A94A6; text-align: center; margin-top: 2.2mm; }
+</style>
+
+<div class="top">
+  <div class="brand">Fleet<span>Watch</span></div>
+  <div class="tag">Делает деньги автопарка видимыми.</div>
+  <div class="for"><b>ДЛЯ КОГО</b>транспортные компании<br>с автопарком 20–200 машин</div>
+</div>
+
+<h3 class="bar">Деньги теряются в трёх местах — и все три не видны</h3>
+<div class="cols">
+  <div class="p">
+    <div class="t">Проблема</div>
+    <div class="h">Топливо</div>
+    Чек есть, сумма есть — но литры, реально попавшие в бак, никто не меряет.
+    <div class="s"><div class="t">Решение</div>
+    Фактический расход каждой машины сравнивается с нормой по автопарку. Превышение нормы и подозрительные чеки отмечаются автоматически.</div>
+  </div>
+  <div class="p">
+    <div class="t">Проблема</div>
+    <div class="h">Наличные и рейсы</div>
+    Расчёт с водителем остаётся на бумаге. Какой рейс принёс прибыль — неизвестно.
+    <div class="s"><div class="t">Решение</div>
+    По каждому рейсу: выручка − топливо − расходы = прибыль и маржа. По каждой валюте выводится баланс «выдано — потрачено».</div>
+  </div>
+  <div class="p">
+    <div class="t">Проблема</div>
+    <div class="h">Время на контроль</div>
+    Владелец не садится за компьютер искать отчёты — поэтому такие системы умирают через месяц.
+    <div class="s"><div class="t">Решение</div>
+    Система говорит сама: сводка, предупреждения и месячный отчёт приходят прямо к вам в Telegram.</div>
+  </div>
+</div>
+
+<h3 class="bar">Что вы получаете</h3>
+<div class="feat">
+  <div>
+    <div class="hh">Для офиса — веб-панель</div>
+    <ul>
+      <li>Живая карта и история маршрутов</li>
+      <li>Анализ потерь: перерасход, стоянки вне точек, простой</li>
+      <li>Рейсы и прибыль по каждому рейсу</li>
+      <li>Геозоны, техобслуживание, сроки документов</li>
+      <li>Excel-отчёты для бухгалтера</li>
+    </ul>
+  </div>
+  <div>
+    <div class="hh">Для водителя — приложение</div>
+    <ul>
+      <li>Смена и геолокация (работает и без трекера)</li>
+      <li>Этапы рейса подтверждаются по GPS</li>
+      <li>Учёт топлива и расходов</li>
+      <li>Фотографирует чек — сумма считывается сама</li>
+      <li>Статус очереди на границе</li>
+    </ul>
+  </div>
+  <div>
+    <div class="hh">Для владельца — Telegram</div>
+    <ul>
+      <li>Утром: 5 строк по вчерашнему дню</li>
+      <li>Рейс опаздывает — сообщение сразу</li>
+      <li>Не сошлась касса — сообщение</li>
+      <li>Сроки документов: 30 дней / 7 дней / истёк</li>
+      <li>Пишете вопрос — получаете ответ</li>
+    </ul>
+  </div>
+</div>
+
+<div class="finds">
+  <b>Система находит сама — никто ничего не ищет:</b>
+  <div class="row">
+    <div><span class="n">1.</span> Машина с расходом на 30% выше нормы по парку</div>
+    <div><span class="n">2.</span> Заправка, не помещающаяся в один бак</div>
+    <div><span class="n">3.</span> Чек на топливо дороже обычного</div>
+  </div>
+  <div class="row">
+    <div><span class="n">4.</span> Невозможный расход между двумя заправками</div>
+    <div><span class="n">5.</span> Долгая стоянка вне известных зон</div>
+    <div><span class="n">6.</span> Истекающие удостоверения и сроки ТО</div>
+  </div>
+</div>
+
+<h3 class="bar">Пакеты</h3>
+<table class="price">
+<tr><th>Возможность</th><th class="c" style="width:25mm">Начальный</th><th class="c" style="width:25mm">Бизнес ★</th><th class="c" style="width:25mm">Корпоративный</th></tr>
+<tr><td>Карта, история, геозоны, приложение водителя</td><td class="c">✓</td><td class="c">✓</td><td class="c">✓</td></tr>
+<tr><td>Анализ потерь и признаки махинаций с топливом</td><td class="c">—</td><td class="c">✓</td><td class="c">✓</td></tr>
+<tr><td>Сообщения в Telegram, прибыль по рейсу, ссылка отслеживания для грузовладельца</td><td class="c">—</td><td class="c">✓</td><td class="c">✓</td></tr>
+<tr><td>Путевой лист, валютный учёт по странам, распознавание чеков, журнал аудита</td><td class="c">—</td><td class="c">—</td><td class="c">✓</td></tr>
+<tr class="last"><td>Одна машина · в месяц</td><td class="c">__________</td><td class="c">__________</td><td class="c">__________</td></tr>
+</table>
+<div class="note">GPS-оборудование и его установка — разовые затраты, в подписку не входят. Ваши имеющиеся трекеры менять не нужно. По запросу система разворачивается на вашем собственном сервере.</div>
+
+<h3 class="bar">Как начинается — 30 дней тестового периода, бесплатно для вас</h3>
+<div class="steps">
+  <div><div class="in"><div class="d"><i>1</i>День 1</div><div class="x">Открывается компания, подключается ваш Telegram</div></div></div>
+  <div><div class="in"><div class="d"><i>2</i>Дни 2–3</div><div class="x">Заводятся 5 машин и водителей</div></div></div>
+  <div><div class="in"><div class="d"><i>3</i>Дни 4–7</div><div class="x">Устанавливается приложение, обучение за 30 минут</div></div></div>
+  <div><div class="in"><div class="d"><i>4</i>День 30</div><div class="x">Смотрим результат вместе, решение за вами</div></div></div>
+</div>
+
+<div class="foot">
+  <div class="cta">
+    <div class="q">Чем заканчивается тестовый период?</div>
+    <div class="a">До старта мы <b>письменно фиксируем, что будем считать успехом</b>. Если согласованный результат не достигнут — вы ничего не платите, а ваши данные удаляются.</div>
+  </div>
+  <div class="contact">
+    <div class="l">Контакты</div>
+    <div class="v">[Имя Фамилия]<br><small>[+998 __ ___ __ __] · Telegram: [@username]</small></div>
+  </div>
+</div>
+<div class="mini">FleetWatch — система управления логистикой для транспортных компаний · [сайт] · [email]</div>

@@ -431,7 +431,7 @@ class TestEndpoint:
         res = await client.post(SCAN_PATH, headers=driver_headers, files=_upload())
 
         assert res.status_code == 422, res.text
-        assert "category" in res.json()["detail"].lower()
+        assert "категорию" in res.json()["detail"].lower()
 
     async def test_a_photo_with_no_readable_total_is_a_422(
         self, client: AsyncClient, driver_headers, model_says
@@ -461,7 +461,7 @@ class TestEndpoint:
         res = await client.post(SCAN_PATH, headers=driver_headers, files=_upload())
 
         assert res.status_code == 503, res.text
-        assert "not configured" in res.json()["detail"].lower()
+        assert "не настроено" in res.json()["detail"].lower()
 
     async def test_a_pdf_is_refused_before_the_model_is_ever_paid_for(
         self, client: AsyncClient, driver_headers, monkeypatch

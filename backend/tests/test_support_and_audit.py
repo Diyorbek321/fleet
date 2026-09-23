@@ -106,7 +106,7 @@ class TestSupportAccess:
             "/api/trucks", headers=headers, json={"name": "Ghost", "plate_number": "99 X 999 XX"}
         )
         assert created.status_code == 403
-        assert "read-only" in created.json()["detail"].lower()
+        assert "только на чтение" in created.json()["detail"].lower()
 
         deleted = await client.delete(f"/api/trucks/{customer['truck']['id']}", headers=headers)
         assert deleted.status_code == 403
@@ -125,7 +125,7 @@ class TestSupportAccess:
             "/api/trucks", headers=_support(customer["admin"], platform["org_id"])
         )
         assert res.status_code == 403
-        assert "platform operators" in res.json()["detail"].lower()
+        assert "операторам платформы" in res.json()["detail"].lower()
 
     async def test_an_unknown_organization_is_404(self, client: AsyncClient, platform):
         res = await client.get(

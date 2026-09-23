@@ -28,6 +28,9 @@ const DriverDetailPage = lazy(() => import("@/pages/DriverDetailPage"));
 const TripDetailPage = lazy(() => import("@/pages/TripDetailPage"));
 const TripReportPrintPage = lazy(() => import("@/pages/TripReportPrintPage"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+// Public: the cargo owner's map, reached from a Telegram link with no account.
+// Lazy like the rest so its Leaflet chunk is not in the dispatcher's bundle.
+const TrackPage = lazy(() => import("@/pages/TrackPage"));
 
 const LazyDashboardPage = lazyPages["/dashboard"];
 const LazyTrucksPage = lazyPages["/trucks"];
@@ -93,6 +96,9 @@ const App = () => (
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
                   <Route path="/login" element={<LoginPage />} />
+                  {/* Outside ProtectedRoute on purpose: the token in the URL is
+                      the credential, and the customer has no account here. */}
+                  <Route path="/track/:token" element={<TrackPage />} />
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route element={<ProtectedRoute />}>
                     <Route path="/trips/:id/report/print" element={<TripReportPrintPage />} />

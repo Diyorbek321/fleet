@@ -480,7 +480,7 @@ async def test_xlsx_download_is_a_spreadsheet(client: AsyncClient, admin_headers
     assert res.headers["content-type"].startswith(
         "application/vnd.openxmlformats-officedocument.spreadsheetml"
     )
-    assert "reys-xarajatlari" in res.headers["content-disposition"]
+    assert "rashody-po-reysam" in res.headers["content-disposition"]
     assert res.content[:2] == b"PK"  # a zip, which is what xlsx is
 
 

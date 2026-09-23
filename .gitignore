@@ -77,3 +77,10 @@ frontend/.playwright/
 # Exported web build + recorded walkthrough video (regenerable, and large)
 mobile/dist/
 mobile/demo-video/
+
+# Built sales collateral — the HTML in docs/sales/ is the source, build.sh
+# regenerates these at the repo root on demand.
+FleetWatch-*.pdf
+
+# Expo's local dev cache.
+.expo/

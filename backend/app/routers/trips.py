@@ -13,11 +13,13 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.logging import logger
 from app.deps.auth import get_current_user, get_org_id, require_role
+from app.services import audit
 from app.models.drivers import Driver
-from app.models.enums import TripEventType, TripStatus, UserRole
+from app.models.enums import STAGE_TO_STATUS, TripEventType, TripStage, TripStatus, UserRole
 from app.models.trips import Trip, TripDocument, TripEvent, TripSegment
-from app.models.trucks import Truck
+from app.models.trucks import Truck, TruckLocation
 from app.schemas.trips import (
     TripAdvance,
     TripCreate,
@@ -29,6 +31,7 @@ from app.schemas.trips import (
     TripUpdate,
 )
 from app.schemas.trip_reports import TripExpenseReportOut
+from app.services import eta as eta_service
 from app.services.storage import delete_object, is_configured, presigned_get_url
 from app.services.trip_notifications import notify_trip_status_change_background
 from app.services.trip_reports import build_report_out, get_report
@@ -56,7 +59,7 @@ async def _get_owned_trip(db: AsyncSession, trip_id: uuid.UUID, org: uuid.UUID, 
         stmt = stmt.options(selectinload(Trip.events))
     trip = (await db.execute(stmt)).scalar_one_or_none()
     if not trip:
-        raise HTTPException(status_code=404, detail="Trip not found")
+        raise HTTPException(status_code=404, detail="Рейс не найден")
     return trip
 
 
@@ -81,7 +84,31 @@ async def _detail(db: AsyncSession, trip: Trip) -> TripDetailsOut:
         ).first()
         if row:
             truck_name, truck_plate, driver_name = row
+
+    # Only the detail view carries an estimate. It costs a scan of the
+    # corridor's history, and a list of forty trips does not need forty of
+    # them — the dispatcher opens the one they are being asked about.
+    estimate = None
+    if trip.truck_id is not None:
+        loc = (
+            await db.execute(
+                select(TruckLocation.latitude, TruckLocation.longitude)
+                .where(TruckLocation.truck_id == trip.truck_id)
+            )
+        ).first()
+        try:
+            estimate = await eta_service.estimate_customs_arrival(
+                db,
+                trip,
+                current_lat=float(loc[0]) if loc else None,
+                current_lng=float(loc[1]) if loc else None,
+            )
+        except Exception:  # noqa: BLE001 — a missing date must not 500 the page
+            logger.exception("trip_detail_eta_failed", trip_id=str(trip.id))
+
     base = TripOut.model_validate(trip).model_dump()
+    base["eta_customs"] = estimate.day if estimate else None
+    base["eta_basis"] = estimate.basis if estimate else None
     return TripDetailsOut(
         **base,
         events=[e for e in trip.events],
@@ -126,11 +153,11 @@ async def create_trip(
     if payload.get("truck_id") is not None:
         owned = (await db.execute(select(Truck.id).where(Truck.id == payload["truck_id"], Truck.org_id == org))).scalar_one_or_none()
         if not owned:
-            raise HTTPException(status_code=404, detail="Truck not found")
+            raise HTTPException(status_code=404, detail="Машина не найдена")
     if payload.get("driver_id") is not None:
         owned = (await db.execute(select(Driver.id).where(Driver.id == payload["driver_id"], Driver.org_id == org))).scalar_one_or_none()
         if not owned:
-            raise HTTPException(status_code=404, detail="Driver not found")
+            raise HTTPException(status_code=404, detail="Водитель не найден")
 
     for attempt in range(_REFERENCE_ATTEMPTS):
         reference = explicit_reference or await generate_reference(db, org)
@@ -146,7 +173,7 @@ async def create_trip(
         ).scalar_one_or_none()
         if existing:
             if explicit_reference:
-                raise HTTPException(status_code=409, detail="Trip reference already exists")
+                raise HTTPException(status_code=409, detail="Рейс с таким номером уже существует")
             continue
 
         trip = Trip(org_id=org, reference=reference, **payload)
@@ -162,14 +189,17 @@ async def create_trip(
             # the winning row is now visible, so the next maximum is higher.
             await db.rollback()
             if explicit_reference:
-                raise HTTPException(status_code=409, detail="Trip reference already exists")
+                raise HTTPException(status_code=409, detail="Рейс с таким номером уже существует")
             continue
 
         return await _detail(db, trip)
 
     raise HTTPException(
         status_code=409,
-        detail="Could not allocate a trip reference — too many concurrent creates, please retry",
+        detail=(
+            "Не удалось присвоить номер рейса — слишком много одновременных "
+            "созданий, повторите попытку"
+        ),
     )
 
 
@@ -183,30 +213,53 @@ async def get_trip(
     return await _detail(db, trip)
 
 
+# What an edit is allowed to move quietly, and what it is not. Money and
+# the assignment behind it; not a note or a corrected spelling.
+_AUDITED_TRIP_FIELDS = ("rate", "truck_id", "driver_id")
+
+
 @router.put("/{trip_id}", response_model=TripDetailsOut)
 async def update_trip(
     trip_id: uuid.UUID,
     data: TripUpdate,
     db: AsyncSession = Depends(get_db),
     org: uuid.UUID = Depends(get_org_id),
-    _user=Depends(_MANAGE),
+    actor=Depends(_MANAGE),
 ):
     trip = await _get_owned_trip(db, trip_id, org, with_events=True)
     payload = data.model_dump(exclude_unset=True)
+    # Snapshot before the setattr loop below overwrites it.
+    before = {field: getattr(trip, field, None) for field in _AUDITED_TRIP_FIELDS}
 
     # A trip may only reference a truck/driver from the same organization.
     if payload.get("truck_id") is not None:
         owned = (await db.execute(select(Truck.id).where(Truck.id == payload["truck_id"], Truck.org_id == org))).scalar_one_or_none()
         if not owned:
-            raise HTTPException(status_code=404, detail="Truck not found")
+            raise HTTPException(status_code=404, detail="Машина не найдена")
     if payload.get("driver_id") is not None:
         owned = (await db.execute(select(Driver.id).where(Driver.id == payload["driver_id"], Driver.org_id == org))).scalar_one_or_none()
         if not owned:
-            raise HTTPException(status_code=404, detail="Driver not found")
+            raise HTTPException(status_code=404, detail="Водитель не найден")
 
     for k, v in payload.items():
         setattr(trip, k, v)
     trip.updated_at = datetime.now(timezone.utc)
+
+    # The rate is the top line of this trip's P&L; a quiet edit changes whether
+    # the run made money. Only record when a watched figure actually moved.
+    changed = audit.describe_changes(before, payload, _AUDITED_TRIP_FIELDS)
+    if changed:
+        await audit.record_change(
+            db,
+            actor=actor,
+            action=audit.TRIP_UPDATE,
+            org_id=org,
+            target_type="trip",
+            target_id=trip.id,
+            target_label=trip.reference,
+            detail=changed,
+        )
+
     await db.commit()
     return await _detail(db, trip)
 
@@ -220,31 +273,49 @@ async def advance_trip(
     org: uuid.UUID = Depends(get_org_id),
     _user=Depends(_MANAGE),
 ):
-    """Transition a trip to a new status and append a timeline event."""
+    """Transition a trip to a new status and append a timeline event.
+
+    A dispatcher normally sends a bare status — from a desk "mark it delivered"
+    is the whole intent. Sending a checkpoint is allowed too, and behaves the
+    same as it does from the driver's phone, because a dispatcher correcting a
+    stage the driver forgot must not produce a different timeline.
+    """
     trip = await _get_owned_trip(db, trip_id, org, with_events=True)
 
     from_status = trip.status
     now = datetime.now(timezone.utc)
 
-    if data.to_status in _START_STATUSES and trip.started_at is None:
-        trip.started_at = now
-    if data.to_status == TripStatus.delivered:
-        trip.delivered_at = now
+    to_status = STAGE_TO_STATUS[data.stage] if data.stage else data.to_status
+    assert to_status is not None  # TripAdvance rejects the empty body
 
-    trip.status = data.to_status
+    if to_status in _START_STATUSES and trip.started_at is None:
+        trip.started_at = now
+    if to_status == TripStatus.delivered:
+        trip.delivered_at = now
+    if data.stage is TripStage.loaded_waiting_docs and trip.loaded_at is None:
+        trip.loaded_at = now
+    if data.stage is not None:
+        trip.current_stage = data.stage
+        trip.current_stage_place = data.stage_place
+
+    trip.status = to_status
     trip.updated_at = now
 
     event_type = TripEventType.status_change
-    if data.to_status == TripStatus.at_border:
+    if data.stage is TripStage.crossed_border:
+        event_type = TripEventType.border_clear
+    elif to_status == TripStatus.at_border:
         event_type = TripEventType.border_arrival
-    elif data.to_status == TripStatus.delivered:
+    elif to_status == TripStatus.delivered:
         event_type = TripEventType.pod
 
     trip.events.append(
         TripEvent(
             event=event_type,
             from_status=from_status,
-            to_status=data.to_status,
+            to_status=to_status,
+            stage=data.stage,
+            stage_place=data.stage_place,
             note=data.note,
             latitude=data.latitude,
             longitude=data.longitude,
@@ -256,11 +327,11 @@ async def advance_trip(
     # Fan out to cargo-owner subscribers (Telegram) in the background — the
     # dispatcher's "advance" click must return immediately, not block on
     # Telegram's API (which can take seconds per subscriber).
-    if from_status != data.to_status:
+    if data.stage is not None or from_status != to_status:
         background_tasks.add_task(
             notify_trip_status_change_background,
             trip.id,
-            data.to_status,
+            to_status,
             data.latitude,
             data.longitude,
             data.note,
@@ -342,7 +413,7 @@ async def list_trip_documents(
     """
     trip = await _get_owned_trip(db, trip_id, org)
     if not is_configured():
-        raise HTTPException(status_code=503, detail="Document storage is not configured")
+        raise HTTPException(status_code=503, detail="Хранилище документов не настроено")
 
     res = await db.execute(
         select(TripDocument)
@@ -391,7 +462,7 @@ async def delete_trip_document(
     )
     doc = res.scalar_one_or_none()
     if doc is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=404, detail="Документ не найден")
 
     if is_configured():
         delete_object(doc.storage_key)
@@ -405,9 +476,22 @@ async def delete_trip(
     trip_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     org: uuid.UUID = Depends(get_org_id),
-    _user=Depends(require_role(UserRole.admin, UserRole.manager)),
+    actor=Depends(require_role(UserRole.admin, UserRole.manager)),
 ):
     trip = await _get_owned_trip(db, trip_id, org)
+    # Deleting a trip takes its rate, its fuel and its expenses out of every
+    # report at once — the cleanest way to make an unprofitable run disappear.
+    # The label is written out now because in a moment there is nothing to read.
+    await audit.record_change(
+        db,
+        actor=actor,
+        action=audit.TRIP_DELETE,
+        org_id=org,
+        target_type="trip",
+        target_id=trip.id,
+        target_label=trip.reference,
+        detail=f"rate: {trip.rate!r}; status: {trip.status.value}",
+    )
     await db.delete(trip)
     await db.commit()
     return {"message": "Deleted"}

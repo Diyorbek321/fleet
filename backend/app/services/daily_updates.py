@@ -8,6 +8,7 @@ value.
 """
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -21,7 +22,9 @@ from app.models.enums import TripStatus
 from app.models.notifications import TripSubscription
 from app.models.trips import Trip
 from app.models.trucks import TruckLocation
-from app.services.telegram import format_daily_update, send_message
+from app.services import geocoding
+from app.services.telegram import send_message
+from app.services.trip_cards import build_customer_card
 
 
 # Trip states worth pushing about — a delivered trip has no more updates,
@@ -71,6 +74,10 @@ async def _run_batch(db: AsyncSession) -> tuple[int, int]:
     sent = 0
     now = datetime.now(timezone.utc)
     today = now.date()
+    # Several owners can watch the same lorry. Resolving the place per truck
+    # rather than per subscriber keeps a batch's provider calls bounded by the
+    # size of the fleet, not by how many people are watching it.
+    places: dict[uuid.UUID, str | None] = {}
     for sub in subs:
         trip = trip_by_id.get(sub.trip_id)
         if trip is None or trip.status not in _ACTIVE_TRIP_STATES:
@@ -86,21 +93,35 @@ async def _run_batch(db: AsyncSession) -> tuple[int, int]:
         loc = locations.get(trip.truck_id) if trip.truck_id else None
         lat = float(loc.latitude) if loc is not None else None
         lng = float(loc.longitude) if loc is not None else None
-        speed = float(loc.speed) if (loc is not None and loc.speed is not None) else None
-        updated_at = loc.recorded_at if loc is not None else None
 
-        text = format_daily_update(
-            trip_reference=trip.reference,
-            status=trip.status,
-            lat=lat,
-            lng=lng,
-            destination=trip.destination_name,
-            speed_kmh=speed,
-            updated_at=updated_at,
+        # Cached per ~1 km grid cell on top of that, so a fleet parked in one
+        # yard costs a single lookup for the whole morning batch.
+        if trip.truck_id in places:
+            place = places[trip.truck_id]
+        else:
+            place = await geocoding.describe(lat, lng)
+            places[trip.truck_id] = place
+
+        # The same card a checkpoint sends, so the morning message and the
+        # one that woke the customer at 03:00 are the same lines — down to the
+        # map link, which carries this subscriber's own token.
+        text = await build_customer_card(
+            db, trip, lat=lat, lng=lng, place=place, now=now, token=sub.token
         )
         if not sub.chat_id:
             continue
-        result = await send_message(sub.chat_id, text)
+
+        # Isolated per subscriber: an exception escaping here would abort the
+        # whole batch *and* skip the commit below, so every owner already
+        # messaged this morning would have no ``last_daily_at`` recorded — and
+        # the next tick would message them a second time. One broken row is
+        # worth one lost digest, never the platform's.
+        try:
+            result = await send_message(sub.chat_id, text)
+        except Exception:  # noqa: BLE001
+            logger.exception("daily_update_send_failed", subscription_id=str(sub.id))
+            continue
+
         if result.ok:
             sent += 1
             sub.last_daily_at = now

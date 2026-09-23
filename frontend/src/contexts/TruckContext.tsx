@@ -5,7 +5,9 @@ import { trucksApi, calculateStats } from '@/lib/trucks';
 import { ApiError } from '@/lib/api';
 import { statusFromSpeed } from '@/lib/locations';
 import { useLiveLocations } from '@/hooks/useLiveLocations';
+import { fetchTruckLocationLabels } from '@/lib/locations';
 import { toast } from '@/hooks/use-toast';
+import i18n from '@/i18n';
 
 type NewTruckInput = Omit<Truck, 'id' | 'status' | 'speed' | 'latitude' | 'longitude' | 'lastUpdate'>;
 
@@ -25,6 +27,7 @@ interface TruckContextType {
 const TruckContext = createContext<TruckContextType | undefined>(undefined);
 
 const TRUCKS_KEY = ['trucks'] as const;
+const TRUCK_PLACE_LABELS_KEY = ['truck-place-labels'] as const;
 
 function errorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return err.detail;
@@ -45,21 +48,33 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
 
   const { locations } = useLiveLocations();
 
+  // Place names ("Qozog'iston, Sariog'ash") are polled on their own rather than
+  // taken from the live stream: the WebSocket is authoritative for position and
+  // carries no address, and the backend relabels positions every 5 minutes.
+  const { data: placeLabels = {} } = useQuery({
+    queryKey: TRUCK_PLACE_LABELS_KEY,
+    queryFn: fetchTruckLocationLabels,
+    refetchInterval: 300_000,
+    staleTime: 120_000,
+  });
+
   const trucks = useMemo<Truck[]>(
     () =>
       baseTrucks.map((t) => {
         const live = locations[t.id];
-        if (!live) return t;
+        const address = placeLabels[t.id] ?? live?.address ?? t.address ?? null;
+        if (!live) return address === t.address ? t : { ...t, address };
         return {
           ...t,
           latitude: live.latitude,
           longitude: live.longitude,
           speed: live.speed,
           status: statusFromSpeed(live.speed),
+          address,
           lastUpdate: live.recordedAt,
         };
       }),
-    [baseTrucks, locations],
+    [baseTrucks, locations, placeLabels],
   );
 
   const invalidate = useCallback(
@@ -71,12 +86,15 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
     mutationFn: trucksApi.create,
     onSuccess: (truck) => {
       invalidate();
-      toast({ title: 'Truck added', description: `${truck.name} has been added to your fleet.` });
+      toast({
+        title: i18n.t('trucks.toast.added'),
+        description: i18n.t('trucks.toast.addedBody', { name: truck.name }),
+      });
     },
     onError: (err) => {
       toast({
-        title: 'Failed to add truck',
-        description: errorMessage(err, 'Try again.'),
+        title: i18n.t('trucks.toast.addFailed'),
+        description: errorMessage(err, i18n.t('common.tryAgain')),
         variant: 'destructive',
       });
     },
@@ -90,8 +108,8 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
     },
     onError: (err) => {
       toast({
-        title: 'Update failed',
-        description: errorMessage(err, 'Try again.'),
+        title: i18n.t('trucks.toast.updateFailed'),
+        description: errorMessage(err, i18n.t('common.tryAgain')),
         variant: 'destructive',
       });
     },
@@ -101,12 +119,15 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
     mutationFn: trucksApi.remove,
     onSuccess: () => {
       invalidate();
-      toast({ title: 'Truck deleted', description: 'The truck has been removed from your fleet.' });
+      toast({
+        title: i18n.t('trucks.toast.deleted'),
+        description: i18n.t('trucks.toast.deletedBody'),
+      });
     },
     onError: (err) => {
       toast({
-        title: 'Failed to delete truck',
-        description: errorMessage(err, 'Try again.'),
+        title: i18n.t('trucks.toast.deleteFailed'),
+        description: errorMessage(err, i18n.t('common.tryAgain')),
         variant: 'destructive',
       });
     },
@@ -118,6 +139,9 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
         name: input.name,
         plateNumber: input.plateNumber,
         model: input.model,
+        tractorBrand: input.tractorBrand,
+        trailerBrand: input.trailerBrand,
+        trailerVolume: input.trailerVolume,
       });
     },
     [createMutation],
@@ -131,9 +155,15 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
           name: data.name,
           plateNumber: data.plateNumber,
           model: data.model,
+          tractorBrand: data.tractorBrand,
+          trailerBrand: data.trailerBrand,
+          trailerVolume: data.trailerVolume,
         },
       });
-      toast({ title: 'Truck updated', description: 'Changes saved.' });
+      toast({
+        title: i18n.t('trucks.toast.updated'),
+        description: i18n.t('trucks.toast.updatedBody'),
+      });
     },
     [updateMutation],
   );
@@ -152,8 +182,10 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
       const nextStatus = current.isEnabled ? 'offline' : 'stopped';
       await updateMutation.mutateAsync({ id, patch: { status: nextStatus } });
       toast({
-        title: current.isEnabled ? 'Truck disabled' : 'Truck enabled',
-        description: `${current.name} has been ${current.isEnabled ? 'disabled' : 'enabled'}.`,
+        title: current.isEnabled ? i18n.t('trucks.toast.disabled') : i18n.t('trucks.toast.enabled'),
+        description: current.isEnabled
+          ? i18n.t('trucks.toast.disabledBody', { name: current.name })
+          : i18n.t('trucks.toast.enabledBody', { name: current.name }),
       });
     },
     [trucks, updateMutation],

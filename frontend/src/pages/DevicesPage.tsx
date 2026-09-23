@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow } from '@/lib/datetime';
 import { Copy, KeyRound, Plus, Trash2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
@@ -270,7 +270,7 @@ export default function DevicesPage() {
                 id="device-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Teltonika FMB920 — Truck Alpha"
+                placeholder={t('devices.namePlaceholder')}
               />
             </div>
             <div className="space-y-2">
@@ -304,14 +304,14 @@ export default function DevicesPage() {
       <Dialog open={revealedKey !== null} onOpenChange={(open) => !open && setRevealedKey(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>API key</DialogTitle>
+            <DialogTitle>{t('devices.apiKeyTitle')}</DialogTitle>
             <DialogDescription className="text-destructive">
               {t('devices.apiKeyWarning')}
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2 rounded-md border border-border bg-muted p-3">
             <code className="flex-1 break-all text-sm font-mono">{revealedKey}</code>
-            <Button variant="ghost" size="icon" onClick={copyKey} title="Copy">
+            <Button variant="ghost" size="icon" onClick={copyKey} title={t('common.copy')}>
               <Copy className="h-4 w-4" />
             </Button>
           </div>
