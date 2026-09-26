@@ -208,7 +208,8 @@
       "trailerBrandPlaceholder": "например, Schmitz",
       "trailerVolume": "Кубатура",
       "trailerVolumeNone": "Не выбрано",
-      "brandTooLong": "Слишком длинное название марки"
+      "brandTooLong": "Слишком длинное название марки",
+      "insuranceExpiry": "Страховка действует до"
     },
     "toast": {
       "added": "Машина добавлена",
@@ -317,7 +318,12 @@
     "phone3": "Телефон 3",
     "phonePlaceholder": "+998 90 123 45 67",
     "adr": "ADR (опасный груз)",
-    "adrShort": "ADR"
+    "adrShort": "ADR",
+    "edit": "Изменить водителя",
+    "passport": "Серия и номер паспорта",
+    "phoneUz": "Телефон (Узбекистан)",
+    "phoneKz": "Телефон (Казахстан)",
+    "phoneRu": "Телефон (Россия)"
   },
   "reports": {
     "title": "Отчёты",
@@ -467,7 +473,29 @@
     "noStageYet": "Этап пока не отмечен",
     "cargoTons": "Вес груза (тонн)",
     "cargoTonsPlaceholder": "например, 20",
-    "tonsShort": "т"
+    "tonsShort": "т",
+    "edit": "Изменить рейс",
+    "updated": "Рейс обновлён",
+    "form": {
+      "orderSheet": "Заявка",
+      "sectionRoute": "Маршрут",
+      "sectionLoading": "Погрузка",
+      "sectionUnloading": "Выгрузка",
+      "sectionAssignment": "Машина и водитель",
+      "originName": "Откуда",
+      "destinationName": "Куда",
+      "borderCrossing": "Погран. переход",
+      "shipper": "Отправитель",
+      "loadingAddress": "Адрес погрузки",
+      "loadingContact": "Контакты на погрузке",
+      "cargoDescription": "Груз",
+      "loadingDate": "Дата погрузки",
+      "consignee": "Получатель",
+      "customsPoint": "Растаможка",
+      "unloadingAddress": "Локация выгрузки",
+      "declarantContact": "Контакт декларанта",
+      "notes": "Примечание"
+    }
   },
   "tripDetail": {
     "title": "Документы рейса",
@@ -483,7 +511,10 @@
     "etaCustoms": "Ожидается на растаможке",
     "etaModelled": "ориентировочно",
     "etaMeasured": "по прошлым рейсам",
-    "noStage": "Этап пока не отмечен"
+    "noStage": "Этап пока не отмечен",
+    "setStage": "Статус рейса",
+    "pickStage": "Выберите статус",
+    "saveStage": "Отметить"
   },
   "tripReport": {
     "title": "Путевой лист",

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useMemo, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Truck, DashboardStats } from '@/types';
-import { trucksApi, calculateStats } from '@/lib/trucks';
+import { trucksApi, calculateStats, type TruckInput } from '@/lib/trucks';
 import { ApiError } from '@/lib/api';
 import { statusFromSpeed } from '@/lib/locations';
 import { useLiveLocations } from '@/hooks/useLiveLocations';
@@ -9,7 +9,6 @@ import { fetchTruckLocationLabels } from '@/lib/locations';
 import { toast } from '@/hooks/use-toast';
 import i18n from '@/i18n';
 
-type NewTruckInput = Omit<Truck, 'id' | 'status' | 'speed' | 'latitude' | 'longitude' | 'lastUpdate'>;
 
 interface TruckContextType {
   trucks: Truck[];
@@ -17,7 +16,7 @@ interface TruckContextType {
   isLoading: boolean;
   selectedTruck: Truck | null;
   setSelectedTruck: (truck: Truck | null) => void;
-  addTruck: (truck: NewTruckInput) => Promise<void>;
+  addTruck: (truck: TruckInput) => Promise<void>;
   updateTruck: (id: string, data: Partial<Truck>) => Promise<void>;
   removeTruck: (id: string) => Promise<void>;
   toggleTruckEnabled: (id: string) => Promise<void>;
@@ -134,15 +133,8 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
   });
 
   const addTruck = useCallback(
-    async (input: NewTruckInput) => {
-      await createMutation.mutateAsync({
-        name: input.name,
-        plateNumber: input.plateNumber,
-        model: input.model,
-        tractorBrand: input.tractorBrand,
-        trailerBrand: input.trailerBrand,
-        trailerVolume: input.trailerVolume,
-      });
+    async (input: TruckInput) => {
+      await createMutation.mutateAsync(input);
     },
     [createMutation],
   );
@@ -158,6 +150,7 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
           tractorBrand: data.tractorBrand,
           trailerBrand: data.trailerBrand,
           trailerVolume: data.trailerVolume,
+          insuranceExpiry: data.insuranceExpiry,
         },
       });
       toast({
@@ -179,8 +172,10 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
     async (id: string) => {
       const current = trucks.find((t) => t.id === id);
       if (!current) return;
-      const nextStatus = current.isEnabled ? 'offline' : 'stopped';
-      await updateMutation.mutateAsync({ id, patch: { status: nextStatus } });
+      // Flips the dispatcher's own switch. It used to write `status` instead,
+      // which meant taking a truck off the board faked a GPS state — and the
+      // next real ping silently put the truck back in service.
+      await updateMutation.mutateAsync({ id, patch: { isEnabled: !current.isEnabled } });
       toast({
         title: current.isEnabled ? i18n.t('trucks.toast.disabled') : i18n.t('trucks.toast.enabled'),
         description: current.isEnabled

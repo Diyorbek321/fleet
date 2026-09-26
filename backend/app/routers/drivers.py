@@ -19,6 +19,7 @@ from app.schemas.drivers import (
     CreateDriverLoginIn, DriverLoginOut,
 )
 from app.models.trucks import Truck
+from app.services import audit
 
 router = APIRouter(prefix="/api/drivers", tags=["Drivers"])
 
@@ -160,7 +161,7 @@ async def delete_driver(
         target_type="driver",
         target_id=driver.id,
         target_label=driver.name,
-        detail=f"license: {driver.license_number}",
+        detail=f"passport: {driver.passport_number or '—'}",
     )
     await db.delete(driver)
     await db.commit()

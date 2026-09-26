@@ -30,6 +30,27 @@ export type TripStage =
 /** Where a stage happened: a country, or — at a border — the crossing itself. */
 export type StagePlace = 'uz' | 'kz' | 'ru' | 'uz_kz' | 'kz_ru';
 
+/** The checkpoints in the order a run passes them. */
+export const TRIP_STAGES: TripStage[] = [
+  'arrived_loading',
+  'loaded_waiting_docs',
+  'docs_received_en_route',
+  'arrived_border',
+  'crossed_border',
+  'arrived_customs',
+  'left_customs',
+  'arrived_unloading',
+  'unloaded',
+];
+
+/** Mirrors the server's `places_for_stage`: a border stage names the
+ *  crossing, every other stage one country. */
+export function placesForStage(stage: TripStage): StagePlace[] {
+  return stage === 'arrived_border' || stage === 'crossed_border'
+    ? ['uz_kz', 'kz_ru']
+    : ['uz', 'kz', 'ru'];
+}
+
 export type TripEventType =
   | 'created'
   | 'status_change'
@@ -66,6 +87,12 @@ export interface Trip {
   consignee: string | null;
   originName: string | null;
   destinationName: string | null;
+  borderCrossing: string | null;
+  loadingAddress: string | null;
+  loadingContact: string | null;
+  customsPoint: string | null;
+  unloadingAddress: string | null;
+  declarantContact: string | null;
   cargoDescription: string | null;
   cargoWeightKg: number | null;
   isReefer: boolean;
@@ -154,6 +181,12 @@ interface BackendTrip {
   consignee: string | null;
   origin_name: string | null;
   destination_name: string | null;
+  border_crossing?: string | null;
+  loading_address?: string | null;
+  loading_contact?: string | null;
+  customs_point?: string | null;
+  unloading_address?: string | null;
+  declarant_contact?: string | null;
   cargo_description: string | null;
   cargo_weight_kg: number | null;
   is_reefer: boolean;
@@ -201,6 +234,12 @@ function adapt(t: BackendTrip): Trip {
     consignee: t.consignee,
     originName: t.origin_name,
     destinationName: t.destination_name,
+    borderCrossing: t.border_crossing ?? null,
+    loadingAddress: t.loading_address ?? null,
+    loadingContact: t.loading_contact ?? null,
+    customsPoint: t.customs_point ?? null,
+    unloadingAddress: t.unloading_address ?? null,
+    declarantContact: t.declarant_contact ?? null,
     cargoDescription: t.cargo_description,
     cargoWeightKg: t.cargo_weight_kg,
     isReefer: t.is_reefer,
@@ -236,37 +275,67 @@ function adaptDetails(t: BackendTripDetails): TripDetails {
   };
 }
 
+/** Everything the trip form collects — the lines of the order sheet sent to
+ *  the driver. `null` means "blank": dropped on create, sent on an edit so
+ *  that emptying a field actually clears it. */
 export interface TripCreateInput {
-  truckId?: string;
+  truckId?: string | null;
   driverId?: string | null;
-  shipper?: string;
-  consignee?: string;
-  originName?: string;
-  destinationName?: string;
-  cargoDescription?: string;
-  cargoWeightKg?: number;
+  borderCrossing?: string | null;
+  shipper?: string | null;
+  loadingAddress?: string | null;
+  loadingContact?: string | null;
+  consignee?: string | null;
+  customsPoint?: string | null;
+  unloadingAddress?: string | null;
+  declarantContact?: string | null;
+  originName?: string | null;
+  destinationName?: string | null;
+  cargoDescription?: string | null;
+  cargoWeightKg?: number | null;
   isReefer?: boolean;
   rate?: number;
   currency?: string;
-  plannedDistanceKm?: number;
-  notes?: string;
+  plannedDistanceKm?: number | null;
+  /** Loading date, ISO. */
+  scheduledStart?: string | null;
+  notes?: string | null;
 }
 
-function toBody(input: TripCreateInput): Record<string, unknown> {
+const WIRE_NAMES: Record<keyof TripCreateInput, string> = {
+  truckId: 'truck_id',
+  driverId: 'driver_id',
+  borderCrossing: 'border_crossing',
+  shipper: 'shipper',
+  loadingAddress: 'loading_address',
+  loadingContact: 'loading_contact',
+  consignee: 'consignee',
+  customsPoint: 'customs_point',
+  unloadingAddress: 'unloading_address',
+  declarantContact: 'declarant_contact',
+  originName: 'origin_name',
+  destinationName: 'destination_name',
+  cargoDescription: 'cargo_description',
+  cargoWeightKg: 'cargo_weight_kg',
+  isReefer: 'is_reefer',
+  rate: 'rate',
+  currency: 'currency',
+  plannedDistanceKm: 'planned_distance_km',
+  scheduledStart: 'scheduled_start',
+  notes: 'notes',
+};
+
+/** Create: only what was filled in. Update: every key the caller passed,
+ *  blanks as null. */
+export function toBody(input: TripCreateInput, mode: 'create' | 'update'): Record<string, unknown> {
   const body: Record<string, unknown> = {};
-  if (input.truckId) body.truck_id = input.truckId;
-  if (input.driverId !== undefined) body.driver_id = input.driverId;
-  if (input.shipper) body.shipper = input.shipper;
-  if (input.consignee) body.consignee = input.consignee;
-  if (input.originName) body.origin_name = input.originName;
-  if (input.destinationName) body.destination_name = input.destinationName;
-  if (input.cargoDescription) body.cargo_description = input.cargoDescription;
-  if (input.cargoWeightKg !== undefined) body.cargo_weight_kg = input.cargoWeightKg;
-  if (input.isReefer !== undefined) body.is_reefer = input.isReefer;
-  if (input.rate !== undefined) body.rate = input.rate;
-  if (input.currency) body.currency = input.currency;
-  if (input.plannedDistanceKm !== undefined) body.planned_distance_km = input.plannedDistanceKm;
-  if (input.notes) body.notes = input.notes;
+  for (const [key, wire] of Object.entries(WIRE_NAMES) as [keyof TripCreateInput, string][]) {
+    const value = input[key];
+    if (value === undefined) continue;
+    const blank = value === null || value === '';
+    if (blank && mode === 'create') continue;
+    body[wire] = blank ? null : value;
+  }
   return body;
 }
 
@@ -281,11 +350,11 @@ export const tripsApi = {
     return adaptDetails(data);
   },
   create: async (input: TripCreateInput): Promise<TripDetails> => {
-    const data = await api<BackendTripDetails>('/api/trips', { method: 'POST', body: toBody(input) });
+    const data = await api<BackendTripDetails>('/api/trips', { method: 'POST', body: toBody(input, 'create') });
     return adaptDetails(data);
   },
   update: async (id: string, input: TripCreateInput): Promise<TripDetails> => {
-    const data = await api<BackendTripDetails>(`/api/trips/${id}`, { method: 'PUT', body: toBody(input) });
+    const data = await api<BackendTripDetails>(`/api/trips/${id}`, { method: 'PUT', body: toBody(input, 'update') });
     return adaptDetails(data);
   },
   advance: async (
@@ -296,6 +365,20 @@ export const tripsApi = {
     const data = await api<BackendTripDetails>(`/api/trips/${id}/advance`, {
       method: 'POST',
       body: { to_status: toStatus, note: opts.note, latitude: opts.latitude, longitude: opts.longitude },
+    });
+    return adaptDetails(data);
+  },
+  /** Report a checkpoint on the driver's behalf — same timeline entry, and
+   *  the same status derived from it, as when the driver taps it. */
+  advanceStage: async (
+    id: string,
+    stage: TripStage,
+    place: StagePlace | null,
+    note?: string,
+  ): Promise<TripDetails> => {
+    const data = await api<BackendTripDetails>(`/api/trips/${id}/advance`, {
+      method: 'POST',
+      body: { stage, stage_place: place, note: note || undefined },
     });
     return adaptDetails(data);
   },

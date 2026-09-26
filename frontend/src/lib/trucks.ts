@@ -14,7 +14,9 @@ interface BackendTruck {
   tractor_brand: string | null;
   trailer_brand: string | null;
   trailer_volume: TrailerVolume | null;
+  insurance_expiry?: string | null;
   status: BackendStatus;
+  is_enabled: boolean;
   fuel_level: number;
   mileage: number;
   created_at: string;
@@ -64,7 +66,9 @@ export interface TruckDetails {
   tractorBrand: string | null;
   trailerBrand: string | null;
   trailerVolume: TrailerVolume | null;
+  insuranceExpiry: string | null;
   status: BackendStatus;
+  isEnabled: boolean;
   fuelLevel: number;
   mileage: number;
   createdAt: Date;
@@ -83,7 +87,9 @@ function adaptDetails(d: BackendTruckDetails): TruckDetails {
     tractorBrand: d.tractor_brand,
     trailerBrand: d.trailer_brand,
     trailerVolume: d.trailer_volume,
+    insuranceExpiry: d.insurance_expiry ?? null,
     status: d.status,
+    isEnabled: d.is_enabled,
     fuelLevel: d.fuel_level,
     mileage: d.mileage,
     createdAt: new Date(d.created_at),
@@ -127,6 +133,7 @@ export function toFrontendTruck(b: BackendTruck, extras?: Partial<BackendTruckDe
     tractorBrand: b.tractor_brand ?? undefined,
     trailerBrand: b.trailer_brand ?? undefined,
     trailerVolume: b.trailer_volume ?? undefined,
+    insuranceExpiry: b.insurance_expiry ?? null,
     driverName: driver?.name,
     status: mapStatus(b.status),
     speed: loc?.speed ?? 0,
@@ -134,19 +141,26 @@ export function toFrontendTruck(b: BackendTruck, extras?: Partial<BackendTruckDe
     longitude: loc?.longitude ?? 0,
     address: loc?.address ?? null,
     lastUpdate: new Date(b.updated_at),
-    isEnabled: b.status !== 'offline',
+    // The dispatcher's switch, which the backend stores on its own. It used
+    // to be derived from `status`, so a truck with no GPS fix — every truck on
+    // the day it is added — read as switched off and was filtered out of the
+    // map and the fuel and service pickers.
+    isEnabled: b.is_enabled,
   };
 }
 
 /** Everything the truck form collects. One shape for create and patch, so a
  *  field added to the form cannot reach one endpoint and not the other. */
 export interface TruckInput {
-  name: string;
+  /** Optional: left out, the backend names the truck after its plate. */
+  name?: string;
   plateNumber: string;
   model?: string;
   tractorBrand?: string;
   trailerBrand?: string;
   trailerVolume?: TrailerVolume;
+  /** ISO date; null clears it on an edit. */
+  insuranceExpiry?: string | null;
 }
 
 // ---- Endpoint wrappers ----
@@ -174,13 +188,14 @@ export const trucksApi = {
         tractor_brand: input.tractorBrand,
         trailer_brand: input.trailerBrand,
         trailer_volume: input.trailerVolume,
+        insurance_expiry: input.insuranceExpiry || null,
       },
     });
     return toFrontendTruck(created);
   },
   update: async (
     id: string,
-    patch: Partial<TruckInput & { status: BackendStatus }>,
+    patch: Partial<TruckInput & { status: BackendStatus; isEnabled: boolean }>,
   ): Promise<Truck> => {
     const body: Record<string, unknown> = {};
     if (patch.name !== undefined) body.name = patch.name;
@@ -189,7 +204,9 @@ export const trucksApi = {
     if (patch.tractorBrand !== undefined) body.tractor_brand = patch.tractorBrand;
     if (patch.trailerBrand !== undefined) body.trailer_brand = patch.trailerBrand;
     if (patch.trailerVolume !== undefined) body.trailer_volume = patch.trailerVolume;
+    if (patch.insuranceExpiry !== undefined) body.insurance_expiry = patch.insuranceExpiry || null;
     if (patch.status !== undefined) body.status = patch.status;
+    if (patch.isEnabled !== undefined) body.is_enabled = patch.isEnabled;
 
     const updated = await api<BackendTruck>(`/api/trucks/${id}`, { method: 'PUT', body });
     return toFrontendTruck(updated);

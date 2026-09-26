@@ -15,6 +15,8 @@ export interface Truck {
   /** Capacity class of the trailer — what a load is booked against. */
   trailerVolume?: TrailerVolume;
   driverName?: string;
+  /** ISO date the insurance policy runs out, if known. */
+  insuranceExpiry?: string | null;
   status: TruckStatus;
   speed: number;
   latitude: number;

@@ -28,6 +28,12 @@ class TripCreate(BaseModel):
     destination_name: Optional[str] = Field(default=None, max_length=200)
     destination_lat: Optional[float] = Field(default=None, ge=-90, le=90)
     destination_lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    border_crossing: Optional[str] = Field(default=None, max_length=120)
+    loading_address: Optional[str] = None
+    loading_contact: Optional[str] = Field(default=None, max_length=200)
+    customs_point: Optional[str] = Field(default=None, max_length=200)
+    unloading_address: Optional[str] = None
+    declarant_contact: Optional[str] = Field(default=None, max_length=200)
     cargo_description: Optional[str] = Field(default=None, max_length=255)
     cargo_weight_kg: Optional[float] = Field(default=None, ge=0)
     is_reefer: bool = False
@@ -50,6 +56,12 @@ class TripUpdate(BaseModel):
     destination_name: Optional[str] = Field(default=None, max_length=200)
     destination_lat: Optional[float] = Field(default=None, ge=-90, le=90)
     destination_lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    border_crossing: Optional[str] = Field(default=None, max_length=120)
+    loading_address: Optional[str] = None
+    loading_contact: Optional[str] = Field(default=None, max_length=200)
+    customs_point: Optional[str] = Field(default=None, max_length=200)
+    unloading_address: Optional[str] = None
+    declarant_contact: Optional[str] = Field(default=None, max_length=200)
     cargo_description: Optional[str] = Field(default=None, max_length=255)
     cargo_weight_kg: Optional[float] = Field(default=None, ge=0)
     is_reefer: Optional[bool] = None
@@ -120,6 +132,12 @@ class TripOut(BaseModel):
     destination_name: Optional[str]
     destination_lat: Optional[float]
     destination_lng: Optional[float]
+    border_crossing: Optional[str] = None
+    loading_address: Optional[str] = None
+    loading_contact: Optional[str] = None
+    customs_point: Optional[str] = None
+    unloading_address: Optional[str] = None
+    declarant_contact: Optional[str] = None
     cargo_description: Optional[str]
     cargo_weight_kg: Optional[float]
     is_reefer: bool

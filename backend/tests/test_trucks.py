@@ -204,3 +204,117 @@ async def test_a_trailer_can_be_swapped_onto_a_tractor(client: AsyncClient, admi
     assert updated.status_code == 200, updated.text
     assert updated.json()["trailer_brand"] == "Schmitz"
     assert updated.json()["trailer_volume"] == "mega"
+
+
+# ── "offline" is a radio silence, not a decision ──────────────────────
+#
+# The two used to be one column: a truck with no GPS fix read as `offline`,
+# and the panel took that to mean "switched off" — so every truck was born
+# disabled, invisible on the map and missing from the fuel and service
+# pickers until its tracker happened to send a first ping.
+
+
+async def test_a_new_truck_is_enabled_although_it_has_no_gps_yet(
+    client: AsyncClient, admin_headers
+):
+    created = (
+        await client.post(
+            "/api/trucks", headers=admin_headers, json={"name": "E", "plate_number": "EE-01"}
+        )
+    ).json()
+
+    assert created["status"] == "offline"  # no tracker has reported in
+    assert created["is_enabled"] is True   # but the dispatcher runs this truck
+
+
+async def test_taking_a_truck_out_of_service_leaves_its_status_alone(
+    client: AsyncClient, admin_headers
+):
+    created = (
+        await client.post(
+            "/api/trucks", headers=admin_headers, json={"name": "F", "plate_number": "FF-01"}
+        )
+    ).json()
+    await client.put(
+        f"/api/trucks/{created['id']}", headers=admin_headers, json={"status": "moving"}
+    )
+
+    disabled = await client.put(
+        f"/api/trucks/{created['id']}", headers=admin_headers, json={"is_enabled": False}
+    )
+    assert disabled.status_code == 200, disabled.text
+    assert disabled.json()["is_enabled"] is False
+    assert disabled.json()["status"] == "moving"
+
+
+async def test_a_gps_ping_does_not_put_a_parked_truck_back_in_service(
+    client: AsyncClient, admin_headers
+):
+    """A tracker left powered in the yard must not re-enable a truck the
+    dispatcher deliberately took off the board."""
+    created = (
+        await client.post(
+            "/api/trucks", headers=admin_headers, json={"name": "G", "plate_number": "GG-01"}
+        )
+    ).json()
+    await client.put(
+        f"/api/trucks/{created['id']}", headers=admin_headers, json={"is_enabled": False}
+    )
+
+    pinged = await client.put(
+        f"/api/trucks/{created['id']}", headers=admin_headers, json={"status": "stopped"}
+    )
+    assert pinged.json()["is_enabled"] is False
+
+    listed = (await client.get("/api/trucks", headers=admin_headers)).json()
+    assert [t["is_enabled"] for t in listed] == [False]
+
+
+async def test_truck_details_carry_the_enabled_flag(client: AsyncClient, admin_headers):
+    created = (
+        await client.post(
+            "/api/trucks", headers=admin_headers, json={"name": "H", "plate_number": "HH-01"}
+        )
+    ).json()
+
+    detail = await client.get(f"/api/trucks/{created['id']}", headers=admin_headers)
+    assert detail.json()["is_enabled"] is True
+
+
+# ── the plate is the name, and insurance has a date ────────────────────
+
+
+async def test_a_truck_can_be_added_by_plate_alone(client: AsyncClient, admin_headers):
+    """The form no longer asks for a separate name; every screen that shows
+    one gets the plate instead of a blank."""
+    res = await client.post("/api/trucks", headers=admin_headers, json={"plate_number": "01A777AA"})
+    assert res.status_code == 200, res.text
+    assert res.json()["name"] == "01A777AA"
+
+
+async def test_a_name_that_was_the_plate_follows_a_plate_correction(
+    client: AsyncClient, admin_headers
+):
+    created = (
+        await client.post("/api/trucks", headers=admin_headers, json={"plate_number": "01A777AB"})
+    ).json()
+    res = await client.put(
+        f"/api/trucks/{created['id']}", headers=admin_headers, json={"plate_number": "01A777AC"}
+    )
+    assert res.json()["name"] == "01A777AC"
+
+
+async def test_insurance_expiry_is_stored_and_editable(client: AsyncClient, admin_headers):
+    created = (
+        await client.post(
+            "/api/trucks",
+            headers=admin_headers,
+            json={"plate_number": "01A888AA", "insurance_expiry": "2027-03-01"},
+        )
+    ).json()
+    assert created["insurance_expiry"] == "2027-03-01"
+
+    updated = await client.put(
+        f"/api/trucks/{created['id']}", headers=admin_headers, json={"insurance_expiry": None}
+    )
+    assert updated.json()["insurance_expiry"] is None

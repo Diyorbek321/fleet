@@ -208,7 +208,8 @@
       "trailerBrandPlaceholder": "masalan, Schmitz",
       "trailerVolume": "Kubatura",
       "trailerVolumeNone": "Tanlanmagan",
-      "brandTooLong": "Marka nomi juda uzun"
+      "brandTooLong": "Marka nomi juda uzun",
+      "insuranceExpiry": "Sug‘urta amal qilish muddati"
     },
     "toast": {
       "added": "Mashina qo‘shildi",
@@ -317,7 +318,12 @@
     "phone3": "Telefon 3",
     "phonePlaceholder": "+998 90 123 45 67",
     "adr": "ADR (xavfli yuk)",
-    "adrShort": "ADR"
+    "adrShort": "ADR",
+    "edit": "Haydovchini tahrirlash",
+    "passport": "Pasport seriyasi va raqami",
+    "phoneUz": "Telefon (O‘zbekiston)",
+    "phoneKz": "Telefon (Qozog‘iston)",
+    "phoneRu": "Telefon (Rossiya)"
   },
   "reports": {
     "title": "Hisobotlar",
@@ -467,7 +473,29 @@
     "noStageYet": "Bosqich hali belgilanmagan",
     "cargoTons": "Yuk og‘irligi (tonna)",
     "cargoTonsPlaceholder": "masalan, 20",
-    "tonsShort": "t"
+    "tonsShort": "t",
+    "edit": "Reysni tahrirlash",
+    "updated": "Reys yangilandi",
+    "form": {
+      "orderSheet": "Zayavka",
+      "sectionRoute": "Marshrut",
+      "sectionLoading": "Yuklash",
+      "sectionUnloading": "Tushirish",
+      "sectionAssignment": "Mashina va haydovchi",
+      "originName": "Qayerdan",
+      "destinationName": "Qayerga",
+      "borderCrossing": "Chegara o‘tish punkti",
+      "shipper": "Jo‘natuvchi",
+      "loadingAddress": "Yuklash manzili",
+      "loadingContact": "Yuklashdagi kontakt",
+      "cargoDescription": "Yuk",
+      "loadingDate": "Yuklash sanasi",
+      "consignee": "Qabul qiluvchi",
+      "customsPoint": "Rastamojka",
+      "unloadingAddress": "Tushirish lokatsiyasi",
+      "declarantContact": "Deklarant kontakti",
+      "notes": "Izoh"
+    }
   },
   "tripDetail": {
     "title": "Reys hujjatlari",
@@ -483,7 +511,10 @@
     "etaCustoms": "Rastamojkada kutilmoqda",
     "etaModelled": "taxminan",
     "etaMeasured": "o‘tgan reyslar bo‘yicha",
-    "noStage": "Bosqich belgilanmagan"
+    "noStage": "Bosqich belgilanmagan",
+    "setStage": "Reys statusi",
+    "pickStage": "Statusni tanlang",
+    "saveStage": "Belgilash"
   },
   "tripReport": {
     "title": "Yo‘l varaqasi",

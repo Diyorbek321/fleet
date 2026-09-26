@@ -5,7 +5,7 @@ export interface DriverProfile {
   name: string;
   phone: string | null;
   email: string | null;
-  license_number: string;
+  license_number: string | null;
   license_expiry: string | null;
   status: string;
   photo_url: string | null;

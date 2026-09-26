@@ -78,3 +78,54 @@ async def test_a_driver_needs_no_email_or_licence_expiry(client: AsyncClient, ad
     driver = await _create(client, admin_headers)
     assert driver["email"] is None
     assert driver["license_expiry"] is None
+
+
+# ── deleting a driver, and the passport replacing the licence ──────────
+
+
+async def test_a_driver_can_be_deleted(client: AsyncClient, admin_headers):
+    """It used to 500: the audit call behind it had lost its import."""
+    driver = await _create(client, admin_headers)
+
+    res = await client.delete(f"/api/drivers/{driver['id']}", headers=admin_headers)
+    assert res.status_code == 200, res.text
+
+    listed = (await client.get("/api/drivers", headers=admin_headers)).json()
+    assert listed == []
+
+
+async def test_a_driver_is_recorded_by_passport_without_a_licence_number(
+    client: AsyncClient, admin_headers
+):
+    res = await client.post(
+        "/api/drivers",
+        headers=admin_headers,
+        json={"name": "Botir", "passport_number": "AB1234567"},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["passport_number"] == "AB1234567"
+    assert res.json()["license_number"] is None
+
+
+async def test_every_field_of_a_driver_can_be_edited(client: AsyncClient, admin_headers):
+    driver = await _create(client, admin_headers, phone="+998901112233")
+
+    res = await client.put(
+        f"/api/drivers/{driver['id']}",
+        headers=admin_headers,
+        json={
+            "name": "Anvar Karimov",
+            "passport_number": "AC7654321",
+            "phone": "+998907778899",
+            "phone2": "+77714281281",
+            "phone3": None,
+            "adr": True,
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["name"] == "Anvar Karimov"
+    assert body["passport_number"] == "AC7654321"
+    assert body["phone2"] == "+77714281281"
+    assert body["phone3"] is None
+    assert body["adr"] is True

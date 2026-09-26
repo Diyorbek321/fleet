@@ -47,12 +47,11 @@ const buildTruckSchema = (t: Translate) =>
       .string()
       .min(1, t('trucks.form.plateRequired'))
       .max(20, t('trucks.form.plateTooLong')),
-    name: z.string().min(1, t('trucks.form.nameRequired')).max(50, t('trucks.form.nameTooLong')),
-    model: z.string().max(50, t('trucks.form.modelTooLong')).optional(),
     tractorBrand: z.string().max(60, t('trucks.form.brandTooLong')).optional(),
     trailerBrand: z.string().max(60, t('trucks.form.brandTooLong')).optional(),
     trailerVolume: z.enum(['standart', 'mega']).optional(),
-    driverName: z.string().max(50, t('trucks.form.driverTooLong')).optional(),
+    // ISO date from <input type="date">, or '' when left blank.
+    insuranceExpiry: z.string().optional(),
   });
 
 type TruckFormData = z.infer<ReturnType<typeof buildTruckSchema>>;
@@ -64,12 +63,10 @@ type TruckFormData = z.infer<ReturnType<typeof buildTruckSchema>>;
 function defaultsFor(truck: Truck | null): TruckFormData {
   return {
     plateNumber: truck?.plateNumber || '',
-    name: truck?.name || '',
-    model: truck?.model || '',
     tractorBrand: truck?.tractorBrand || '',
     trailerBrand: truck?.trailerBrand || '',
     trailerVolume: truck?.trailerVolume,
-    driverName: truck?.driverName || '',
+    insuranceExpiry: truck?.insuranceExpiry || '',
   };
 }
 
@@ -102,18 +99,17 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
   const onSubmit = async (data: TruckFormData) => {
     setIsSubmitting(true);
     try {
+      // No name: the truck is known by its plate, and the backend names a
+      // new one after it. The driver is attached from the Drivers page.
       if (isEditing) {
-        await updateTruck(truck.id, data);
+        await updateTruck(truck.id, { ...data, insuranceExpiry: data.insuranceExpiry || null });
       } else {
         await addTruck({
           plateNumber: data.plateNumber,
-          name: data.name,
-          model: data.model || '',
           tractorBrand: data.tractorBrand || undefined,
           trailerBrand: data.trailerBrand || undefined,
           trailerVolume: data.trailerVolume,
-          driverName: data.driverName || '',
-          isEnabled: true,
+          insuranceExpiry: data.insuranceExpiry || null,
         });
       }
       onClose();
@@ -147,24 +143,6 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
                   <FormControl>
                     <Input
                       placeholder={t('trucks.form.platePlaceholder')}
-                      className="bg-secondary/50 border-0"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('trucks.form.name')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('trucks.form.namePlaceholder')}
                       className="bg-secondary/50 border-0"
                       {...field}
                     />
@@ -249,34 +227,12 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
 
             <FormField
               control={form.control}
-              name="model"
+              name="insuranceExpiry"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('trucks.form.model')}</FormLabel>
+                  <FormLabel>{t('trucks.form.insuranceExpiry')}</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder={t('trucks.form.modelPlaceholder')}
-                      className="bg-secondary/50 border-0"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="driverName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('trucks.form.driverName')}</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder={t('trucks.form.driverPlaceholder')}
-                      className="bg-secondary/50 border-0"
-                      {...field}
-                    />
+                    <Input type="date" className="bg-secondary/50 border-0" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

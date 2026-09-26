@@ -66,6 +66,17 @@ class Trip(Base):
     destination_lat: Mapped[float | None] = mapped_column(Numeric(10, 8), nullable=True)
     destination_lng: Mapped[float | None] = mapped_column(Numeric(11, 8), nullable=True)
 
+    # The rest of the order sheet sent to the driver ("заявка"): the border
+    # crossing to use, where exactly to load and unload, the customs post, and
+    # who to call at each end. Free text, because that is how they arrive —
+    # an address with a map link, a phone with "декларант" after it.
+    border_crossing: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    loading_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    loading_contact: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    customs_point: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    unloading_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    declarant_contact: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
     # Cargo
     cargo_description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cargo_weight_kg: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)

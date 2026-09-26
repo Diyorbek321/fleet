@@ -5,8 +5,9 @@ export type DriverStatus = 'active' | 'inactive' | 'on_leave';
 export interface Driver {
   id: string;
   name: string;
-  /** Up to three numbers: the cab SIM, a personal handset, and a RU/KZ SIM for
-   *  the leg past the border. `phones` is the display-ready, gap-free list. */
+  /** One number per country on the route: `phone` is the Uzbek SIM, `phone2`
+   *  the Kazakh one, `phone3` the Russian one. `phones` is the display-ready,
+   *  gap-free list. */
   phone: string | null;
   phone2: string | null;
   phone3: string | null;
@@ -14,7 +15,10 @@ export interface Driver {
   /** Cleared to carry dangerous goods. */
   adr: boolean;
   email: string | null;
-  licenseNumber: string;
+  /** Passport series and number — what the form asks for now. */
+  passportNumber: string | null;
+  /** Kept for drivers entered before the passport replaced it. */
+  licenseNumber: string | null;
   licenseExpiry: string | null;
   status: DriverStatus;
   photoUrl: string | null;
@@ -47,7 +51,8 @@ interface BackendDriver {
   phone3: string | null;
   adr: boolean;
   email: string | null;
-  license_number: string;
+  passport_number: string | null;
+  license_number: string | null;
   license_expiry: string | null;
   status: DriverStatus;
   photo_url: string | null;
@@ -69,13 +74,36 @@ function adapt(d: BackendDriver): Driver {
       .filter((p): p is string => !!p),
     adr: d.adr ?? false,
     email: d.email,
-    licenseNumber: d.license_number,
+    passportNumber: d.passport_number ?? null,
+    licenseNumber: d.license_number ?? null,
     licenseExpiry: d.license_expiry,
     status: d.status,
     photoUrl: d.photo_url,
     createdAt: new Date(d.created_at),
     updatedAt: new Date(d.updated_at),
   };
+}
+
+/** Everything the driver form collects — one shape for create and edit. */
+export interface DriverInput {
+  name: string;
+  passportNumber?: string;
+  /** Uzbek number. */
+  phone?: string;
+  /** Kazakh number. */
+  phone2?: string;
+  /** Russian number. */
+  phone3?: string;
+  adr?: boolean;
+}
+
+function toBody(input: DriverInput): Record<string, unknown> {
+  const body: Record<string, unknown> = { name: input.name, adr: input.adr ?? false };
+  if (input.passportNumber) body.passport_number = input.passportNumber;
+  if (input.phone) body.phone = input.phone;
+  if (input.phone2) body.phone2 = input.phone2;
+  if (input.phone3) body.phone3 = input.phone3;
+  return body;
 }
 
 export const driversApi = {
@@ -122,47 +150,24 @@ export const driversApi = {
         : null,
     };
   },
-  create: async (input: {
-    name: string;
-    licenseNumber: string;
-    phone?: string;
-    phone2?: string;
-    phone3?: string;
-    adr?: boolean;
-    status?: DriverStatus;
-  }): Promise<Driver> => {
-    const body: Record<string, unknown> = {
-      name: input.name,
-      license_number: input.licenseNumber,
-      adr: input.adr ?? false,
-    };
-    if (input.phone) body.phone = input.phone;
-    if (input.phone2) body.phone2 = input.phone2;
-    if (input.phone3) body.phone3 = input.phone3;
+  create: async (input: DriverInput & { status?: DriverStatus }): Promise<Driver> => {
+    const body: Record<string, unknown> = { ...toBody(input) };
     if (input.status) body.status = input.status;
-
     const data = await api<BackendDriver>('/api/drivers', { method: 'POST', body });
     return adapt(data);
   },
   update: async (
     id: string,
-    patch: Partial<{
-      name: string;
-      phone: string;
-      phone2: string;
-      phone3: string;
-      adr: boolean;
-      licenseNumber: string;
-      status: DriverStatus;
-    }>,
+    patch: Partial<DriverInput & { status: DriverStatus }>,
   ): Promise<Driver> => {
     const body: Record<string, unknown> = {};
     if (patch.name !== undefined) body.name = patch.name;
-    if (patch.phone !== undefined) body.phone = patch.phone;
-    if (patch.phone2 !== undefined) body.phone2 = patch.phone2;
-    if (patch.phone3 !== undefined) body.phone3 = patch.phone3;
+    if (patch.passportNumber !== undefined) body.passport_number = patch.passportNumber || null;
+    // An emptied number is sent as null so an edit can actually remove it.
+    if (patch.phone !== undefined) body.phone = patch.phone || null;
+    if (patch.phone2 !== undefined) body.phone2 = patch.phone2 || null;
+    if (patch.phone3 !== undefined) body.phone3 = patch.phone3 || null;
     if (patch.adr !== undefined) body.adr = patch.adr;
-    if (patch.licenseNumber !== undefined) body.license_number = patch.licenseNumber;
     if (patch.status !== undefined) body.status = patch.status;
 
     const data = await api<BackendDriver>(`/api/drivers/${id}`, { method: 'PUT', body });

@@ -16,10 +16,9 @@ class Driver(Base):
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    # Three numbers, because that is how a driver is actually reached in this
-    # market: the SIM in the cab, a personal handset, and a Russian/Kazakh SIM
-    # bought for the leg beyond the border. One column meant a dispatcher who
-    # could not get through had nowhere to look for the second number.
+    # One number per country on the route — Uzbek, Kazakh, Russian — because a
+    # driver swaps SIMs at each border and is only reachable on the local one.
+    # phone = UZ, phone2 = KZ, phone3 = RU.
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     phone2: Mapped[str | None] = mapped_column(String(20), nullable=True)
     phone3: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -27,7 +26,11 @@ class Driver(Base):
     # Cleared to carry dangerous goods. Not a document reference: dispatch only
     # ever asks the yes/no question, when matching a driver to an ADR load.
     adr: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    license_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    # Series and number, e.g. "AB1234567": what dispatch copies onto the
+    # paperwork. It replaced the licence number on the form; licence numbers
+    # already on file are kept, hence nullable rather than dropped.
+    passport_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    license_number: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True)
     license_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[DriverStatus] = mapped_column(Enum(DriverStatus, name="driver_status"), default=DriverStatus.active, nullable=False)
     photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)

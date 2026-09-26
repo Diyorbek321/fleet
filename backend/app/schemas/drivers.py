@@ -11,7 +11,8 @@ class DriverCreate(BaseModel):
     phone2: Optional[str] = Field(default=None, max_length=20)
     phone3: Optional[str] = Field(default=None, max_length=20)
     adr: bool = False
-    license_number: str = Field(min_length=1, max_length=50)
+    passport_number: Optional[str] = Field(default=None, max_length=20)
+    license_number: Optional[str] = Field(default=None, max_length=50)
     status: Optional[DriverStatus] = DriverStatus.active
     photo_url: Optional[str] = Field(default=None, max_length=500)
 
@@ -21,7 +22,8 @@ class DriverUpdate(BaseModel):
     phone2: Optional[str] = Field(default=None, max_length=20)
     phone3: Optional[str] = Field(default=None, max_length=20)
     adr: Optional[bool] = None
-    license_number: Optional[str] = Field(default=None, min_length=1, max_length=50)
+    passport_number: Optional[str] = Field(default=None, max_length=20)
+    license_number: Optional[str] = Field(default=None, max_length=50)
     status: Optional[DriverStatus] = None
     photo_url: Optional[str] = Field(default=None, max_length=500)
 
@@ -37,7 +39,8 @@ class DriverOut(BaseModel):
     phone3: Optional[str] = None
     adr: bool = False
     email: Optional[str]
-    license_number: str
+    passport_number: Optional[str] = None
+    license_number: Optional[str] = None
     license_expiry: Optional[date]
     status: DriverStatus
     photo_url: Optional[str]

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowRight, Trash2, FileImage, User, Clock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Trash2, FileImage, User, Clock, Pencil, Flag, ClipboardList } from 'lucide-react';
 import { format, formatDistanceToNow } from '@/lib/datetime';
 
 import { Button } from '@/components/ui/button';
@@ -27,9 +27,16 @@ import {
   tripsApi,
   listTripDocuments,
   deleteTripDocument,
+  placesForStage,
+  TRIP_STAGES,
+  type StagePlace,
+  type TripCreateInput,
+  type TripStage,
   type TripStatus,
   type TripDocument,
 } from '@/lib/trips';
+import { useTrucks } from '@/contexts/TruckContext';
+import { TripFormDialog } from '@/components/trips/TripFormDialog';
 import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
@@ -60,7 +67,11 @@ export default function TripDetailPage() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
 
+  const { trucks } = useTrucks();
   const [selected, setSelected] = useState<TripDocument | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [stage, setStage] = useState<TripStage | ''>('');
+  const [place, setPlace] = useState<StagePlace | ''>('');
 
   const tripQuery = useQuery({
     queryKey: ['trip', id],
@@ -85,6 +96,34 @@ export default function TripDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['trip', id] });
       queryClient.invalidateQueries({ queryKey: ['trips'] });
       toast({ title: t('trips.driverAssigned') });
+    },
+    onError: (err) =>
+      toast({ title: t('trips.saveFailed'), description: describeError(err, ''), variant: 'destructive' }),
+  });
+
+  const refreshTrip = () => {
+    queryClient.invalidateQueries({ queryKey: ['trip', id] });
+    queryClient.invalidateQueries({ queryKey: ['trips'] });
+  };
+
+  const editMutation = useMutation({
+    mutationFn: (input: TripCreateInput) => tripsApi.update(id, input),
+    onSuccess: () => {
+      setEditOpen(false);
+      refreshTrip();
+      toast({ title: t('trips.updated') });
+    },
+    onError: (err) =>
+      toast({ title: t('trips.saveFailed'), description: describeError(err, ''), variant: 'destructive' }),
+  });
+
+  const stageMutation = useMutation({
+    mutationFn: () => tripsApi.advanceStage(id, stage as TripStage, place || null),
+    onSuccess: () => {
+      setStage('');
+      setPlace('');
+      refreshTrip();
+      toast({ title: t('trips.advanced') });
     },
     onError: (err) =>
       toast({ title: t('trips.saveFailed'), description: describeError(err, ''), variant: 'destructive' }),
@@ -130,6 +169,10 @@ export default function TripDetailPage() {
                 <span className="font-mono">{trip.reference}</span>
                 <Badge variant={STATUS_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
               </CardTitle>
+              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                {t('common.edit')}
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -218,6 +261,108 @@ export default function TripDetailPage() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {trip && (
+        <TripFormDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          trip={trip}
+          trucks={trucks}
+          drivers={driversQuery.data ?? []}
+          isPending={editMutation.isPending}
+          onSubmit={(input) => editMutation.mutate(input)}
+        />
+      )}
+
+      {trip && (
+        <div className="grid gap-6 md:grid-cols-2">
+          {/* The order sheet, as the driver was sent it */}
+          <Card className="border-border/50 bg-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <ClipboardList className="h-5 w-5" />
+                {t('trips.form.orderSheet')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <dl className="grid gap-2 text-sm">
+                {(
+                  [
+                    ['borderCrossing', trip.borderCrossing],
+                    ['shipper', trip.shipper],
+                    ['loadingAddress', trip.loadingAddress],
+                    ['loadingDate', trip.scheduledStart ? format(trip.scheduledStart, 'dd.MM.yyyy') : null],
+                    ['loadingContact', trip.loadingContact],
+                    ['consignee', trip.consignee],
+                    ['customsPoint', trip.customsPoint],
+                    ['unloadingAddress', trip.unloadingAddress],
+                    ['declarantContact', trip.declarantContact],
+                    ['notes', trip.notes],
+                  ] as const
+                ).map(([key, value]) => (
+                  <div key={key} className="grid grid-cols-[10rem_1fr] gap-2">
+                    <dt className="text-muted-foreground">{t(`trips.form.${key}`)}</dt>
+                    <dd className="whitespace-pre-line break-words font-medium">{value || '—'}</dd>
+                  </div>
+                ))}
+              </dl>
+            </CardContent>
+          </Card>
+
+          {/* Report a checkpoint for the driver */}
+          <Card className="border-border/50 bg-card">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Flag className="h-5 w-5" />
+                {t('tripDetail.setStage')}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Select
+                value={stage}
+                onValueChange={(v) => {
+                  setStage(v as TripStage);
+                  // A crossing is not a country: the old choice may not apply.
+                  setPlace('');
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t('tripDetail.pickStage')} />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRIP_STAGES.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {t(`trips.stage.${s}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {stage && (
+                <div className="flex flex-wrap gap-2">
+                  {placesForStage(stage).map((p) => (
+                    <Button
+                      key={p}
+                      type="button"
+                      size="sm"
+                      variant={place === p ? 'default' : 'outline'}
+                      onClick={() => setPlace(p)}
+                    >
+                      {t(`trips.place.${p}`)}
+                    </Button>
+                  ))}
+                </div>
+              )}
+              <Button
+                className="w-full"
+                disabled={!stage || !place || stageMutation.isPending}
+                onClick={() => stageMutation.mutate()}
+              >
+                {t('tripDetail.saveStage')}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* Cargo-owner notifications */}

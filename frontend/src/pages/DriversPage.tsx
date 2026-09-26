@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Link as LinkIcon, Unlink } from 'lucide-react';
+import { Plus, Pencil, Trash2, Link as LinkIcon, Unlink } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -30,22 +29,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { driversApi, type Driver, type DriverStatus } from '@/lib/drivers';
+import { driversApi, type Driver, type DriverInput, type DriverStatus } from '@/lib/drivers';
+import { DriverFormDialog } from '@/components/drivers/DriverFormDialog';
 import { ApiError } from '@/lib/api';
 import { useTrucks } from '@/contexts/TruckContext';
 import { toast } from '@/hooks/use-toast';
 
 const DRIVERS_KEY = ['drivers'] as const;
-
-const EMPTY_FORM = {
-  name: '',
-  phone: '',
-  phone2: '',
-  phone3: '',
-  adr: false,
-  licenseNumber: '',
-  status: 'active' as DriverStatus,
-};
 
 function describeError(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return err.detail;
@@ -59,9 +49,10 @@ export default function DriversPage() {
   const { trucks } = useTrucks();
   const queryClient = useQueryClient();
 
-  const [createOpen, setCreateOpen] = useState(false);
+  // `editing` is null while adding; the same dialog serves both.
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Driver | null>(null);
   const [assignTarget, setAssignTarget] = useState<Driver | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
   const [assignTruckId, setAssignTruckId] = useState<string>('');
 
   const { data: drivers = [], isLoading } = useQuery({
@@ -72,13 +63,13 @@ export default function DriversPage() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: DRIVERS_KEY });
 
-  const createMutation = useMutation({
-    mutationFn: driversApi.create,
+  const saveMutation = useMutation({
+    mutationFn: (input: DriverInput) =>
+      editing ? driversApi.update(editing.id, input) : driversApi.create(input),
     onSuccess: () => {
-      setCreateOpen(false);
-      setForm(EMPTY_FORM);
+      setFormOpen(false);
       invalidate();
-      toast({ title: t('drivers.created') });
+      toast({ title: editing ? t('drivers.updated') : t('drivers.created') });
     },
     onError: (err) =>
       toast({
@@ -152,7 +143,12 @@ export default function DriversPage() {
           <h1 className="text-3xl font-bold">{t('drivers.title')}</h1>
           <p className="text-muted-foreground text-sm">{t('drivers.subtitle')}</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button
+          onClick={() => {
+            setEditing(null);
+            setFormOpen(true);
+          }}
+        >
           <Plus className="mr-2 h-4 w-4" />
           {t('drivers.add')}
         </Button>
@@ -163,7 +159,7 @@ export default function DriversPage() {
           <TableHeader>
             <TableRow>
               <TableHead>{t('drivers.name')}</TableHead>
-              <TableHead>{t('drivers.license')}</TableHead>
+              <TableHead>{t('drivers.passport')}</TableHead>
               <TableHead>{t('drivers.phone')}</TableHead>
               <TableHead>{t('drivers.status')}</TableHead>
               <TableHead className="w-[1%]" />
@@ -196,7 +192,9 @@ export default function DriversPage() {
                     {d.adr && <Badge variant="outline">{t('drivers.adrShort')}</Badge>}
                   </div>
                 </TableCell>
-                <TableCell className="font-mono text-xs">{d.licenseNumber}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  {d.passportNumber ?? d.licenseNumber ?? '—'}
+                </TableCell>
                 {/* All the numbers, not just the first: the point of holding
                     three is that the dispatcher can see the next one to try. */}
                 <TableCell className="whitespace-pre-line text-sm">
@@ -224,6 +222,17 @@ export default function DriversPage() {
                   </Select>
                 </TableCell>
                 <TableCell className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setEditing(d);
+                      setFormOpen(true);
+                    }}
+                    title={t('common.edit')}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -262,104 +271,13 @@ export default function DriversPage() {
         </Table>
       </div>
 
-      {/* Create dialog */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('drivers.add')}</DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              createMutation.mutate({
-                name: form.name.trim(),
-                licenseNumber: form.licenseNumber.trim(),
-                phone: form.phone.trim() || undefined,
-                phone2: form.phone2.trim() || undefined,
-                phone3: form.phone3.trim() || undefined,
-                adr: form.adr,
-                status: form.status,
-              });
-            }}
-            className="space-y-3"
-          >
-            <div className="space-y-2">
-              <Label htmlFor="d-name">{t('drivers.name')}</Label>
-              <Input
-                id="d-name"
-                required
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="d-license">{t('drivers.license')}</Label>
-              <Input
-                id="d-license"
-                required
-                value={form.licenseNumber}
-                onChange={(e) => setForm({ ...form, licenseNumber: e.target.value })}
-              />
-            </div>
-            {/* Three numbers, one per row: they are dictated over the phone
-                one after another, and a two-column grid made the second and
-                third read as a pair of different things. */}
-            <div className="space-y-2">
-              <Label htmlFor="d-phone">{t('drivers.phone')}</Label>
-              <Input
-                id="d-phone"
-                inputMode="tel"
-                placeholder={t('drivers.phonePlaceholder')}
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="d-phone2">{t('drivers.phone2')}</Label>
-              <Input
-                id="d-phone2"
-                inputMode="tel"
-                placeholder={t('drivers.phonePlaceholder')}
-                value={form.phone2}
-                onChange={(e) => setForm({ ...form, phone2: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="d-phone3">{t('drivers.phone3')}</Label>
-              <Input
-                id="d-phone3"
-                inputMode="tel"
-                placeholder={t('drivers.phonePlaceholder')}
-                value={form.phone3}
-                onChange={(e) => setForm({ ...form, phone3: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>{t('drivers.adr')}</Label>
-              <Select
-                value={form.adr ? 'yes' : 'no'}
-                onValueChange={(v) => setForm({ ...form, adr: v === 'yes' })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no">{t('common.no')}</SelectItem>
-                  <SelectItem value="yes">{t('common.yes')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {t('common.save')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <DriverFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        driver={editing}
+        isPending={saveMutation.isPending}
+        onSubmit={(input) => saveMutation.mutate(input)}
+      />
 
       {/* Assign dialog */}
       <Dialog open={assignTarget !== null} onOpenChange={(open) => !open && setAssignTarget(null)}>

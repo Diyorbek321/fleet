@@ -15,6 +15,7 @@ import {
   Phone,
   Mail,
   Truck as TruckIcon,
+  ShieldCheck,
 } from 'lucide-react';
 import { formatDistanceToNow } from '@/lib/datetime';
 
@@ -99,13 +100,14 @@ export default function TruckDetailPage() {
     tractorBrand: truck.tractorBrand ?? undefined,
     trailerBrand: truck.trailerBrand ?? undefined,
     trailerVolume: truck.trailerVolume ?? undefined,
+    insuranceExpiry: truck.insuranceExpiry,
     driverName: truck.driver?.name,
     status: truck.status === 'moving' ? 'moving' : truck.status === 'offline' ? 'offline' : 'stopped',
     speed: truck.location?.speed ?? 0,
     latitude: truck.location?.latitude ?? 0,
     longitude: truck.location?.longitude ?? 0,
     lastUpdate: truck.updatedAt,
-    isEnabled: truck.status !== 'offline',
+    isEnabled: truck.isEnabled,
   };
 
   return (
@@ -154,10 +156,28 @@ export default function TruckDetailPage() {
             <InfoRow icon={<Boxes className="h-4 w-4" />} label={t('trucks.form.trailerVolume')}>
               {truck.trailerVolume ? t(`trucks.volume.${truck.trailerVolume}`) : '—'}
             </InfoRow>
-            <InfoRow icon={<TruckIcon className="h-4 w-4" />} label={t('trucks.detail.model')}>
-              {truck.model || '—'}
-              {truck.year ? ` (${truck.year})` : ''}
+            <InfoRow icon={<ShieldCheck className="h-4 w-4" />} label={t('trucks.form.insuranceExpiry')}>
+              {truck.insuranceExpiry ? (
+                <span
+                  className={
+                    truck.insuranceExpiry < new Date().toISOString().slice(0, 10)
+                      ? 'text-destructive'
+                      : undefined
+                  }
+                >
+                  {new Date(truck.insuranceExpiry).toLocaleDateString()}
+                </span>
+              ) : (
+                '—'
+              )}
             </InfoRow>
+            {/* The model is no longer asked for; kept where it was entered. */}
+            {truck.model && (
+              <InfoRow icon={<TruckIcon className="h-4 w-4" />} label={t('trucks.detail.model')}>
+                {truck.model}
+                {truck.year ? ` (${truck.year})` : ''}
+              </InfoRow>
+            )}
             <InfoRow icon={<Gauge className="h-4 w-4" />} label={t('trucks.detail.mileage')}>
               {truck.mileage.toLocaleString()} {t('common.km')}
             </InfoRow>

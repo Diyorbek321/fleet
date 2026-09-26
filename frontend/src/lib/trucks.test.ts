@@ -11,6 +11,7 @@ const sampleBackend = {
   trailer_brand: 'Schmitz',
   trailer_volume: 'standart' as const,
   status: 'moving' as const,
+  is_enabled: true,
   fuel_level: 75,
   mileage: 12345,
   created_at: '2026-01-01T00:00:00Z',
@@ -61,8 +62,15 @@ describe('toFrontendTruck', () => {
     expect(t.status).toBe('offline');
   });
 
-  it('sets isEnabled false when status is offline', () => {
+  it('keeps a truck in service while it is merely out of coverage', () => {
+    // `offline` is what the tracker says, not what the dispatcher decided.
+    // Reading one as the other is what made every new truck invisible.
     const t = toFrontendTruck({ ...sampleBackend, status: 'offline' });
+    expect(t.isEnabled).toBe(true);
+  });
+
+  it('takes isEnabled from the backend flag, not from the status', () => {
+    const t = toFrontendTruck({ ...sampleBackend, status: 'moving', is_enabled: false });
     expect(t.isEnabled).toBe(false);
   });
 

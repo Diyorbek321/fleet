@@ -99,7 +99,7 @@ export function ProfileScreen() {
               {profile.phone ? <Text style={styles.phone}>{profile.phone}</Text> : null}
             </View>
           </View>
-          <Row label={t('profile.license')} value={profile.license_number} />
+          <Row label={t('profile.license')} value={profile.license_number ?? '—'} />
           <Row label={t('profile.licenseExpiry')} value={formatDate(profile.license_expiry)} />
         </Card>
       )}

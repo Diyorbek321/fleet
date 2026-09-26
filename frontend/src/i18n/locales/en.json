@@ -208,7 +208,8 @@
       "trailerBrandPlaceholder": "e.g. Schmitz",
       "trailerVolume": "Capacity class",
       "trailerVolumeNone": "Not set",
-      "brandTooLong": "Make is too long"
+      "brandTooLong": "Make is too long",
+      "insuranceExpiry": "Insurance valid until"
     },
     "toast": {
       "added": "Truck added",
@@ -317,7 +318,12 @@
     "phone3": "Phone 3",
     "phonePlaceholder": "+998 90 123 45 67",
     "adr": "ADR (dangerous goods)",
-    "adrShort": "ADR"
+    "adrShort": "ADR",
+    "edit": "Edit driver",
+    "passport": "Passport series and number",
+    "phoneUz": "Phone (Uzbekistan)",
+    "phoneKz": "Phone (Kazakhstan)",
+    "phoneRu": "Phone (Russia)"
   },
   "reports": {
     "title": "Reports",
@@ -467,7 +473,29 @@
     "noStageYet": "No stage marked yet",
     "cargoTons": "Cargo weight (tonnes)",
     "cargoTonsPlaceholder": "e.g. 20",
-    "tonsShort": "t"
+    "tonsShort": "t",
+    "edit": "Edit trip",
+    "updated": "Trip updated",
+    "form": {
+      "orderSheet": "Order sheet",
+      "sectionRoute": "Route",
+      "sectionLoading": "Loading",
+      "sectionUnloading": "Unloading",
+      "sectionAssignment": "Truck and driver",
+      "originName": "From",
+      "destinationName": "To",
+      "borderCrossing": "Border crossing",
+      "shipper": "Shipper",
+      "loadingAddress": "Loading address",
+      "loadingContact": "Contact at loading",
+      "cargoDescription": "Cargo",
+      "loadingDate": "Loading date",
+      "consignee": "Consignee",
+      "customsPoint": "Customs clearance",
+      "unloadingAddress": "Unloading location",
+      "declarantContact": "Declarant contact",
+      "notes": "Note"
+    }
   },
   "tripDetail": {
     "title": "Trip documents",
@@ -483,7 +511,10 @@
     "etaCustoms": "Expected at customs",
     "etaModelled": "estimated",
     "etaMeasured": "from past trips",
-    "noStage": "Not reported yet"
+    "noStage": "Not reported yet",
+    "setStage": "Trip status",
+    "pickStage": "Choose a status",
+    "saveStage": "Mark"
   },
   "tripReport": {
     "title": "Trip expense report",

@@ -358,3 +358,49 @@ async def test_a_company_renaming_itself_gets_the_new_name_on_new_trips(
     # The reference already on paper did not move.
     listing = (await client.get("/api/trips", headers=admin_headers)).json()
     assert "Test Org-0001" in [t["reference"] for t in listing]
+
+
+# ── the order sheet a dispatcher actually sends ────────────────────────
+
+_ORDER_SHEET = {
+    "border_crossing": "МАЙСКИЙ",
+    "origin_name": "Елабуга",
+    "destination_name": "Ташкент",
+    "shipper": 'ООО "КАСТАМОНУ ИНТЕГРЕЙТЕД ВУД ИНДАСТРИ"',
+    "loading_address": "423600, Республика Татарстан, Елабужский р-н, ОЭЗ Алабуга, Ш-3, 3/3",
+    "loading_contact": "+7 903 000 00 00",
+    "cargo_description": "ДСП",
+    "cargo_weight_kg": 22000,
+    "scheduled_start": "2026-08-20T00:00:00Z",
+    "consignee": "ООО KS LUX INTERTRADING",
+    "customs_point": "ТАШКЕНТ ТОВАРНЫЙ",
+    "unloading_address": "Г. ТАШКЕНТ, ДЖАРКУРГАН 76",
+    "declarant_contact": "903170002 Декларант",
+    "notes": "Без согласования не заезжать на растаможку",
+}
+
+
+async def test_a_trip_carries_the_whole_order_sheet(client: AsyncClient, admin_headers):
+    created = await client.post("/api/trips", headers=admin_headers, json=_ORDER_SHEET)
+    assert created.status_code == 200, created.text
+
+    fetched = (await client.get(f"/api/trips/{created.json()['id']}", headers=admin_headers)).json()
+    for field, value in _ORDER_SHEET.items():
+        if field == "scheduled_start":
+            assert fetched[field].startswith("2026-08-20")
+        else:
+            assert fetched[field] == value, field
+
+
+async def test_an_edit_can_clear_a_field(client: AsyncClient, admin_headers):
+    created = (await client.post("/api/trips", headers=admin_headers, json=_ORDER_SHEET)).json()
+
+    res = await client.put(
+        f"/api/trips/{created['id']}",
+        headers=admin_headers,
+        json={"customs_point": "ЧУКУРСАЙ", "declarant_contact": None},
+    )
+    assert res.status_code == 200, res.text
+    assert res.json()["customs_point"] == "ЧУКУРСАЙ"
+    assert res.json()["declarant_contact"] is None
+    assert res.json()["consignee"] == _ORDER_SHEET["consignee"]

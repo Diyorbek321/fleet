@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import String, Integer, DateTime, Numeric, Enum, ForeignKey, UniqueConstraint, Index
+from datetime import date, datetime, timezone
+from sqlalchemy import String, Integer, Boolean, Date, DateTime, Numeric, Enum, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
@@ -40,7 +40,18 @@ class Truck(Base):
     trailer_volume: Mapped[TrailerVolume | None] = mapped_column(
         Enum(TrailerVolume, name="trailer_volume"), nullable=True
     )
+    # What the tracker last said. `offline` means "no fix has arrived", which
+    # is the normal state of a truck in a tunnel, over a border, or not yet
+    # fitted with a device.
     status: Mapped[TruckStatus] = mapped_column(Enum(TruckStatus, name="truck_status"), default=TruckStatus.offline, nullable=False)
+    # What the dispatcher decided. Kept apart from `status` because the two
+    # answer different questions, and conflating them meant every truck was
+    # born switched off: a new record has no GPS, so it read as `offline`, so
+    # the panel hid it from the map and from the fuel and service pickers
+    # until a first ping happened to arrive.
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # When the policy runs out. A rig without cover cannot be sent over a border.
+    insurance_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
     fuel_level: Mapped[float] = mapped_column(Numeric(5, 2), default=0, nullable=False)   # 0-100
     mileage: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)     # km
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

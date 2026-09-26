@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
   User,
@@ -18,6 +18,7 @@ import {
   Receipt,
   Clock,
   ExternalLink,
+  Pencil,
 } from 'lucide-react';
 import { formatDistanceToNow } from '@/lib/datetime';
 
@@ -34,7 +35,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { driversApi, type DriverStatus } from '@/lib/drivers';
+import { driversApi, type DriverInput, type DriverStatus } from '@/lib/drivers';
+import { DriverFormDialog } from '@/components/drivers/DriverFormDialog';
 import { driverDataApi } from '@/lib/driverData';
 import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
@@ -99,6 +101,24 @@ export default function DriverDetailPage() {
   });
 
   // ---- Mobile app login provisioning ----
+  const queryClient = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
+  const editMutation = useMutation({
+    mutationFn: (input: DriverInput) => driversApi.update(id, input),
+    onSuccess: () => {
+      setEditOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['driver', id] });
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      toast({ title: t('drivers.updated') });
+    },
+    onError: (err) =>
+      toast({
+        title: t('drivers.saveFailed'),
+        description: err instanceof ApiError ? err.detail : String(err),
+        variant: 'destructive',
+      }),
+  });
+
   const [loginOpen, setLoginOpen] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -174,9 +194,22 @@ export default function DriverDetailPage() {
             <h1 className="text-2xl font-bold tracking-tight">{driver.name}</h1>
             <Badge variant={statusVariant[driver.status]}>{t(statusLabelKey[driver.status])}</Badge>
           </div>
-          <p className="text-muted-foreground font-mono text-sm">{driver.licenseNumber}</p>
+          <p className="text-muted-foreground font-mono text-sm">
+            {driver.passportNumber ?? driver.licenseNumber ?? ''}
+          </p>
         </div>
+        <Button variant="outline" size="sm" className="ml-auto" onClick={() => setEditOpen(true)}>
+          <Pencil className="mr-2 h-4 w-4" /> {t('common.edit')}
+        </Button>
       </div>
+
+      <DriverFormDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        driver={driver}
+        isPending={editMutation.isPending}
+        onSubmit={(input) => editMutation.mutate(input)}
+      />
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Contact */}
@@ -187,18 +220,18 @@ export default function DriverDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="divide-y divide-border/50">
-            <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phone')}>
+            <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phoneUz')}>
               {driver.phone || '—'}
             </InfoRow>
             {/* Only the numbers that exist: a row of dashes for the two SIMs a
                 driver does not have reads as missing data, not as absent. */}
             {driver.phone2 && (
-              <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phone2')}>
+              <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phoneKz')}>
                 {driver.phone2}
               </InfoRow>
             )}
             {driver.phone3 && (
-              <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phone3')}>
+              <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phoneRu')}>
                 {driver.phone3}
               </InfoRow>
             )}
@@ -222,14 +255,21 @@ export default function DriverDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="divide-y divide-border/50">
-            <InfoRow icon={<IdCard className="h-4 w-4" />} label={t('drivers.license')}>
-              <span className="font-mono">{driver.licenseNumber}</span>
+            <InfoRow icon={<IdCard className="h-4 w-4" />} label={t('drivers.passport')}>
+              <span className="font-mono">{driver.passportNumber || '—'}</span>
             </InfoRow>
-            <InfoRow icon={<CalendarClock className="h-4 w-4" />} label={t('drivers.detail.expires')}>
-              {driver.licenseExpiry
-                ? new Date(driver.licenseExpiry).toLocaleDateString()
-                : '—'}
-            </InfoRow>
+            {/* The licence is no longer asked for; shown only where one was
+                entered before the passport replaced it. */}
+            {driver.licenseNumber && (
+              <InfoRow icon={<IdCard className="h-4 w-4" />} label={t('drivers.license')}>
+                <span className="font-mono">{driver.licenseNumber}</span>
+              </InfoRow>
+            )}
+            {driver.licenseExpiry && (
+              <InfoRow icon={<CalendarClock className="h-4 w-4" />} label={t('drivers.detail.expires')}>
+                {new Date(driver.licenseExpiry).toLocaleDateString()}
+              </InfoRow>
+            )}
           </CardContent>
         </Card>
 

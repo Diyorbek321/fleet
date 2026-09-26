@@ -97,6 +97,8 @@ async def create_truck(
 ):
     payload = data.model_dump()
     await _reject_duplicate_plate(db, org, payload.get("plate_number"))
+    if not (payload.get("name") or "").strip():
+        payload["name"] = payload["plate_number"]
 
     truck = Truck(org_id=org, **payload)
     db.add(truck)
@@ -158,6 +160,15 @@ async def update_truck(
 
     payload = data.model_dump(exclude_unset=True)
     await _reject_duplicate_plate(db, org, payload.get("plate_number"), exclude_id=truck.id)
+
+    # A truck named after its plate (the default since the form stopped asking
+    # for a name) keeps following it when the plate is corrected.
+    if (
+        payload.get("plate_number")
+        and "name" not in payload
+        and truck.name == truck.plate_number
+    ):
+        payload["name"] = payload["plate_number"]
 
     for k, v in payload.items():
         setattr(truck, k, v)

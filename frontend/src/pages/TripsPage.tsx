@@ -2,27 +2,10 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, ArrowRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRight } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   Table,
   TableBody,
@@ -31,30 +14,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { tripsApi, type Trip, type TripStatus } from '@/lib/trips';
+import { tripsApi, type Trip, type TripCreateInput, type TripStatus } from '@/lib/trips';
+import { TripFormDialog } from '@/components/trips/TripFormDialog';
 import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
 import { useTrucks } from '@/contexts/TruckContext';
 import { toast } from '@/hooks/use-toast';
 
-const UNASSIGNED = '__none__';
-
 const TRIPS_KEY = ['trips'] as const;
-
-/** One definition of "a blank create form", shared by the initial state and
- *  the reset after a successful save — they were copies, and a field added to
- *  one of them survived the first save and then reappeared on the next. */
-const EMPTY_FORM = {
-  truckId: '',
-  driverId: '',
-  shipper: '',
-  consignee: '',
-  originName: '',
-  destinationName: '',
-  cargoDescription: '',
-  cargoTons: '',
-  notes: '',
-};
 
 const STATUS_FLOW: Record<TripStatus, TripStatus | null> = {
   draft: 'planned',
@@ -89,21 +56,15 @@ function fmtMoney(amount: number, currency: string): string {
   return `${new Intl.NumberFormat('en-US').format(amount)} ${currency}`;
 }
 
-/** Tonnes in the form, kilogrammes on the wire — the column is kg and every
- *  report already sums it that way; freight is quoted in tonnes. */
-function tonsToKg(tons: string): number | undefined {
-  const n = Number(tons);
-  return tons.trim() && Number.isFinite(n) && n > 0 ? n * 1000 : undefined;
-}
-
 export default function TripsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { trucks } = useTrucks();
   const queryClient = useQueryClient();
 
-  const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
+  // `editing` is null while creating; one dialog serves both.
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<Trip | null>(null);
 
   const { data: trips = [], isLoading } = useQuery({
     queryKey: TRIPS_KEY,
@@ -118,13 +79,14 @@ export default function TripsPage() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: TRIPS_KEY });
 
-  const createMutation = useMutation({
-    mutationFn: tripsApi.create,
-    onSuccess: () => {
-      setCreateOpen(false);
-      setForm(EMPTY_FORM);
+  const saveMutation = useMutation({
+    mutationFn: (input: TripCreateInput) =>
+      editing ? tripsApi.update(editing.id, input) : tripsApi.create(input),
+    onSuccess: (saved) => {
+      setFormOpen(false);
       invalidate();
-      toast({ title: t('trips.created') });
+      queryClient.invalidateQueries({ queryKey: ['trip', saved.id] });
+      toast({ title: editing ? t('trips.updated') : t('trips.created') });
     },
     onError: (err) =>
       toast({ title: t('trips.saveFailed'), description: describeError(err, ''), variant: 'destructive' }),
@@ -166,7 +128,12 @@ export default function TripsPage() {
           <h1 className="text-3xl font-bold">{t('trips.title')}</h1>
           <p className="text-muted-foreground text-sm">{t('trips.subtitle')}</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button
+          onClick={() => {
+            setEditing(null);
+            setFormOpen(true);
+          }}
+        >
           <Plus className="mr-2 h-4 w-4" />
           {t('trips.add')}
         </Button>
@@ -220,6 +187,12 @@ export default function TripsPage() {
                   <TableCell className="text-sm">{fmtMoney(trip.rate, trip.currency)}</TableCell>
                   <TableCell>
                     <Badge variant={STATUS_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
+                    {trip.currentStage && (
+                      <div className="mt-1 text-xs text-muted-foreground">
+                        {t(`trips.stage.${trip.currentStage}`)}
+                        {trip.currentStagePlace ? ` · ${t(`trips.place.${trip.currentStagePlace}`)}` : ''}
+                      </div>
+                    )}
                   </TableCell>
                   <TableCell className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                     {next && (
@@ -241,6 +214,18 @@ export default function TripsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      title={t('common.edit')}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditing(trip);
+                        setFormOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       className="text-destructive hover:text-destructive"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -257,144 +242,15 @@ export default function TripsPage() {
         </Table>
       </div>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{t('trips.add')}</DialogTitle>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              createMutation.mutate({
-                truckId: form.truckId || undefined,
-                driverId: form.driverId || undefined,
-                shipper: form.shipper.trim() || undefined,
-                consignee: form.consignee.trim() || undefined,
-                originName: form.originName.trim() || undefined,
-                destinationName: form.destinationName.trim() || undefined,
-                cargoDescription: form.cargoDescription.trim() || undefined,
-                cargoWeightKg: tonsToKg(form.cargoTons),
-                notes: form.notes.trim() || undefined,
-              });
-            }}
-            className="space-y-3"
-          >
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="trip-shipper">{t('trips.shipper')}</Label>
-                <Input
-                  id="trip-shipper"
-                  value={form.shipper}
-                  onChange={(e) => setForm({ ...form, shipper: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="trip-consignee">{t('trips.consignee')}</Label>
-                <Input
-                  id="trip-consignee"
-                  value={form.consignee}
-                  onChange={(e) => setForm({ ...form, consignee: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="trip-origin">{t('trips.origin')}</Label>
-                <Input
-                  id="trip-origin"
-                  value={form.originName}
-                  onChange={(e) => setForm({ ...form, originName: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="trip-destination">{t('trips.destination')}</Label>
-                <Input
-                  id="trip-destination"
-                  value={form.destinationName}
-                  onChange={(e) => setForm({ ...form, destinationName: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>{t('trips.truck')}</Label>
-                <Select value={form.truckId} onValueChange={(v) => setForm({ ...form, truckId: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="—" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {trucks.map((tr) => (
-                      <SelectItem key={tr.id} value={tr.id}>
-                        {tr.name} ({tr.plateNumber})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>{t('trips.driver')}</Label>
-                <Select
-                  value={form.driverId || UNASSIGNED}
-                  onValueChange={(v) => setForm({ ...form, driverId: v === UNASSIGNED ? '' : v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="—" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={UNASSIGNED}>{t('trips.driverUnassigned')}</SelectItem>
-                    {drivers.map((d) => (
-                      <SelectItem key={d.id} value={d.id}>
-                        {d.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            {/* What the load is and how heavy it is, side by side: both are
-                read off the same line of the customer's order. */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="trip-cargo">{t('trips.cargo')}</Label>
-                <Input
-                  id="trip-cargo"
-                  value={form.cargoDescription}
-                  onChange={(e) => setForm({ ...form, cargoDescription: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="trip-tons">{t('trips.cargoTons')}</Label>
-                <Input
-                  id="trip-tons"
-                  type="number"
-                  min={0}
-                  step="0.1"
-                  inputMode="decimal"
-                  placeholder={t('trips.cargoTonsPlaceholder')}
-                  value={form.cargoTons}
-                  onChange={(e) => setForm({ ...form, cargoTons: e.target.value })}
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="trip-notes">{t('trips.notes')}</Label>
-              <Textarea
-                id="trip-notes"
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
-                {t('common.cancel')}
-              </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {t('common.save')}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <TripFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        trip={editing}
+        trucks={trucks}
+        drivers={drivers}
+        isPending={saveMutation.isPending}
+        onSubmit={(input) => saveMutation.mutate(input)}
+      />
     </div>
   );
 }
