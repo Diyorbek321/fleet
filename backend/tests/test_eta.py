@@ -68,6 +68,56 @@ def test_past_customs_there_is_no_border_left_to_count():
     assert eta.borders_ahead(TripStage.left_customs, "ru") == 0
 
 
+# ── ...counted in the direction the run goes ─────────────────────────────
+#
+# Customs is in the destination country, so a RU→UZ run meets KZ–RU first and
+# UZ–KZ last — the reverse of the order above, which is what a trip with no
+# direction on file still gets.
+
+
+@pytest.mark.parametrize(
+    "stage,place,expected",
+    [
+        (None, None, 2),
+        (TripStage.arrived_loading, "ru", 2),
+        (TripStage.arrived_border, "kz_ru", 2),
+        (TripStage.crossed_border, "kz_ru", 1),
+        (TripStage.docs_received_en_route, "kz", 1),
+        (TripStage.arrived_border, "uz_kz", 1),
+        (TripStage.crossed_border, "uz_kz", 0),
+        (TripStage.docs_received_en_route, "uz", 0),
+    ],
+)
+def test_a_run_into_uzbekistan_meets_the_crossings_north_to_south(stage, place, expected):
+    assert eta.borders_ahead(stage, place, "ru_uz") == expected
+
+
+@pytest.mark.parametrize(
+    "stage,place,expected",
+    [
+        (TripStage.arrived_loading, "uz", 2),
+        (TripStage.arrived_border, "uz_kz", 2),
+        (TripStage.crossed_border, "uz_kz", 1),
+        (TripStage.docs_received_en_route, "kz", 1),
+        (TripStage.crossed_border, "kz_ru", 0),
+        (TripStage.docs_received_en_route, "ru", 0),
+    ],
+)
+def test_a_run_into_russia_meets_them_south_to_north(stage, place, expected):
+    assert eta.borders_ahead(stage, place, "uz_ru") == expected
+
+
+def test_the_enum_place_counts_the_same_as_its_value():
+    """The trip row carries a StagePlace, not a bare string."""
+    assert eta.borders_ahead(TripStage.crossed_border, StagePlace.kz_ru, "ru_uz") == 1
+
+
+def test_a_trip_with_no_direction_keeps_the_old_count():
+    """Trips created before the direction was recorded are not re-guessed."""
+    assert eta.borders_ahead(TripStage.crossed_border, "kz_ru", None) == 0
+    assert eta.borders_ahead(TripStage.docs_received_en_route, "kz", None) == 2
+
+
 def test_borders_still_ahead_push_the_date_out():
     """The queue is most of the week on this corridor; ignoring it would make
     every estimate optimistic by exactly the thing customers complain about."""
@@ -172,6 +222,20 @@ async def test_getting_closer_moves_the_date_in(db):
     )
     assert far is not None and near is not None
     assert near.day < far.day
+
+
+async def test_the_estimate_counts_borders_in_the_trips_direction(db):
+    """Just over KZ–RU on the way south, the UZ–KZ queue is still ahead — a
+    whole border day the old north-bound count left out."""
+    # ~1500 km out: ~83 h of driving lands at 17:00 on day three, and the
+    # 14 h queue pushes it past midnight — far enough from either edge to hold.
+    at = dict(current_lat=52.0, current_lng=69.0, now=NOW)
+    over_kz_ru = dict(current_stage=TripStage.crossed_border, current_stage_place=StagePlace.kz_ru)
+
+    southbound = await eta.estimate_customs_arrival(db, _trip(direction="ru_uz", **over_kz_ru), **at)
+    unknown = await eta.estimate_customs_arrival(db, _trip(direction=None, **over_kz_ru), **at)
+    assert southbound is not None and unknown is not None
+    assert southbound.day > unknown.day
 
 
 # ── The card ─────────────────────────────────────────────────────────────

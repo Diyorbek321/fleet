@@ -73,6 +73,18 @@ MIN_SAMPLES = 5
 # The crossings a corridor can contain, in the order a UZ↔RU run meets them.
 _CROSSINGS_SOUTH_TO_NORTH = ("uz_kz", "kz_ru")
 
+# The same crossings, and the countries between them, in the order a run in
+# each direction meets them. Customs is in the destination country, so it
+# lies past the last crossing either way.
+_CROSSINGS_BY_DIRECTION = {
+    "uz_ru": _CROSSINGS_SOUTH_TO_NORTH,
+    "ru_uz": tuple(reversed(_CROSSINGS_SOUTH_TO_NORTH)),
+}
+_COUNTRIES_BY_DIRECTION = {
+    "uz_ru": ("uz", "kz", "ru"),
+    "ru_uz": ("ru", "kz", "uz"),
+}
+
 
 @dataclass(frozen=True)
 class Estimate:
@@ -114,28 +126,43 @@ def corridor_key(trip: Trip) -> str:
     return f"{head(trip.origin_name)}>{head(trip.destination_name)}"
 
 
-def borders_ahead(stage: TripStage | None, place: str | None) -> int:
+def borders_ahead(
+    stage: TripStage | None, place: str | None, direction: str | None = None
+) -> int:
     """How many crossings the truck still has to clear before customs.
 
     Counted from where it is rather than from a route plan, because the route
     plan is the thing that is usually missing. A truck that has just cleared
-    UZ–KZ has one crossing left on a UZ↔RU run; one sitting at KZ–RU has that
+    UZ–KZ has one crossing left on a UZ→RU run; one sitting at KZ–RU has that
     one still to clear.
+
+    ``direction`` ("uz_ru" / "ru_uz") sets the order the crossings come in —
+    on the way south KZ–RU is the first, not the last — and lets a checkpoint
+    reported in a country count the crossings behind it. Without one the
+    count is the northbound one it always was: a trip created before the
+    direction was recorded is not re-guessed.
     """
+    crossings = _CROSSINGS_BY_DIRECTION.get(direction or "", _CROSSINGS_SOUTH_TO_NORTH)
+    place = getattr(place, "value", place)
+
     if stage is None:
-        return len(_CROSSINGS_SOUTH_TO_NORTH)
+        return len(crossings)
     if stage in (TripStage.arrived_customs, TripStage.left_customs,
                  TripStage.arrived_unloading, TripStage.unloaded):
         return 0
-    if place not in _CROSSINGS_SOUTH_TO_NORTH:
-        # Not at a border: everything the corridor holds is still ahead.
-        return len(_CROSSINGS_SOUTH_TO_NORTH)
+    if place in crossings:
+        remaining = len(crossings) - crossings.index(place)
+        # Having *crossed* this one means it no longer counts; standing at it
+        # means it does.
+        return remaining - 1 if stage is TripStage.crossed_border else remaining
 
-    index = _CROSSINGS_SOUTH_TO_NORTH.index(place)
-    remaining = len(_CROSSINGS_SOUTH_TO_NORTH) - index
-    # Having *crossed* this one means it no longer counts; standing at it means
-    # it does.
-    return remaining - 1 if stage is TripStage.crossed_border else remaining
+    countries = _COUNTRIES_BY_DIRECTION.get(direction or "")
+    if countries and place in countries:
+        # The n-th country along the run has n crossings behind it.
+        return len(crossings) - countries.index(place)
+    # Not at a border, and no direction to place the country on the run:
+    # everything the corridor holds is still ahead.
+    return len(crossings)
 
 
 def pace_km_per_day(covered_km: float, elapsed: timedelta) -> float:
@@ -246,5 +273,6 @@ async def estimate_customs_arrival(
     )
     elapsed = now - (trip.started_at or trip.created_at)
     pace = pace_km_per_day(covered_km or 0.0, elapsed)
-    hours = model_hours(remaining, pace, borders_ahead(trip.current_stage, trip.current_stage_place))
+    crossings = borders_ahead(trip.current_stage, trip.current_stage_place, trip.direction)
+    hours = model_hours(remaining, pace, crossings)
     return Estimate((now + timedelta(hours=hours)).date(), "model")
