@@ -34,6 +34,7 @@ from app.services.maintenance import refresh_service_statuses
 from app.services.owner_alerts import prune_notification_log
 from app.services.owner_alerts import briefing as owner_briefing
 from app.services.owner_alerts import gps as owner_gps
+from app.services import driver_notices
 from app.services.owner_alerts import cash as owner_cash
 from app.services.owner_alerts import expiry as owner_expiry
 from app.services.owner_alerts import leakage as owner_leakage
@@ -343,6 +344,9 @@ _OWNER_ALERT_WATCHES: tuple[tuple[str, Any, int], ...] = (
     ("owner_alert_leakage", owner_leakage.run, 0),
     # Also pushes the driver. Once per silence, so the plain tick is fine.
     ("owner_alert_gps", owner_gps.run, 0),
+    # Loading, CMR, service and document reminders on the driver's phone.
+    # Each is sent once (keyed on the fact), so the plain tick is fine.
+    ("driver_reminders", driver_notices.run, 0),
     # Expiries move by the day, and the watcher's own scan is written for an
     # hourly cadence.
     ("owner_alert_expiry", owner_expiry.run, 60),

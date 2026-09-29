@@ -4,7 +4,15 @@ import { api } from '@/lib/api';
  * Messages to a driver's phone. Mirrors `app/routers/driver_messages.py`;
  * snake_case kept for the same reason `ownerAlerts.ts` gives.
  */
-export type DriverMessageKind = 'dispatcher' | 'gps_silent';
+export type DriverMessageKind =
+  | 'dispatcher'
+  | 'gps_silent'
+  | 'trip_assigned'
+  | 'trip_changed'
+  | 'loading_reminder'
+  | 'cmr_reminder'
+  | 'maintenance_due'
+  | 'document_expiry';
 
 export interface DriverMessage {
   id: string;

@@ -21,6 +21,13 @@ class DriverMessageKind(str, enum.Enum):
 
     dispatcher = "dispatcher"
     gps_silent = "gps_silent"
+    # Written by app/services/driver_notices.py.
+    trip_assigned = "trip_assigned"
+    trip_changed = "trip_changed"
+    loading_reminder = "loading_reminder"
+    cmr_reminder = "cmr_reminder"
+    maintenance_due = "maintenance_due"
+    document_expiry = "document_expiry"
 
 
 class DriverMessage(Base):

@@ -132,7 +132,7 @@ export function DriverMessagesCard({ driverId }: { driverId: string }) {
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{m.title}</span>
-                    {m.kind === 'gps_silent' && (
+                    {m.kind !== 'dispatcher' && (
                       <Badge variant="outline" className={cn('text-xs')}>
                         {t('driverMessages.auto')}
                       </Badge>

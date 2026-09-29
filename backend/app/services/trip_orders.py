@@ -121,7 +121,7 @@ def _esc(value: str) -> str:
     return html.escape(value.strip(), quote=False)
 
 
-def _order_number(reference: str) -> str:
+def order_number(reference: str) -> str:
     """The trailing number of the reference, without padding: "Angren Tek-0026" → "26"."""
     match = re.search(r"(\d+)\s*$", reference or "")
     return str(int(match.group(1))) if match else (reference or "").strip()
@@ -143,7 +143,7 @@ def _field(emoji: str, label: str, value: str | None) -> str | None:
 
 def format_trip_order(trip: Trip, org: Organization | None) -> str:
     """The whole post, as Telegram HTML. Pure, so it is testable alone."""
-    tag = f"#{_order_number(trip.reference)}{_DIRECTION_TAG.get(trip.direction or '', '')}"
+    tag = f"#{order_number(trip.reference)}{_DIRECTION_TAG.get(trip.direction or '', '')}"
     blocks: list[list[str | None]] = [[_esc(tag)]]
 
     if trip.border_crossing and trip.border_crossing.strip():

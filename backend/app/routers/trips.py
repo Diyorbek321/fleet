@@ -40,6 +40,12 @@ from app.services.trip_cards import build_customer_card
 from app.services.storage import delete_object, is_configured, presigned_get_url
 from app.services.trip_notifications import notify_trip_status_change_background
 from app.services.trip_orders import format_trip_order, send_trip_order, send_trip_order_background
+from app.services.driver_notices import (
+    describe_trip_changes,
+    notify_trip_assigned_background,
+    notify_trip_changed_background,
+    snapshot_trip,
+)
 from app.services.trip_reports import build_report_out, get_report
 from app.services.trip_segments import segment_trip
 from app.services.trips import compute_trip_pnl, generate_reference
@@ -202,6 +208,8 @@ async def create_trip(
         # After the response: Telegram's latency is not the dispatcher's.
         if trip.truck_id is not None:
             background_tasks.add_task(send_trip_order_background, trip.id)
+        if trip.driver_id is not None:
+            background_tasks.add_task(notify_trip_assigned_background, trip.id)
         return await _detail(db, trip)
 
     raise HTTPException(
@@ -241,6 +249,8 @@ async def update_trip(
     payload = data.model_dump(exclude_unset=True)
     # Snapshot before the setattr loop below overwrites it.
     before = {field: getattr(trip, field, None) for field in _AUDITED_TRIP_FIELDS}
+    driver_before = trip.driver_id
+    driver_view_before = snapshot_trip(trip)
 
     # A trip may only reference a truck/driver from the same organization.
     if payload.get("truck_id") is not None:
@@ -276,6 +286,14 @@ async def update_trip(
     # the post is once per trip, and send_trip_order skips a trip already sent.
     if trip.truck_id is not None and trip.order_sent_at is None:
         background_tasks.add_task(send_trip_order_background, trip.id)
+    # A driver newly put on the trip hears "new trip", with everything in it;
+    # the driver already on it hears only what moved.
+    if trip.driver_id is not None and trip.driver_id != driver_before:
+        background_tasks.add_task(notify_trip_assigned_background, trip.id)
+    elif trip.driver_id is not None:
+        changes = describe_trip_changes(driver_view_before, trip)
+        if changes:
+            background_tasks.add_task(notify_trip_changed_background, trip.id, changes)
     return await _detail(db, trip)
 
 
