@@ -16,6 +16,7 @@ import {
   Mail,
   Truck as TruckIcon,
   ShieldCheck,
+  SatelliteDish,
 } from 'lucide-react';
 import { formatDistanceToNow } from '@/lib/datetime';
 
@@ -124,6 +125,15 @@ export default function TruckDetailPage() {
               <Badge variant="outline" className={cn(statusBadgeClasses[truck.status])}>
                 {t(`trucks.status.${truck.status}`, { defaultValue: truck.status })}
               </Badge>
+              {truck.gpsDisabledAt && (
+                <Badge
+                  variant="outline"
+                  className="border-destructive/30 bg-destructive/10 text-destructive"
+                  title={formatDistanceToNow(truck.gpsDisabledAt, { addSuffix: true })}
+                >
+                  <SatelliteDish className="mr-1 h-3.5 w-3.5" /> {t('trucks.detail.gpsOff')}
+                </Badge>
+              )}
             </div>
             <p className="text-muted-foreground">{truck.name}</p>
           </div>

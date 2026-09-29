@@ -154,6 +154,16 @@ function inferImageType(uri: string, mimeType?: string): string {
   }
 }
 
+/** A message from the dispatcher, or an automatic GPS warning. */
+export interface DriverMessage {
+  id: string;
+  kind: 'dispatcher' | 'gps_silent';
+  title: string;
+  body: string;
+  created_at: string;
+  read_at: string | null;
+}
+
 /** Typed client for the driver self-scoped endpoints. */
 export const meApi = {
   profile: () => apiFetch<DriverProfile>('/api/me/profile'),
@@ -189,6 +199,14 @@ export const meApi = {
 
   pingLocation: (data: LocationPing) =>
     apiFetch('/api/me/location', { method: 'POST', body: JSON.stringify(data) }),
+
+  /** Tell the dispatcher whether this phone's location services are on. */
+  reportGpsStatus: (enabled: boolean) =>
+    apiFetch('/api/me/gps-status', { method: 'POST', body: JSON.stringify({ enabled }) }),
+
+  messages: () => apiFetch<DriverMessage[]>('/api/me/messages'),
+  markMessageRead: (id: string) =>
+    apiFetch<DriverMessage>(`/api/me/messages/${id}/read`, { method: 'POST' }),
 
   /** Newest-first photo documents the driver has uploaded for one of their trips. */
   listTripDocuments: (tripId: string) =>

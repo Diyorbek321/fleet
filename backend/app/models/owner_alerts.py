@@ -65,6 +65,7 @@ class AlertKind(str, enum.Enum):
     border_queue = "border_queue"
     report_ready = "report_ready"
     briefing = "briefing"
+    gps_signal = "gps_signal"
 
 
 class AlertSeverity(str, enum.Enum):

@@ -44,6 +44,7 @@ class TruckOut(BaseModel):
     trailer_volume: Optional[TrailerVolume] = None
     insurance_expiry: Optional[date] = None
     status: TruckStatus
+    gps_disabled_at: Optional[datetime] = None
     is_enabled: bool
     fuel_level: float
     mileage: float

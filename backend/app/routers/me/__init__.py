@@ -13,6 +13,7 @@ the shared ownership helpers were buried in the middle of it:
 * ``queue``       — CarGoRuqsat border-queue watch and handoff
 * ``trips``       — my trips, their documents, and the expense report
 * ``receipts``    — read a receipt photo into a suggested expense line, storing nothing
+* ``messages``    — my inbox, and whether my phone's GPS is switched on
 
 The sub-routers all carry the same prefix and tag (see ``_common``), so the
 mounted paths and the generated OpenAPI document are identical to before — this
@@ -22,11 +23,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.routers.me import maintenance, profile, queue, receipts, spending, trips
+from app.routers.me import maintenance, messages, profile, queue, receipts, spending, trips
 
 router = APIRouter()
 
-for _sub in (profile, spending, maintenance, queue, trips, receipts):
+for _sub in (profile, spending, maintenance, queue, trips, receipts, messages):
     router.include_router(_sub.router)
 
 __all__ = ["router"]

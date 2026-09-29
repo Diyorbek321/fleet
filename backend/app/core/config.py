@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     # silent too, and calling that "offline" every lunch would train
     # dispatchers to ignore the badge. 0 disables the job.
     gps_offline_after_minutes: int = Field(default=120, alias="GPS_OFFLINE_AFTER_MINUTES")
+    # A truck on a running trip with no fix for this long gets its driver a
+    # push and the owner chats an alert, once per silence. 0 disables it.
+    gps_silent_alert_hours: int = Field(default=24, alias="GPS_SILENT_ALERT_HOURS")
+    # How long the phone must report GPS switched off before the owner chats
+    # hear of it, so a driver toggling it for a minute is not news.
+    gps_disabled_grace_minutes: int = Field(default=15, alias="GPS_DISABLED_GRACE_MINUTES")
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     use_redis_refresh_tokens: bool = Field(default=False, alias="USE_REDIS_REFRESH_TOKENS")

@@ -52,6 +52,10 @@ class Truck(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # When the policy runs out. A rig without cover cannot be sent over a border.
     insurance_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # When the driver's phone reported location services switched off. Cleared
+    # by the next fix, or by the phone reporting them back on. NULL is the
+    # normal state, including for trucks tracked by a hardware device.
+    gps_disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     fuel_level: Mapped[float] = mapped_column(Numeric(5, 2), default=0, nullable=False)   # 0-100
     mileage: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)     # km
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

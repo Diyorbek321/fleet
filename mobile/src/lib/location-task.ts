@@ -20,6 +20,7 @@ import i18n, { LANGUAGE_STORAGE_KEY } from '../i18n';
 
 import { ApiError } from './api';
 import { meApi, type LocationPing } from './me';
+import { sendIfDue } from './ping-throttle';
 
 /** Unique identifier for the registered background location task. */
 export const LOCATION_TASK_NAME = 'fleet-watch-background-location';
@@ -92,8 +93,10 @@ async function notifyTrackingStopped(): Promise<void> {
 }
 
 /**
- * How the background updates are sampled. Tuned for trucking: a ping every
- * ~15s or every 50m, balanced accuracy to preserve battery.
+ * How the background updates are sampled. Tuned for trucking: a sample every
+ * ~15s, balanced accuracy to preserve battery. No distance filter: a standing
+ * truck must still produce samples, or it can never send its heartbeat —
+ * `ping-throttle.ts` decides which samples actually reach the server.
  *
  * Built on each start rather than held as a module constant: the Android
  * foreground-service notification sits in the driver's shade for the whole
@@ -104,7 +107,7 @@ function updateOptions(): Location.LocationTaskOptions {
   return {
     accuracy: Location.Accuracy.Balanced,
     timeInterval: 15000,
-    distanceInterval: 50,
+    distanceInterval: 0,
     // Keep the OS from killing the process while a shift is active (Android).
     foregroundService: {
       notificationTitle: 'Fleet Watch',
@@ -153,7 +156,7 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   };
 
   try {
-    await meApi.pingLocation(ping);
+    await sendIfDue(ping, () => meApi.pingLocation(ping));
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
       // Refresh in `apiFetch` already failed — session is truly dead. Stop

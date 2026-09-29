@@ -22,6 +22,7 @@ from app.routers.organizations import router as organizations_router
 from app.routers.org_settings import router as org_settings_router
 from app.routers.trucks import router as trucks_router
 from app.routers.drivers import router as drivers_router
+from app.routers.driver_messages import router as driver_messages_router
 from app.routers.maintenance import router as maintenance_router
 from app.routers.devices import router as devices_router
 from app.routers.gps import router as gps_router
@@ -183,6 +184,7 @@ app.include_router(organizations_router)
 app.include_router(org_settings_router)
 app.include_router(trucks_router)
 app.include_router(drivers_router)
+app.include_router(driver_messages_router)
 app.include_router(maintenance_router)
 app.include_router(devices_router)
 app.include_router(gps_router)

@@ -26,7 +26,8 @@ export type AlertKind =
   | 'cash_mismatch'
   | 'border_queue'
   | 'report_ready'
-  | 'briefing';
+  | 'briefing'
+  | 'gps_signal';
 
 /** Ordered loudest-consequence-first, so the money alerts sit above the chatter. */
 export const ALERT_KINDS: readonly AlertKind[] = [
@@ -35,6 +36,7 @@ export const ALERT_KINDS: readonly AlertKind[] = [
   'document_expiry',
   'maintenance_overdue',
   'trip_delay',
+  'gps_signal',
   'trip_status',
   'border_queue',
   'report_ready',

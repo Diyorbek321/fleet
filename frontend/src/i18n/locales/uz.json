@@ -179,7 +179,8 @@
       "address": "Manzil",
       "heading": "Yo‘nalish",
       "recorded": "Qayd etilgan",
-      "noLocation": "Joylashuv ma’lumoti hali yo‘q."
+      "noLocation": "Joylashuv ma’lumoti hali yo‘q.",
+      "gpsOff": "Telefonda GPS o‘chiq"
     },
     "form": {
       "editTitle": "Mashinani tahrirlash",
@@ -822,6 +823,7 @@
       "document_expiry": "Hujjat muddati tugashi",
       "maintenance_overdue": "Texnik xizmat muddati o‘tishi",
       "trip_delay": "Reys kechikishi",
+      "gps_signal": "GPS signali yo‘q",
       "trip_status": "Reys holati o‘zgarishi",
       "border_queue": "Chegaradagi navbat",
       "report_ready": "Hisobot tayyorligi",
@@ -1073,5 +1075,32 @@
     "noPosition": "Mashina hali joylashuvini yubormagan.",
     "unavailableTitle": "Havola ishlamayapti",
     "unavailableBody": "Reys yakunlangan yoki havola eskirgan. Yangi havola uchun dispetcherga murojaat qiling."
+  },
+  "driverMessages": {
+    "title": "Haydovchiga xabar",
+    "placeholder": "Haydovchi telefoniga boradigan xabar…",
+    "send": "Yuborish",
+    "sent": "Xabar yuborildi",
+    "sendFailed": "Xabar yuborilmadi",
+    "noDeviceHint": "Telefonga push bormadi (ilova o‘rnatilmagan yoki bildirishnoma o‘chiq). Xabar ilovadagi \"Xabarlar\" bo‘limida turadi.",
+    "empty": "Hali xabar yuborilmagan",
+    "read": "O‘qildi",
+    "delivered": "Yetkazildi",
+    "inboxOnly": "Faqat ilovada",
+    "auto": "Avtomatik",
+    "templates": {
+      "gpsOn": {
+        "label": "GPS'ni yoqing",
+        "text": "GPS o‘chiq ko‘rinyapti. Iltimos, telefonda joylashuvni (GPS) yoqing va Fleet Watch ilovasini oching."
+      },
+      "callOffice": {
+        "label": "Ofisga qo‘ng‘iroq",
+        "text": "Iltimos, ofisga qo‘ng‘iroq qiling."
+      },
+      "openApp": {
+        "label": "Ilovani oching",
+        "text": "Iltimos, Fleet Watch ilovasini oching va smenangizni tekshiring."
+      }
+    }
   }
 }

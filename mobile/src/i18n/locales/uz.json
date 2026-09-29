@@ -343,5 +343,17 @@
     "changed": "Parol o‘zgartirildi",
     "otherDevicesSignedOut": "Boshqa barcha qurilmalardan chiqarildingiz.",
     "setByAdmin": "Parolingizni dispetcher o‘rnatgan. O‘zingiznikini tanlang."
+  },
+  "messages": {
+    "title": "Xabarlar",
+    "empty": "Hozircha xabar yo‘q",
+    "unread": "{{count}} ta yangi",
+    "showAll": "Hammasini ko‘rish",
+    "showLess": "Yig‘ish"
+  },
+  "gps": {
+    "offTitle": "GPS o‘chiq",
+    "offBody": "Telefoningizda joylashuv (GPS) o‘chirilgan. Dispetcher mashinangizni ko‘ra olmayapti — iltimos, GPS'ni yoqing.",
+    "turnOn": "GPS'ni yoqish"
   }
 }

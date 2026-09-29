@@ -343,5 +343,17 @@
     "changed": "Password changed",
     "otherDevicesSignedOut": "Every other device has been signed out.",
     "setByAdmin": "Your password was set by your dispatcher. Choose your own."
+  },
+  "messages": {
+    "title": "Messages",
+    "empty": "No messages yet",
+    "unread": "{{count}} new",
+    "showAll": "Show all",
+    "showLess": "Show less"
+  },
+  "gps": {
+    "offTitle": "GPS is off",
+    "offBody": "Location (GPS) is switched off on your phone. The dispatcher cannot see your truck — please turn GPS on.",
+    "turnOn": "Turn on GPS"
   }
 }

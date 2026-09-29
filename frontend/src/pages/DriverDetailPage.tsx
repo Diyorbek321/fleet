@@ -37,6 +37,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { driversApi, type DriverInput, type DriverStatus } from '@/lib/drivers';
 import { DriverFormDialog } from '@/components/drivers/DriverFormDialog';
+import { DriverMessagesCard } from '@/components/drivers/DriverMessagesCard';
 import { driverDataApi } from '@/lib/driverData';
 import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
@@ -369,6 +370,9 @@ export default function DriverDetailPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Messages to the phone: the dispatcher's, and the GPS watcher's. */}
+        <DriverMessagesCard driverId={driver.id} />
 
         {/* Expenses logged from the app */}
         <Card className="border-border/50 bg-card">

@@ -2,8 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Alert, StyleSheet, Switch, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
 
-import { meApi, type AssignedTruck, type Shift } from '../lib/me';
+import { meApi, type AssignedTruck, type DriverMessage, type Shift } from '../lib/me';
+import { askToEnableGps, checkGpsServices } from '../lib/gps-watch';
 import {
   isTrackingActive,
   requestTrackingPermissions,
@@ -11,8 +13,10 @@ import {
   stopBackgroundTracking,
 } from '../lib/location-task';
 import { formatDateTime } from '../lib/format';
+import { sendIfDue } from '../lib/ping-throttle';
 import { palette, spacing, typography } from '../theme/theme';
 import { Screen } from '../components/Screen';
+import { MessagesCard } from '../components/MessagesCard';
 import {
   Button,
   Card,
@@ -43,6 +47,8 @@ export function HomeScreen() {
   const [busy, setBusy] = useState(false);
 
   const [sharing, setSharing] = useState(false);
+  const [gpsOn, setGpsOn] = useState(true);
+  const [messages, setMessages] = useState<DriverMessage[]>([]);
   // Foreground-only subscription, used as a fallback when the OS denies
   // background location permission.
   const subRef = useRef<Location.LocationSubscription | null>(null);
@@ -60,19 +66,45 @@ export function HomeScreen() {
     }
   }, [t]);
 
+  // The inbox is loaded apart from the rest: a failure here must not put an
+  // error dialog in front of the shift controls.
+  const loadMessages = useCallback(() => {
+    meApi.messages().then(setMessages).catch(() => {});
+  }, []);
+
+  const markRead = useCallback(
+    (id: string) => {
+      meApi
+        .markMessageRead(id)
+        .then((updated) => setMessages((prev) => prev.map((m) => (m.id === id ? updated : m))))
+        .catch(() => {});
+    },
+    [],
+  );
+
   const syncSharingState = useCallback(() => {
     isTrackingActive().then(setSharing).catch(() => {});
+    checkGpsServices().then(setGpsOn);
   }, []);
 
   useEffect(() => {
     load();
+    loadMessages();
     // Reflect any already-running background tracking (e.g. after the app was
     // reopened mid-shift) in the toggle.
     syncSharingState();
     return () => {
       subRef.current?.remove();
     };
-  }, [load, syncSharingState]);
+  }, [load, loadMessages, syncSharingState]);
+
+  // A message pushed while the app is open shows up in the inbox right away.
+  useEffect(() => {
+    const sub = Notifications.addNotificationReceivedListener((n) => {
+      if (n.request.content.data?.kind === 'message') loadMessages();
+    });
+    return () => sub.remove();
+  }, [loadMessages]);
 
   // Re-sync whenever the app returns to the foreground — the most likely
   // moment for tracking to have died while backgrounded — and on a periodic
@@ -81,6 +113,7 @@ export function HomeScreen() {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
         syncSharingState();
+        loadMessages();
       }
     });
     const interval = setInterval(syncSharingState, SHARING_RESYNC_INTERVAL_MS);
@@ -88,7 +121,7 @@ export function HomeScreen() {
       subscription.remove();
       clearInterval(interval);
     };
-  }, [syncSharingState]);
+  }, [syncSharingState, loadMessages]);
 
   const toShift = useCallback(
     async (fn: () => Promise<Shift>) => {
@@ -111,16 +144,16 @@ export function HomeScreen() {
   // grants foreground but denies background location permission.
   const startForegroundWatch = useCallback(async () => {
     subRef.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.Balanced, timeInterval: 15000, distanceInterval: 50 },
+      // Same sampling as the background task, for the same heartbeat reason.
+      { accuracy: Location.Accuracy.Balanced, timeInterval: 15000, distanceInterval: 0 },
       (loc) => {
-        meApi
-          .pingLocation({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            speed: loc.coords.speed ?? 0,
-            heading: loc.coords.heading ?? null,
-          })
-          .catch(() => {});
+        const ping = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          speed: loc.coords.speed ?? 0,
+          heading: loc.coords.heading ?? null,
+        };
+        sendIfDue(ping, () => meApi.pingLocation(ping)).catch(() => {});
       },
     );
   }, []);
@@ -180,8 +213,29 @@ export function HomeScreen() {
       onRefresh={() => {
         setRefreshing(true);
         load();
+        loadMessages();
       }}
     >
+      {!gpsOn && (
+        <Card style={styles.gpsCard}>
+          <SectionHeader
+            icon="warning"
+            title={t('gps.offTitle')}
+            color={palette.danger}
+            bg={palette.dangerBg}
+          />
+          <Text style={typography.body}>{t('gps.offBody')}</Text>
+          <Button
+            label={t('gps.turnOn')}
+            icon="locate-outline"
+            variant="danger"
+            onPress={() => askToEnableGps().then(syncSharingState)}
+          />
+        </Card>
+      )}
+
+      <MessagesCard messages={messages} onRead={markRead} />
+
       {truck ? (
         <>
           <View style={styles.statRow}>
@@ -295,4 +349,5 @@ const styles = StyleSheet.create({
   truckPlate: { ...typography.label, color: palette.muted, letterSpacing: 1 },
   shareRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   liveText: { color: palette.success, fontWeight: '700' },
+  gpsCard: { borderWidth: 1, borderColor: palette.dangerLine, gap: spacing.md },
 });

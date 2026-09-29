@@ -2,6 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 
 import { getToken } from '../lib/auth';
 import { signIn as apiSignIn, signOut as apiSignOut } from '../lib/authApi';
+import { resetGpsReport } from '../lib/gps-watch';
+import { resetPingThrottle } from '../lib/ping-throttle';
 import { registerPushToken, unregisterPushToken } from '../lib/push';
 
 interface AuthState {
@@ -32,6 +34,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     await apiSignIn(email, password);
+    // A new driver on this handset starts with nothing "already sent": their
+    // truck gets a fix and a GPS report straight away, not after a heartbeat.
+    await Promise.all([resetPingThrottle(), resetGpsReport()]);
     setIsAuthenticated(true);
     // Deliberately not awaited: registration needs a permission prompt and a
     // network round trip, and neither should stand between a driver and the

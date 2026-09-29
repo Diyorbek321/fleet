@@ -134,6 +134,8 @@ async def record_positions(
         ).scalar_one_or_none()
     if truck:
         truck.status = status_from_speed(float(latest.speed or 0))
+        # A fix is proof the GPS is on, whatever the phone said earlier.
+        truck.gps_disabled_at = None
         truck.updated_at = datetime.now(timezone.utc)
 
     return len(positions)

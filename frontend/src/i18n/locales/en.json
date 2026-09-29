@@ -179,7 +179,8 @@
       "address": "Address",
       "heading": "Heading",
       "recorded": "Recorded",
-      "noLocation": "No location data reported yet."
+      "noLocation": "No location data reported yet.",
+      "gpsOff": "GPS off on the phone"
     },
     "form": {
       "editTitle": "Edit truck",
@@ -822,6 +823,7 @@
       "document_expiry": "Expiring documents",
       "maintenance_overdue": "Overdue service",
       "trip_delay": "Trip running late",
+      "gps_signal": "GPS signal lost",
       "trip_status": "Trip status change",
       "border_queue": "Border queue",
       "report_ready": "Report ready",
@@ -1073,5 +1075,32 @@
     "noPosition": "The truck has not reported a position yet.",
     "unavailableTitle": "Link not available",
     "unavailableBody": "The trip is finished or the link has expired. Ask the dispatcher for a new one."
+  },
+  "driverMessages": {
+    "title": "Message the driver",
+    "placeholder": "Text that will arrive on the driver's phone…",
+    "send": "Send",
+    "sent": "Message sent",
+    "sendFailed": "Could not send",
+    "noDeviceHint": "No phone took the push (app not installed or notifications off). The message waits in the app's Messages tab.",
+    "empty": "No messages yet",
+    "read": "Read",
+    "delivered": "Delivered",
+    "inboxOnly": "In app only",
+    "auto": "Auto",
+    "templates": {
+      "gpsOn": {
+        "label": "Turn on GPS",
+        "text": "Your GPS looks switched off. Please turn on location on your phone and open the Fleet Watch app."
+      },
+      "callOffice": {
+        "label": "Call the office",
+        "text": "Please call the office."
+      },
+      "openApp": {
+        "label": "Open the app",
+        "text": "Please open the Fleet Watch app and check your shift."
+      }
+    }
   }
 }

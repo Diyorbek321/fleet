@@ -15,6 +15,7 @@ interface BackendTruck {
   trailer_brand: string | null;
   trailer_volume: TrailerVolume | null;
   insurance_expiry?: string | null;
+  gps_disabled_at?: string | null;
   status: BackendStatus;
   is_enabled: boolean;
   fuel_level: number;
@@ -67,6 +68,8 @@ export interface TruckDetails {
   trailerBrand: string | null;
   trailerVolume: TrailerVolume | null;
   insuranceExpiry: string | null;
+  /** When the driver's phone reported its GPS switched off; null while on. */
+  gpsDisabledAt: Date | null;
   status: BackendStatus;
   isEnabled: boolean;
   fuelLevel: number;
@@ -88,6 +91,7 @@ function adaptDetails(d: BackendTruckDetails): TruckDetails {
     trailerBrand: d.trailer_brand,
     trailerVolume: d.trailer_volume,
     insuranceExpiry: d.insurance_expiry ?? null,
+    gpsDisabledAt: d.gps_disabled_at ? new Date(d.gps_disabled_at) : null,
     status: d.status,
     isEnabled: d.is_enabled,
     fuelLevel: d.fuel_level,
