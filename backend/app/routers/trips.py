@@ -39,6 +39,7 @@ from app.services.telegram import stage_label, to_plain_text
 from app.services.trip_cards import build_customer_card
 from app.services.storage import delete_object, is_configured, presigned_get_url
 from app.services.trip_notifications import notify_trip_status_change_background
+from app.services.trip_orders import format_trip_order, send_trip_order, send_trip_order_background
 from app.services.trip_reports import build_report_out, get_report
 from app.services.trip_segments import segment_trip
 from app.services.trips import compute_trip_pnl, generate_reference
@@ -147,6 +148,7 @@ async def list_trips(
 @router.post("", response_model=TripDetailsOut)
 async def create_trip(
     data: TripCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     org: uuid.UUID = Depends(get_org_id),
     _user=Depends(_MANAGE),
@@ -197,6 +199,9 @@ async def create_trip(
                 raise HTTPException(status_code=409, detail="Рейс с таким номером уже существует")
             continue
 
+        # After the response: Telegram's latency is not the dispatcher's.
+        if trip.truck_id is not None:
+            background_tasks.add_task(send_trip_order_background, trip.id)
         return await _detail(db, trip)
 
     raise HTTPException(
@@ -227,6 +232,7 @@ _AUDITED_TRIP_FIELDS = ("rate", "truck_id", "driver_id")
 async def update_trip(
     trip_id: uuid.UUID,
     data: TripUpdate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     org: uuid.UUID = Depends(get_org_id),
     actor=Depends(_MANAGE),
@@ -266,7 +272,46 @@ async def update_trip(
         )
 
     await db.commit()
+    # A trip created without a truck is announced when it gets one. Only then:
+    # the post is once per trip, and send_trip_order skips a trip already sent.
+    if trip.truck_id is not None and trip.order_sent_at is None:
+        background_tasks.add_task(send_trip_order_background, trip.id)
     return await _detail(db, trip)
+
+
+@router.get("/{trip_id}/order-text")
+async def trip_order_text(
+    trip_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _user=Depends(_MANAGE),
+):
+    """The order sheet as the truck's group receives it, for preview and copying."""
+    from app.models.organizations import Organization
+
+    trip = await _get_owned_trip(db, trip_id, org)
+    org_row = await db.get(Organization, org)
+    html_text = format_trip_order(trip, org_row)
+    return {"html": html_text, "text": to_plain_text(html_text), "sent_at": trip.order_sent_at}
+
+
+@router.post("/{trip_id}/send-order")
+async def resend_trip_order(
+    trip_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _user=Depends(_MANAGE),
+):
+    """Post the order to the truck's group again — the dispatcher's button."""
+    trip = await _get_owned_trip(db, trip_id, org)
+    if trip.truck_id is None:
+        raise HTTPException(status_code=409, detail="У рейса нет машины")
+    if not await send_trip_order(db, trip, force=True):
+        raise HTTPException(
+            status_code=409,
+            detail="Группа машины не подключена или Telegram недоступен",
+        )
+    return {"sent_at": trip.order_sent_at}
 
 
 @router.post("/{trip_id}/advance", response_model=TripDetailsOut)

@@ -41,6 +41,11 @@ from app.services.owner_alerts.commands import (
     handle_owner_message,
     parse_owner_start,
 )
+from app.services.trip_orders import (
+    activate_truck_group,
+    handle_group_membership,
+    parse_group_start,
+)
 from app.services.telegram import (
     build_deep_link,
     extract_chat,
@@ -96,11 +101,23 @@ async def telegram_webhook(
 
 
 async def _handle_update(db: AsyncSession, update: dict[str, Any]) -> None:
+    # The bot being removed from a truck's group, or the group being upgraded
+    # to a supergroup (which changes its id), carry no text to dispatch on.
+    if await handle_group_membership(db, update):
+        return
+
     chat = extract_chat(update)
     if chat is None:
         return
     chat_id = str(chat["id"])
     text = extract_text(update)
+
+    group_token = parse_group_start(text)
+    if group_token:
+        reply = await activate_truck_group(db, group_token, chat)
+        if reply:
+            await send_message(chat_id, reply)
+        return
 
     # One bot serves two audiences, so the deep-link payload carries a
     # namespace: ``owner_`` binds a company's own chat to its alert stream,
@@ -124,6 +141,11 @@ async def _handle_update(db: AsyncSession, update: dict[str, Any]) -> None:
     owner_reply = await handle_owner_message(db, chat_id, text)
     if owner_reply is not None:
         await send_message(chat_id, owner_reply)
+        return
+
+    # A truck's group is people talking to each other. Everything below is a
+    # reply to a stray message, and in a group that is spam.
+    if chat.get("type") in ("group", "supergroup"):
         return
 
     stripped = text.strip().lower()

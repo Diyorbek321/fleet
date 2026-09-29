@@ -27,6 +27,7 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CountryExpenseReportCard } from '@/components/reports/CountryExpenseReportCard';
 import { TruckFormModal } from '@/components/trucks/TruckFormModal';
+import { TruckTelegramGroupCard } from '@/components/trucks/TruckTelegramGroupCard';
 import { trucksApi } from '@/lib/trucks';
 import type { Truck } from '@/types';
 import { cn } from '@/lib/utils';
@@ -240,6 +241,8 @@ export default function TruckDetailPage() {
             )}
           </CardContent>
         </Card>
+
+        <TruckTelegramGroupCard truckId={truck.id} />
 
         {/* Last known location */}
         <Card className="border-border/50 bg-card md:col-span-2">

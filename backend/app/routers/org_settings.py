@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.deps.auth import get_current_user, get_org_id, require_role
 from app.services import audit
+from app.services.trip_orders import DEFAULT_RULES
 from app.models.enums import UserRole
 from app.models.organizations import Organization
 from app.models.users import User
@@ -121,3 +122,57 @@ async def update_org_settings(
     await db.commit()
     await db.refresh(record)
     return OrgSettingsOut.model_validate(record)
+
+
+# ── Order sheet template ─────────────────────────────────────────────────
+#
+# The two parts of a truck group's order post that belong to the company
+# rather than the trip. See app/services/trip_orders.py for the layout.
+
+
+class TripOrderTemplateOut(BaseModel):
+    # None = the built-in list is in use; ``default_rules`` shows what that is,
+    # so the form can start from it instead of from an empty box.
+    rules: str | None = None
+    footer: str | None = None
+    default_rules: str
+
+
+class TripOrderTemplateIn(BaseModel):
+    rules: str | None = Field(default=None, max_length=2000)
+    footer: str | None = Field(default=None, max_length=500)
+
+
+def _blank_to_none(value: str | None) -> str | None:
+    return value.strip() if value and value.strip() else None
+
+
+@router.get("/trip-order-template", response_model=TripOrderTemplateOut)
+async def get_trip_order_template(
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _: User = Depends(require_role(UserRole.admin, UserRole.manager, UserRole.operator)),
+):
+    record = await _load_org(db, org)
+    return TripOrderTemplateOut(
+        rules=record.trip_order_rules, footer=record.trip_order_footer, default_rules=DEFAULT_RULES
+    )
+
+
+@router.put("/trip-order-template", response_model=TripOrderTemplateOut)
+async def update_trip_order_template(
+    data: TripOrderTemplateIn,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _: User = Depends(require_role(UserRole.admin, UserRole.manager)),
+):
+    """Empty rules go back to the built-in list; an empty footer drops the line."""
+    record = await _load_org(db, org)
+    rules = _blank_to_none(data.rules)
+    record.trip_order_rules = None if rules == DEFAULT_RULES else rules
+    record.trip_order_footer = _blank_to_none(data.footer)
+    record.updated_at = datetime.now(timezone.utc)
+    await db.commit()
+    return TripOrderTemplateOut(
+        rules=record.trip_order_rules, footer=record.trip_order_footer, default_rules=DEFAULT_RULES
+    )

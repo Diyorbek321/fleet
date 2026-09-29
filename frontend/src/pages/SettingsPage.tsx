@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog';
 import { ExchangeRatesCard } from '@/components/settings/ExchangeRatesCard';
 import { TelegramAlertsCard } from '@/components/settings/TelegramAlertsCard';
+import { TripOrderTemplateCard } from '@/components/settings/TripOrderTemplateCard';
 
 interface ToggleRow {
   key: keyof UserSettings;
@@ -67,6 +68,8 @@ export default function SettingsPage() {
       <ExchangeRatesCard />
 
       <TelegramAlertsCard />
+
+      <TripOrderTemplateCard />
 
       <Card className="border-border/50 bg-card">
         <CardHeader>

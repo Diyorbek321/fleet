@@ -1102,5 +1102,32 @@
         "text": "Please open the Fleet Watch app and check your shift."
       }
     }
+  },
+  "truckGroup": {
+    "title": "Telegram group",
+    "linked": "Linked",
+    "lost": "Bot removed from group",
+    "noneHint": "Link a group and every new trip on this truck posts its order sheet there automatically.",
+    "pendingHint": "Telegram opens — pick the truck's group and add the bot. If the link did not open, open it by hand:",
+    "lostHint": "The bot was removed or the group deleted. Orders are not being posted — link again.",
+    "since": "Linked {{ago}}",
+    "link": "Link group",
+    "relink": "Link another group",
+    "unlink": "Unlink",
+    "failed": "Could not complete"
+  },
+  "tripOrder": {
+    "copy": "Copy order",
+    "send": "Send to group",
+    "copied": "Order copied",
+    "sent": "Order sent to the group",
+    "confirmResend": "This order was already posted to the group. Send it again?",
+    "failed": "Could not complete",
+    "templateTitle": "Order sheet template",
+    "templateDescription": "The rules and phone numbers added to the order posted in a truck's group. Everything else comes from the trip.",
+    "rules": "\"ОБЯЗАТЕЛЬНО К ИСПОЛНЕНИЮ\" list",
+    "rulesHint": "Leave empty to use the built-in list.",
+    "footer": "Dispatcher phones (last line)",
+    "templateSaved": "Template saved"
   }
 }

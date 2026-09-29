@@ -40,6 +40,7 @@ import { TripSubscriptionsCard } from '@/components/trips/TripSubscriptionsCard'
 import { TripExpenseReportCard } from '@/components/trips/TripExpenseReportCard';
 import { TripStagePicker } from '@/components/trips/TripStagePicker';
 import { CopyTripStatusButton } from '@/components/trips/CopyTripStatusButton';
+import { TripOrderButtons } from '@/components/trips/TripOrderButtons';
 
 const UNASSIGNED = '__none__';
 
@@ -155,6 +156,7 @@ export default function TripDetailPage() {
               </CardTitle>
               <div className="flex flex-wrap gap-2">
                 <CopyTripStatusButton tripId={trip.id} />
+                <TripOrderButtons tripId={trip.id} hasTruck={Boolean(trip.truckId)} />
                 <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
                   <Pencil className="mr-2 h-4 w-4" />
                   {t('common.edit')}

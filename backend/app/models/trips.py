@@ -100,6 +100,9 @@ class Trip(Base):
     # days for papers those are not the same day.
     loaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # When the order sheet went to the truck's Telegram group. Set once; a
+    # trip is announced to the group a single time.
+    order_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 

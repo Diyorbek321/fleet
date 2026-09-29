@@ -1102,5 +1102,32 @@
         "text": "Iltimos, Fleet Watch ilovasini oching va smenangizni tekshiring."
       }
     }
+  },
+  "truckGroup": {
+    "title": "Telegram guruh",
+    "linked": "Ulangan",
+    "lost": "Bot guruhdan chiqarilgan",
+    "noneHint": "Guruh ulansa, bu mashinaga yangi reys qo‘shilganda zayavka avtomatik guruhga yuboriladi.",
+    "pendingHint": "Telegram ochiladi — mashina guruhini tanlang va botni qo‘shing. Havola ochilmasa, uni qo‘lda oching:",
+    "lostHint": "Bot guruhdan chiqarilgan yoki guruh o‘chirilgan. Zayavkalar yuborilmayapti — qayta ulang.",
+    "since": "Ulangan {{ago}}",
+    "link": "Guruhga ulash",
+    "relink": "Boshqa guruhga ulash",
+    "unlink": "Uzish",
+    "failed": "Amal bajarilmadi"
+  },
+  "tripOrder": {
+    "copy": "Zayavkani nusxalash",
+    "send": "Guruhga yuborish",
+    "copied": "Zayavka nusxalandi",
+    "sent": "Zayavka guruhga yuborildi",
+    "confirmResend": "Bu zayavka guruhga allaqachon yuborilgan. Yana yuborilsinmi?",
+    "failed": "Amal bajarilmadi",
+    "templateTitle": "Zayavka shabloni",
+    "templateDescription": "Yangi reys mashina guruhiga yuborilganda qo‘shiladigan qoidalar va telefonlar. Qolgan qatorlar reysning o‘zidan olinadi.",
+    "rules": "«ОБЯЗАТЕЛЬНО К ИСПОЛНЕНИЮ» ro‘yxati",
+    "rulesHint": "Bo‘sh qoldirilsa, standart ro‘yxat ishlatiladi.",
+    "footer": "Dispetcher telefonlari (oxirgi qator)",
+    "templateSaved": "Shablon saqlandi"
   }
 }

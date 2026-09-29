@@ -58,6 +58,11 @@ class Organization(Base):
     # at a rate nobody chose. A trip that recorded its own exchange (dollars
     # handed over, tenge received) overrides these — see
     # ``app.services.country_expenses.resolve_rates``.
+    # The company's part of the order sheet posted to a truck's group: the
+    # "ОБЯЗАТЕЛЬНО К ИСПОЛНЕНИЮ" list (NULL = the built-in one) and the
+    # dispatchers' phones. See app/services/trip_orders.py.
+    trip_order_rules: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trip_order_footer: Mapped[str | None] = mapped_column(Text, nullable=True)
     usd_to_kzt: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
     usd_to_rub: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
     usd_to_uzs: Mapped[float | None] = mapped_column(Numeric(14, 4), nullable=True)
