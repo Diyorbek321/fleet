@@ -1,10 +1,10 @@
-"""Push delivery to drivers' phones, via Expo.
+"""Push delivery to drivers' phones.
 
-The mobile app is an Expo build, so its devices are addressed by Expo push
-tokens and delivery goes through Expo's own service. That is deliberate: the
-alternative is registering an FCM sender and an APNs key and shipping both sets
-of credentials to the server, which is a lot of setup to notify a handful of
-drivers that their border slot moved.
+Two kinds of token reach ``push_tokens``. Current app builds register the
+phone's own Firebase (FCM) token and are sent to through Firebase directly
+(``app.services.fcm``). Expo push tokens are still honoured and routed through
+Expo, so any build registering them keeps working; the two are told apart by
+format, since an Expo token always looks like ``ExponentPushToken[...]``.
 
 Delivery is best-effort by design. Every caller is either a background sweep or
 a request that has already done the useful work; a notification that cannot be
@@ -24,6 +24,7 @@ import httpx
 from app.core.config import settings
 from app.core.logging import logger
 from app.models.driver_app import PushToken
+from app.services import fcm
 
 EXPO_PUSH_ENDPOINT = "https://exp.host/--/api/v2/push/send"
 
@@ -72,19 +73,31 @@ async def send_to_tokens(
     reaching the network; production never passes it.
     """
     deliverable = [t for t in tokens if is_expo_token(t.token)]
-    skipped = len(tokens) - len(deliverable)
-    if skipped:
-        logger.warning(
-            "push_tokens_skipped_wrong_format",
-            skipped=skipped,
-            hint="only Expo-format tokens can be delivered through Expo",
-        )
-    if not deliverable:
-        return PushOutcome(skipped=skipped)
+    native = [t for t in tokens if not is_expo_token(t.token)]
+    skipped = 0
 
     accepted = 0
     failed = 0
     removed: list[str] = []
+
+    if native:
+        results = await fcm.send(
+            [t.token for t in native], title=title, body=body, data=data, transport=transport
+        )
+        for row, result in zip(native, results):
+            if result.ok:
+                accepted += 1
+                continue
+            failed += 1
+            if result.dead:
+                removed.append(row.token)
+                await db.delete(row)
+
+    if not deliverable:
+        if removed:
+            logger.info("push_tokens_removed", count=len(removed), reason="UNREGISTERED")
+        logger.info("push_sent", accepted=accepted, failed=failed, skipped=skipped)
+        return PushOutcome(accepted=accepted, failed=failed, skipped=skipped, removed=removed)
 
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     # Optional: an access token makes the send authenticated, which Expo

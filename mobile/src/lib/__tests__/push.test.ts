@@ -13,19 +13,13 @@ jest.mock('../api', () => ({ apiFetch: jest.fn(async () => ({})) }));
 jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(async () => ({ granted: true, canAskAgain: true })),
   requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
-  getExpoPushTokenAsync: jest.fn(async () => ({ data: 'ExponentPushToken[test]' })),
+  getDevicePushTokenAsync: jest.fn(async () => ({ type: 'android', data: 'fcm-device-token' })),
   setNotificationChannelAsync: jest.fn(async () => undefined),
   AndroidImportance: { HIGH: 4 },
   AndroidNotificationVisibility: { PUBLIC: 1 },
 }));
 
-jest.mock('expo-constants', () => ({
-  __esModule: true,
-  default: { expoConfig: { extra: { eas: { projectId: 'proj-1' } } }, easConfig: null },
-}));
-
 import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
 
 import { apiFetch } from '../api';
 import { registerPushToken, unregisterPushToken } from '../push';
@@ -42,23 +36,23 @@ beforeEach(async () => {
     granted: true,
     canAskAgain: true,
   });
-  (Notifications.getExpoPushTokenAsync as jest.Mock).mockResolvedValue({
-    data: 'ExponentPushToken[test]',
+  (Notifications.getDevicePushTokenAsync as jest.Mock).mockResolvedValue({
+    type: 'android',
+    data: 'fcm-device-token',
   });
-  (Constants as any).expoConfig = { extra: { eas: { projectId: 'proj-1' } } };
 });
 
 describe('registerPushToken', () => {
-  it('sends the token to the backend', async () => {
+  it('sends the phone\'s own Firebase token to the backend', async () => {
     const token = await registerPushToken();
 
-    expect(token).toBe('ExponentPushToken[test]');
+    expect(token).toBe('fcm-device-token');
     expect(mockFetch).toHaveBeenCalledWith(
       '/api/me/push-token',
       expect.objectContaining({ method: 'POST' }),
     );
     const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.token).toBe('ExponentPushToken[test]');
+    expect(body.token).toBe('fcm-device-token');
   });
 
   it('does nothing when the driver refused the permission', async () => {
@@ -82,19 +76,9 @@ describe('registerPushToken', () => {
     expect(Notifications.requestPermissionsAsync).not.toHaveBeenCalled();
   });
 
-  it('degrades instead of crashing when the EAS project id is missing', async () => {
-    // `npm start` without `eas init`. Expo cannot mint a token, and a throw
-    // here would take down the sign-in that triggered it.
-    (Constants as any).expoConfig = { extra: {} };
-    (Constants as any).easConfig = null;
-
-    expect(await registerPushToken()).toBeNull();
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
   it('swallows a failure to mint a token', async () => {
     // Simulators have no push token at all.
-    (Notifications.getExpoPushTokenAsync as jest.Mock).mockRejectedValue(
+    (Notifications.getDevicePushTokenAsync as jest.Mock).mockRejectedValue(
       new Error('no push token on simulator'),
     );
 
@@ -119,7 +103,7 @@ describe('unregisterPushToken', () => {
       expect.objectContaining({ method: 'DELETE' }),
     );
     const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
-    expect(body.token).toBe('ExponentPushToken[test]');
+    expect(body.token).toBe('fcm-device-token');
   });
 
   it('does nothing when this device never registered', async () => {

@@ -114,8 +114,13 @@ services:
       # without the standing-still heartbeat, where a parked truck looks silent.
       GPS_SILENT_ALERT_HOURS: ${GPS_SILENT_ALERT_HOURS:-24}
       GPS_DISABLED_GRACE_MINUTES: ${GPS_DISABLED_GRACE_MINUTES:-15}
+      # Firebase service-account key for pushes to drivers' phones. Lives in
+      # /root/fleet/secrets on the server, never in git or .env.prod. A missing
+      # file just means no pushes; everything else runs.
+      FCM_CREDENTIALS_FILE: /run/secrets/fleet/fcm-service-account.json
     volumes:
       - uploads:/data/uploads
+      - ./secrets:/run/secrets/fleet:ro
     depends_on:
       postgres:
         condition: service_healthy

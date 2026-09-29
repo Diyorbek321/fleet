@@ -212,11 +212,12 @@ class TestSendToTokens:
         assert out.accepted == 0
         assert out.failed == 1
 
-    async def test_non_expo_tokens_are_skipped(self):
+    async def test_native_tokens_never_reach_expo(self):
         """The Expo endpoint only accepts its own token format.
 
-        A bare FCM/APNs token posted to it is rejected for every message in the
-        same batch, so one stale row would silently cost the whole send.
+        A bare FCM token posted to it is rejected for every message in the same
+        batch, so FCM tokens go to Firebase instead (tests/test_fcm.py) — here,
+        with Firebase unconfigured, they simply fail without touching Expo.
         """
         user_id, _ = await _make_user_with_tokens(["raw-fcm-token", _expo_token(13)])
         seen: list[dict] = []
@@ -234,7 +235,8 @@ class TestSendToTokens:
             )
 
         assert [m["to"] for m in seen] == [_expo_token(13)]
-        assert out.skipped == 1
+        assert out.accepted == 1
+        assert out.failed == 1
 
 
 class TestQueueMessage:

@@ -1,5 +1,4 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -14,7 +13,7 @@ import { apiFetch } from './api';
  * path was dead from this end. This module is that missing half.
  *
  * Everything here is best-effort. A driver who declines the permission, or a
- * build without an EAS project id, must still get a working app — losing
+ * build without Firebase configured, must still get a working app — losing
  * notifications is worse than nothing, but far better than a login that
  * crashes.
  */
@@ -23,19 +22,6 @@ const REGISTERED_TOKEN_KEY = 'fleet_driver_push_token';
 
 /** Android shows nothing without a channel; the OS drops the notification silently. */
 const ANDROID_CHANNEL_ID = 'default';
-
-/**
- * Expo needs the EAS project id to mint a token for this app.
- *
- * `eas build` writes it into app.json as `expo.extra.eas.projectId` once the
- * project has been linked with `eas init`. Reading it defensively rather than
- * assuming it: without it `getExpoPushTokenAsync` throws, and a crash on the
- * login path would be a far worse bug than the missing notifications.
- */
-function easProjectId(): string | undefined {
-  const extra = Constants.expoConfig?.extra as Record<string, any> | undefined;
-  return (extra?.eas?.projectId as string | undefined) ?? Constants.easConfig?.projectId;
-}
 
 async function ensureAndroidChannel(): Promise<void> {
   if (Platform.OS !== 'android') return;
@@ -72,20 +58,14 @@ export async function registerPushToken(): Promise<string | null> {
     if (!(await ensurePermission())) return null;
     await ensureAndroidChannel();
 
-    const projectId = easProjectId();
-    if (!projectId) {
-      // Expected in bare `npm start` runs; in a shipped build it means the
-      // project was never linked, and no driver will ever be notified.
-      console.warn(
-        '[push] no EAS project id — run `eas init`. Push notifications are disabled.',
-      );
-      return null;
-    }
-
-    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
+    // The phone's own Firebase token, not an Expo one: the server sends to
+    // Firebase directly (backend app/services/fcm.py), so no Expo account or
+    // EAS project id is involved. Needs google-services.json in the build.
+    const { data: token } = await Notifications.getDevicePushTokenAsync();
+    if (typeof token !== 'string' || !token) return null;
     await apiFetch('/api/me/push-token', {
       method: 'POST',
-      body: JSON.stringify({ token, platform: Platform.OS }),
+      body: JSON.stringify({ token, platform: Platform.OS === 'android' ? 'fcm' : Platform.OS }),
     });
     await AsyncStorage.setItem(REGISTERED_TOKEN_KEY, token).catch(() => {});
     return token;
@@ -116,7 +96,7 @@ export async function unregisterPushToken(): Promise<void> {
     });
   } catch {
     // Best-effort: the local session is being torn down regardless. The
-    // backend also drops tokens Expo reports as unregistered, so a leftover
+    // backend also drops tokens Firebase reports as unregistered, so a leftover
     // row is cleaned up the first time it fails to deliver.
   } finally {
     await AsyncStorage.removeItem(REGISTERED_TOKEN_KEY).catch(() => {});

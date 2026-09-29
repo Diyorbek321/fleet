@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     # How long the phone must report GPS switched off before the owner chats
     # hear of it, so a driver toggling it for a minute is not news.
     gps_disabled_grace_minutes: int = Field(default=15, alias="GPS_DISABLED_GRACE_MINUTES")
+    # Firebase service-account key (JSON file) for sending pushes straight to
+    # Android phones. Empty or missing file = FCM off; Expo tokens still work.
+    fcm_credentials_file: str = Field(default="", alias="FCM_CREDENTIALS_FILE")
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     use_redis_refresh_tokens: bool = Field(default=False, alias="USE_REDIS_REFRESH_TOKENS")
