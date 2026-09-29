@@ -64,7 +64,7 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
         <div className="flex items-center gap-2 mb-4">
           <Badge
             variant="outline"
-            className={cn('capitalize', statusBadgeClasses[truck.status])}
+            className={cn(statusBadgeClasses[truck.status])}
           >
             {truck.status === 'moving' && (
               <span className="relative flex h-2 w-2 mr-1.5">
@@ -72,7 +72,7 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-current"></span>
               </span>
             )}
-            {t(`trucks.status.${truck.status}`)}
+            {t(`trucks.status.${truck.status}`, { defaultValue: truck.status })}
           </Badge>
         </div>
 

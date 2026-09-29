@@ -199,7 +199,7 @@ export default function TrucksPage() {
                         variant="outline"
                         className={cn(statusBadgeClasses[truck.status])}
                       >
-                        {t(`trucks.status.${truck.status}`)}
+                        {t(`trucks.status.${truck.status}`, { defaultValue: truck.status })}
                       </Badge>
                     </TableCell>
                     <TableCell>

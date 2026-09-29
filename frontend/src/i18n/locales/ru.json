@@ -136,7 +136,9 @@
     "status": {
       "moving": "В движении",
       "stopped": "Остановлен",
-      "offline": "Не в сети"
+      "offline": "Не в сети",
+      "idle": "Стоит",
+      "maintenance": "На ремонте"
     },
     "popup": {
       "speed": "Скорость",

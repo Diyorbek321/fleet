@@ -136,7 +136,9 @@
     "status": {
       "moving": "Moving",
       "stopped": "Stopped",
-      "offline": "Offline"
+      "offline": "Offline",
+      "idle": "Idle",
+      "maintenance": "Maintenance"
     },
     "popup": {
       "speed": "Speed",

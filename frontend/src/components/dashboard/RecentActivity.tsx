@@ -92,9 +92,9 @@ export function RecentActivity() {
                   <span className="font-medium truncate">{truck.plateNumber}</span>
                   <Badge
                     variant="outline"
-                    className={cn('capitalize text-xs', statusBadgeClasses[truck.status])}
+                    className={cn('text-xs', statusBadgeClasses[truck.status])}
                   >
-                    {truck.status}
+                    {t(`trucks.status.${truck.status}`, { defaultValue: truck.status })}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">

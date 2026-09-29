@@ -136,7 +136,9 @@
     "status": {
       "moving": "Harakatda",
       "stopped": "To‘xtagan",
-      "offline": "Oflayn"
+      "offline": "Oflayn",
+      "idle": "Turibdi",
+      "maintenance": "Ta’mirda"
     },
     "popup": {
       "speed": "Tezlik",
