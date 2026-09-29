@@ -109,6 +109,11 @@ services:
       # telegram_webhook_registration_skipped and relies on a webhook that was
       # registered by hand, which breaks the day the bot token is rotated.
       PUBLIC_API_URL: https://${API_DOMAIN}
+      # A truck on a trip silent this long gets its driver and the owner chats
+      # a warning. 0 switches it off — needed while drivers still run an APK
+      # without the standing-still heartbeat, where a parked truck looks silent.
+      GPS_SILENT_ALERT_HOURS: ${GPS_SILENT_ALERT_HOURS:-24}
+      GPS_DISABLED_GRACE_MINUTES: ${GPS_DISABLED_GRACE_MINUTES:-15}
     volumes:
       - uploads:/data/uploads
     depends_on:
