@@ -1,5 +1,7 @@
 from __future__ import annotations
-from pydantic import BaseModel, Field, EmailStr
+import re
+
+from pydantic import AliasChoices, BaseModel, Field, field_validator
 from typing import Optional, List
 from datetime import datetime, date
 import uuid
@@ -67,11 +69,39 @@ class SafetyScoreOut(BaseModel):
 class AssignDriverIn(BaseModel):
     truck_id: uuid.UUID
 
+# Latin letters and digits, with the separators a plate or an email carries.
+# No spaces: "10 422 TCA" typed on a phone comes back as three different
+# strings depending on the keyboard, so the login is the plate without them.
+_LOGIN_RE = re.compile(r"^[a-z0-9][a-z0-9._@+-]{2,63}$")
+
+
 class CreateDriverLoginIn(BaseModel):
-    email: EmailStr
+    """Set — or reset — the login a driver signs into the app with.
+
+    ``email`` is still accepted as the field name for callers built before the
+    login stopped having to be an address.
+    """
+    login: str = Field(validation_alias=AliasChoices("login", "email"))
     password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("login")
+    @classmethod
+    def _normalise_login(cls, v: str) -> str:
+        v = v.strip().lower()
+        if not _LOGIN_RE.fullmatch(v):
+            raise ValueError(
+                "Логин: 3–64 символа — латинские буквы, цифры, точка, дефис, без пробелов"
+            )
+        return v
+
 
 class DriverLoginOut(BaseModel):
     user_id: uuid.UUID
     driver_id: uuid.UUID
+    login: str
+    # The same value; kept for clients that read the old field name.
     email: str
+
+
+class DriverLoginStatusOut(BaseModel):
+    login: Optional[str] = None

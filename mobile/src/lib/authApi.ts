@@ -14,10 +14,12 @@ interface TokenOut {
 export { refreshAccessToken };
 
 /** Authenticate against the backend and persist the tokens. */
-export async function signIn(email: string, password: string): Promise<void> {
+export async function signIn(login: string, password: string): Promise<void> {
+  // A driver's login is whatever the dispatcher set — usually the plate, not
+  // an email. The server matches it without regard to case.
   const res = await apiFetch<TokenOut>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ login, password }),
   });
   await setToken(res.access_token);
   await setRefreshToken(res.refresh_token);

@@ -2,10 +2,11 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, ArrowRight } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRight, Flag } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Table,
   TableBody,
@@ -16,6 +17,8 @@ import {
 } from '@/components/ui/table';
 import { tripsApi, type Trip, type TripCreateInput, type TripStatus } from '@/lib/trips';
 import { TripFormDialog } from '@/components/trips/TripFormDialog';
+import { TripStagePicker } from '@/components/trips/TripStagePicker';
+import { CopyTripStatusButton } from '@/components/trips/CopyTripStatusButton';
 import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
 import { useTrucks } from '@/contexts/TruckContext';
@@ -65,6 +68,8 @@ export default function TripsPage() {
   // `editing` is null while creating; one dialog serves both.
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Trip | null>(null);
+  // The one row whose checkpoint picker is open; saving closes it.
+  const [stageTripId, setStageTripId] = useState<string | null>(null);
 
   const { data: trips = [], isLoading } = useQuery({
     queryKey: TRIPS_KEY,
@@ -211,6 +216,23 @@ export default function TripsPage() {
                         {statusLabel(next)}
                       </Button>
                     )}
+                    <Popover
+                      open={stageTripId === trip.id}
+                      onOpenChange={(open) => setStageTripId(open ? trip.id : null)}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" title={t('tripDetail.setStage')}>
+                          <Flag className="h-4 w-4" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-72" onClick={(e) => e.stopPropagation()}>
+                        <p className="mb-3 text-sm font-medium">
+                          {t('tripDetail.setStage')} · <span className="font-mono">{trip.reference}</span>
+                        </p>
+                        <TripStagePicker tripId={trip.id} onSaved={() => setStageTripId(null)} />
+                      </PopoverContent>
+                    </Popover>
+                    <CopyTripStatusButton tripId={trip.id} variant="ghost" iconOnly />
                     <Button
                       variant="ghost"
                       size="icon"

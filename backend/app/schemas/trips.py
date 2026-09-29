@@ -210,6 +210,11 @@ class TripDocumentOut(BaseModel):
         from_attributes = True
 
 
+class TripCardOut(BaseModel):
+    """The trip's status as plain text, for a dispatcher to paste into a chat."""
+    text: str
+
+
 class TripPnL(BaseModel):
     """Profit-and-loss for a single trip — the owner's money question."""
     trip_id: uuid.UUID

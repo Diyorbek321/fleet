@@ -39,6 +39,8 @@ async def build_customer_card(
     now: datetime | None = None,
     note: str | None = None,
     token: str | None = None,
+    stage: str | None = None,
+    position_at: str | None = None,
 ) -> str:
     """The card for one trip, ready to send.
 
@@ -89,6 +91,8 @@ async def build_customer_card(
         cargo=trip.cargo_description,
         note=note,
         track_url=track_url(token),
+        stage=stage,
+        position_at=position_at,
     )
 
 

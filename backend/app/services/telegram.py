@@ -18,6 +18,7 @@ every call so hot-reloading the bot token doesn't require an app restart.
 from __future__ import annotations
 
 import html
+import re
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
@@ -321,6 +322,8 @@ def format_customer_card(
     cargo: str | None = None,
     note: str | None = None,
     track_url: str | None = None,
+    stage: str | None = None,
+    position_at: str | None = None,
 ) -> str:
     """The lines a cargo owner asked us for, in their order.
 
@@ -332,6 +335,10 @@ def format_customer_card(
     load is and when it lands, and both are answered above and below where a
     status would have sat; a word like "в пути" next to a live position and a
     date only invited "so which is it?" on the phone.
+
+    ``stage`` and ``position_at`` are for the copy a dispatcher pastes by hand,
+    which is asked for by status and read later than it was written; the bot
+    never passes them.
     """
     e = lambda v: html.escape(str(v), quote=False)  # noqa: E731
 
@@ -347,6 +354,8 @@ def format_customer_card(
         lines.append(f"Дата погрузки: {loaded_at.strftime('%d.%m.%Y')}")
     if plate:
         lines.append(f"ТС: {e(plate)}")
+    if stage:
+        lines.append(f"Статус: <b>{e(stage)}</b>")
 
     # The bare-coordinate Google Maps link is the fallback, not the default:
     # once there is a tracking page the card ends with a link to it, and two
@@ -355,6 +364,8 @@ def format_customer_card(
     # the only way to answer "where", so it stays.
     where = _fmt_location(lat, lng, place, with_link=not track_url)
     lines.append(f"Текущее местоположение ТС: {where}")
+    if position_at:
+        lines.append(f"Данные от: {e(position_at)}")
 
     if eta_customs is not None:
         # "ориентировочно" is not hedging for its own sake: until a corridor has
@@ -380,6 +391,20 @@ def format_customer_card(
         )
 
     return "\n".join(lines)
+
+
+_LINK_RE = re.compile(r'<a href="([^"]*)">(.*?)</a>')
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def to_plain_text(text: str) -> str:
+    """A Telegram HTML message as text to paste anywhere else.
+
+    A link keeps its address after its label — dropping the tag alone would
+    leave "посмотреть на карте" pointing nowhere.
+    """
+    text = _LINK_RE.sub(lambda m: f"{m.group(2)}: {html.unescape(m.group(1))}", text)
+    return html.unescape(_TAG_RE.sub("", text))
 
 
 def parse_start_command(text: str) -> str | None:

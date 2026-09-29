@@ -120,23 +120,32 @@ export default function DriverDetailPage() {
   });
 
   const [loginOpen, setLoginOpen] = useState(false);
-  const [loginEmail, setLoginEmail] = useState('');
+  const [loginValue, setLoginValue] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
-  const [createdCreds, setCreatedCreds] = useState<{ email: string; password: string } | null>(null);
+  const [createdCreds, setCreatedCreds] = useState<{ login: string; password: string } | null>(null);
+
+  const { data: currentLogin = null } = useQuery({
+    queryKey: ['driver-login', id],
+    queryFn: () => driversApi.getLogin(id),
+    enabled: Boolean(id),
+  });
 
   const generatePassword = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    // Lower-case and digits only: the driver types this on a phone, where a
+    // capital letter is the keyboard's guess, not the driver's.
+    const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
     let out = '';
-    const rnd = new Uint32Array(12);
+    const rnd = new Uint32Array(10);
     crypto.getRandomValues(rnd);
-    for (let i = 0; i < 12; i++) out += chars[rnd[i] % chars.length];
+    for (let i = 0; i < 10; i++) out += chars[rnd[i] % chars.length];
     setLoginPassword(out);
   };
 
   const createLoginMutation = useMutation({
-    mutationFn: () => driversApi.createLogin(id, { email: loginEmail.trim(), password: loginPassword }),
+    mutationFn: () => driversApi.createLogin(id, { login: loginValue.trim(), password: loginPassword }),
     onSuccess: (res) => {
-      setCreatedCreds({ email: res.email, password: loginPassword });
+      setCreatedCreds({ login: res.login, password: loginPassword });
+      queryClient.invalidateQueries({ queryKey: ['driver-login', id] });
       toast({ title: t('drivers.detail.toastCreated') });
     },
     onError: (err) => {
@@ -152,7 +161,7 @@ export default function DriverDetailPage() {
 
   const openLoginDialog = () => {
     setCreatedCreds(null);
-    setLoginEmail(data?.driver.email ?? '');
+    setLoginValue(currentLogin ?? '');
     setLoginPassword('');
     setLoginOpen(true);
   };
@@ -342,11 +351,21 @@ export default function DriverDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              {t('drivers.detail.appAccessHint', { name: driver.name })}
-            </p>
+            <div className="space-y-1 text-sm">
+              {currentLogin ? (
+                <p>
+                  <span className="text-muted-foreground">{t('drivers.detail.login')}: </span>
+                  <span className="font-mono font-medium">{currentLogin}</span>
+                </p>
+              ) : (
+                <p className="text-muted-foreground">
+                  {t('drivers.detail.appAccessHint', { name: driver.name })}
+                </p>
+              )}
+            </div>
             <Button onClick={openLoginDialog} className="shrink-0">
-              <KeyRound className="mr-2 h-4 w-4" /> {t('drivers.detail.createLogin')}
+              <KeyRound className="mr-2 h-4 w-4" />{' '}
+              {currentLogin ? t('drivers.detail.resetLogin') : t('drivers.detail.createLogin')}
             </Button>
           </CardContent>
         </Card>
@@ -454,8 +473,8 @@ export default function DriverDetailPage() {
               </p>
               <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-4 text-sm">
                 <div className="flex justify-between gap-4">
-                  <span className="text-muted-foreground">{t('drivers.email')}</span>
-                  <span className="font-mono">{createdCreds.email}</span>
+                  <span className="text-muted-foreground">{t('drivers.detail.login')}</span>
+                  <span className="font-mono">{createdCreds.login}</span>
                 </div>
                 <div className="flex justify-between gap-4">
                   <span className="text-muted-foreground">{t('drivers.detail.password')}</span>
@@ -467,7 +486,7 @@ export default function DriverDetailPage() {
                   variant="outline"
                   onClick={() => {
                     navigator.clipboard?.writeText(
-                      `Email: ${createdCreds.email}\nPassword: ${createdCreds.password}`,
+                      `Login: ${createdCreds.login}\nParol: ${createdCreds.password}`,
                     );
                     toast({ title: t('common.copied') });
                   }}
@@ -486,15 +505,18 @@ export default function DriverDetailPage() {
               className="space-y-3"
             >
               <div className="space-y-2">
-                <Label htmlFor="login-email">{t('drivers.email')}</Label>
+                <Label htmlFor="login-value">{t('drivers.detail.login')}</Label>
                 <Input
-                  id="login-email"
-                  type="email"
+                  id="login-value"
                   required
-                  placeholder="driver@example.com"
-                  value={loginEmail}
-                  onChange={(e) => setLoginEmail(e.target.value)}
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="10422tca"
+                  value={loginValue}
+                  onChange={(e) => setLoginValue(e.target.value)}
                 />
+                <p className="text-xs text-muted-foreground">{t('drivers.detail.loginHint')}</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="login-password">{t('drivers.detail.password')}</Label>
@@ -517,7 +539,7 @@ export default function DriverDetailPage() {
                   {t('common.cancel')}
                 </Button>
                 <Button type="submit" disabled={createLoginMutation.isPending}>
-                  {t('drivers.detail.createAction')}
+                  {currentLogin ? t('drivers.detail.resetAction') : t('drivers.detail.createAction')}
                 </Button>
               </DialogFooter>
             </form>

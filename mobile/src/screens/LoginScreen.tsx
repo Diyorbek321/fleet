@@ -75,14 +75,14 @@ export function LoginScreen() {
           <View style={styles.form}>
             <Field
               label={t('auth.email')}
-              icon="mail-outline"
+              icon="person-outline"
               value={email}
               onChangeText={setEmail}
               placeholder={t('auth.emailPlaceholder')}
               autoCapitalize="none"
               autoCorrect={false}
-              keyboardType="email-address"
-              textContentType="emailAddress"
+              autoComplete="username"
+              textContentType="username"
               editable={!submitting}
             />
             <Field

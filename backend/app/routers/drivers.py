@@ -6,7 +6,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, update
+from sqlalchemy import func, select, or_, update
 
 from app.core.database import get_db
 from app.core.security import hash_password
@@ -16,7 +16,7 @@ from app.models.users import User
 from app.models.enums import UserRole
 from app.schemas.drivers import (
     DriverCreate, DriverUpdate, DriverOut, AssignDriverIn, SafetyScoreOut,
-    CreateDriverLoginIn, DriverLoginOut,
+    CreateDriverLoginIn, DriverLoginOut, DriverLoginStatusOut,
 )
 from app.models.trucks import Truck
 from app.services import audit
@@ -42,28 +42,56 @@ async def create_driver_login(
     db: AsyncSession = Depends(get_db),
     admin: User = Depends(require_role(UserRole.admin, UserRole.manager)),
 ):
-    """Provision a mobile-app login for a driver (admin/manager only)."""
-    driver = await _get_owned_driver(db, driver_id, admin.org_id)
+    """Set a driver's mobile-app login and password (admin/manager only).
 
-    existing_link = (await db.execute(select(User).where(User.driver_id == driver_id))).scalar_one_or_none()
-    if existing_link:
-        raise HTTPException(status_code=409, detail="У водителя уже есть учётная запись")
+    Also the reset: a driver who already has an account gets the new login and
+    password in place of the old ones. There used to be no way back once an
+    account existed, so a driver who forgot the password — or was given a
+    login they could not type — was stuck until someone edited the database.
+    """
+    await _get_owned_driver(db, driver_id, admin.org_id)
 
-    email_taken = (await db.execute(select(User).where(User.email == data.email))).scalar_one_or_none()
-    if email_taken:
-        raise HTTPException(status_code=400, detail="Этот email уже зарегистрирован")
+    user = (await db.execute(select(User).where(User.driver_id == driver_id))).scalar_one_or_none()
 
-    user = User(
-        org_id=admin.org_id,
-        email=data.email,
-        password_hash=hash_password(data.password),
-        role=UserRole.driver,
-        driver_id=driver_id,
-    )
-    db.add(user)
+    taken = (
+        await db.execute(select(User.id).where(func.lower(User.email) == data.login))
+    ).scalars().all()
+    if any(user is None or uid != user.id for uid in taken):
+        raise HTTPException(status_code=400, detail="Этот логин уже занят")
+
+    if user is None:
+        user = User(
+            org_id=admin.org_id,
+            email=data.login,
+            password_hash=hash_password(data.password),
+            role=UserRole.driver,
+            driver_id=driver_id,
+        )
+        db.add(user)
+    else:
+        user.email = data.login
+        user.password_hash = hash_password(data.password)
+        # Ends the sessions opened under the old credentials — the phone that
+        # was signed in as this driver has to sign in again.
+        user.password_changed_at = datetime.now(timezone.utc)
+        user.must_change_password = False
     await db.commit()
     await db.refresh(user)
-    return DriverLoginOut(user_id=user.id, driver_id=driver_id, email=user.email)
+    return DriverLoginOut(user_id=user.id, driver_id=driver_id, login=user.email, email=user.email)
+
+
+@router.get("/{driver_id}/login", response_model=DriverLoginStatusOut)
+async def get_driver_login(
+    driver_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role(UserRole.admin, UserRole.manager)),
+):
+    """The login a driver signs in with, or null if they have none yet."""
+    await _get_owned_driver(db, driver_id, admin.org_id)
+    login = (
+        await db.execute(select(User.email).where(User.driver_id == driver_id))
+    ).scalar_one_or_none()
+    return DriverLoginStatusOut(login=login)
 
 @router.get("", response_model=list[DriverOut])
 async def list_drivers(

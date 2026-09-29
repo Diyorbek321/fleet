@@ -13,12 +13,12 @@
     "subtitle": "Sign in to continue",
     "signIn": "Sign in",
     "signingIn": "Signing in…",
-    "email": "Email",
+    "email": "Login",
     "password": "Password",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "e.g. 10422tca",
     "passwordPlaceholder": "••••••••",
     "loginFailed": "Login failed",
-    "invalidCredentials": "Invalid email or password",
+    "invalidCredentials": "Invalid login or password",
     "backendUnreachable": "Cannot reach the server. Try again."
   },
   "tabs": {

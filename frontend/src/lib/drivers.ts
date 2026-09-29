@@ -176,15 +176,22 @@ export const driversApi = {
   remove: async (id: string): Promise<void> => {
     await api<{ message: string }>(`/api/drivers/${id}`, { method: 'DELETE' });
   },
+  /** Sets the driver's app login and password — and resets them if the
+   *  driver already has an account. */
   createLogin: async (
     driverId: string,
-    input: { email: string; password: string },
-  ): Promise<{ userId: string; driverId: string; email: string }> => {
-    const data = await api<{ user_id: string; driver_id: string; email: string }>(
+    input: { login: string; password: string },
+  ): Promise<{ userId: string; driverId: string; login: string }> => {
+    const data = await api<{ user_id: string; driver_id: string; login: string }>(
       `/api/drivers/${driverId}/create-login`,
-      { method: 'POST', body: { email: input.email, password: input.password } },
+      { method: 'POST', body: { login: input.login, password: input.password } },
     );
-    return { userId: data.user_id, driverId: data.driver_id, email: data.email };
+    return { userId: data.user_id, driverId: data.driver_id, login: data.login };
+  },
+  /** The login the driver signs in with, or null before one is set. */
+  getLogin: async (driverId: string): Promise<string | null> => {
+    const data = await api<{ login: string | null }>(`/api/drivers/${driverId}/login`);
+    return data.login;
   },
   assign: async (driverId: string, truckId: string): Promise<void> => {
     await api(`/api/drivers/${driverId}/assign`, { method: 'POST', body: { truck_id: truckId } });

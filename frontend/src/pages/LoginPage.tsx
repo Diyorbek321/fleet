@@ -128,7 +128,10 @@ export default function LoginPage() {
                   <Label htmlFor="email">{t('auth.email')}</Label>
                   <Input
                     id="email"
-                    type="email"
+                    type="text"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    spellCheck={false}
                     placeholder={t('auth.emailPlaceholder')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}

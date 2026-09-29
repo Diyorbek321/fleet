@@ -27,11 +27,7 @@ import {
   tripsApi,
   listTripDocuments,
   deleteTripDocument,
-  placesForStage,
-  TRIP_STAGES,
-  type StagePlace,
   type TripCreateInput,
-  type TripStage,
   type TripStatus,
   type TripDocument,
 } from '@/lib/trips';
@@ -42,6 +38,8 @@ import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 import { TripSubscriptionsCard } from '@/components/trips/TripSubscriptionsCard';
 import { TripExpenseReportCard } from '@/components/trips/TripExpenseReportCard';
+import { TripStagePicker } from '@/components/trips/TripStagePicker';
+import { CopyTripStatusButton } from '@/components/trips/CopyTripStatusButton';
 
 const UNASSIGNED = '__none__';
 
@@ -70,8 +68,6 @@ export default function TripDetailPage() {
   const { trucks } = useTrucks();
   const [selected, setSelected] = useState<TripDocument | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [stage, setStage] = useState<TripStage | ''>('');
-  const [place, setPlace] = useState<StagePlace | ''>('');
 
   const tripQuery = useQuery({
     queryKey: ['trip', id],
@@ -117,18 +113,6 @@ export default function TripDetailPage() {
       toast({ title: t('trips.saveFailed'), description: describeError(err, ''), variant: 'destructive' }),
   });
 
-  const stageMutation = useMutation({
-    mutationFn: () => tripsApi.advanceStage(id, stage as TripStage, place || null),
-    onSuccess: () => {
-      setStage('');
-      setPlace('');
-      refreshTrip();
-      toast({ title: t('trips.advanced') });
-    },
-    onError: (err) =>
-      toast({ title: t('trips.saveFailed'), description: describeError(err, ''), variant: 'destructive' }),
-  });
-
   const deleteMutation = useMutation({
     mutationFn: (docId: string) => deleteTripDocument(id, docId),
     onSuccess: () => {
@@ -169,10 +153,13 @@ export default function TripDetailPage() {
                 <span className="font-mono">{trip.reference}</span>
                 <Badge variant={STATUS_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
               </CardTitle>
-              <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                {t('common.edit')}
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <CopyTripStatusButton tripId={trip.id} />
+                <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {t('common.edit')}
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -318,48 +305,8 @@ export default function TripDetailPage() {
                 {t('tripDetail.setStage')}
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <Select
-                value={stage}
-                onValueChange={(v) => {
-                  setStage(v as TripStage);
-                  // A crossing is not a country: the old choice may not apply.
-                  setPlace('');
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t('tripDetail.pickStage')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {TRIP_STAGES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {t(`trips.stage.${s}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {stage && (
-                <div className="flex flex-wrap gap-2">
-                  {placesForStage(stage).map((p) => (
-                    <Button
-                      key={p}
-                      type="button"
-                      size="sm"
-                      variant={place === p ? 'default' : 'outline'}
-                      onClick={() => setPlace(p)}
-                    >
-                      {t(`trips.place.${p}`)}
-                    </Button>
-                  ))}
-                </div>
-              )}
-              <Button
-                className="w-full"
-                disabled={!stage || !place || stageMutation.isPending}
-                onClick={() => stageMutation.mutate()}
-              >
-                {t('tripDetail.saveStage')}
-              </Button>
+            <CardContent>
+              <TripStagePicker tripId={trip.id} />
             </CardContent>
           </Card>
         </div>

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import limiter
@@ -247,7 +247,9 @@ async def login(request: Request, data: LoginIn = Body(...), db: AsyncSession = 
     res = await db.execute(
         select(User, Organization.is_active)
         .join(Organization, Organization.id == User.org_id)
-        .where(User.email == data.email)
+        # Case-blind: a phone keyboard capitalises the first letter by itself,
+        # and "10422TCA" and "10422tca" are the same driver to everyone.
+        .where(func.lower(User.email) == data.login.strip().lower())
     )
     row = res.first()
     user = row[0] if row else None

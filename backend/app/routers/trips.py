@@ -22,6 +22,7 @@ from app.models.trips import Trip, TripDocument, TripEvent, TripSegment
 from app.models.trucks import Truck, TruckLocation
 from app.schemas.trips import (
     TripAdvance,
+    TripCardOut,
     TripCreate,
     TripDetailsOut,
     TripDocumentOut,
@@ -32,6 +33,10 @@ from app.schemas.trips import (
 )
 from app.schemas.trip_reports import TripExpenseReportOut
 from app.services import eta as eta_service
+from app.services import geocoding
+from app.services.period_reports import report_tz
+from app.services.telegram import stage_label, to_plain_text
+from app.services.trip_cards import build_customer_card
 from app.services.storage import delete_object, is_configured, presigned_get_url
 from app.services.trip_notifications import notify_trip_status_change_background
 from app.services.trip_reports import build_report_out, get_report
@@ -338,6 +343,41 @@ async def advance_trip(
         )
 
     return await _detail(db, trip)
+
+
+@router.get("/{trip_id}/card", response_model=TripCardOut)
+async def trip_card(
+    trip_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _user=Depends(_MANAGE),
+):
+    """The cargo owner's card as plain text, for the panel's copy button.
+
+    The same builder the bot uses, so a pasted status and a Telegram one never
+    disagree — plus the checkpoint, and when the position was taken: a paste is
+    read hours later, and a lorry whose phone went quiet days ago must not look
+    as if it were reporting now.
+    """
+    trip = await _get_owned_trip(db, trip_id, org)
+
+    loc = None
+    if trip.truck_id is not None:
+        loc = (
+            await db.execute(select(TruckLocation).where(TruckLocation.truck_id == trip.truck_id))
+        ).scalar_one_or_none()
+    lat = float(loc.latitude) if loc is not None else None
+    lng = float(loc.longitude) if loc is not None else None
+    place = await geocoding.describe(lat, lng)
+    position_at = (
+        loc.recorded_at.astimezone(report_tz()).strftime("%d.%m %H:%M") if loc is not None else None
+    )
+    stage = stage_label(trip.current_stage, trip.current_stage_place) if trip.current_stage else None
+
+    card = await build_customer_card(
+        db, trip, lat=lat, lng=lng, place=place, stage=stage, position_at=position_at
+    )
+    return TripCardOut(text=to_plain_text(card))
 
 
 @router.get("/{trip_id}/pnl", response_model=TripPnL)

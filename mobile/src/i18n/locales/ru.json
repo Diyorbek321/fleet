@@ -13,12 +13,12 @@
     "subtitle": "Войдите, чтобы продолжить",
     "signIn": "Войти",
     "signingIn": "Вход…",
-    "email": "Эл. почта",
+    "email": "Логин",
     "password": "Пароль",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "например, 10422tca",
     "passwordPlaceholder": "••••••••",
     "loginFailed": "Не удалось войти",
-    "invalidCredentials": "Неверная почта или пароль",
+    "invalidCredentials": "Неверный логин или пароль",
     "backendUnreachable": "Не удалось связаться с сервером. Попробуйте снова."
   },
   "tabs": {

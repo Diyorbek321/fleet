@@ -13,12 +13,12 @@
     "subtitle": "Davom etish uchun kiring",
     "signIn": "Kirish",
     "signingIn": "Kirilmoqda…",
-    "email": "Email",
+    "email": "Login",
     "password": "Parol",
-    "emailPlaceholder": "siz@example.com",
+    "emailPlaceholder": "masalan, 10422tca",
     "passwordPlaceholder": "••••••••",
     "loginFailed": "Kirish amalga oshmadi",
-    "invalidCredentials": "Email yoki parol noto‘g‘ri",
+    "invalidCredentials": "Login yoki parol noto‘g‘ri",
     "backendUnreachable": "Serverga ulanib bo‘lmadi. Qayta urinib ko‘ring."
   },
   "tabs": {

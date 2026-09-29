@@ -73,14 +73,14 @@
     "heading_accent": "avtopark boshqaruvi",
     "signIn": "Kirish",
     "signingIn": "Kirilmoqda…",
-    "email": "Elektron pochta",
+    "email": "Login yoki email",
     "password": "Parol",
-    "emailPlaceholder": "siz@misol.com",
+    "emailPlaceholder": "login yoki siz@misol.com",
     "passwordPlaceholder": "••••••••",
     "welcome": "Xush kelibsiz!",
     "welcomeDescription": "Tizimga muvaffaqiyatli kirdingiz.",
     "loginFailed": "Kirish amalga oshmadi",
-    "invalidCredentials": "Elektron pochta yoki parol noto‘g‘ri.",
+    "invalidCredentials": "Login yoki parol noto‘g‘ri.",
     "backendUnreachable": "Backend serverga ulanib bo‘lmadi. API ishlayaptimi?",
     "genericError": "Xatolik yuz berdi. Qayta urinib ko‘ring.",
     "highlights": {
@@ -312,7 +312,11 @@
       "createAction": "Yaratish",
       "toastCreated": "Hisob yaratildi",
       "toastFailed": "Hisob yaratilmadi",
-      "createFailed": "Hisob yaratib bo‘lmadi"
+      "createFailed": "Hisob yaratib bo‘lmadi",
+      "login": "Login",
+      "loginHint": "Lotin harflari va raqamlar, bo‘sh joysiz — masalan, mashina raqami: 10422tca. Katta-kichik harf farqi yo‘q.",
+      "resetLogin": "Login/parolni yangilash",
+      "resetAction": "Yangilash"
     },
     "phone2": "Telefon 2",
     "phone3": "Telefon 3",
@@ -495,7 +499,11 @@
       "unloadingAddress": "Tushirish lokatsiyasi",
       "declarantContact": "Deklarant kontakti",
       "notes": "Izoh"
-    }
+    },
+    "copyStatus": "Statusni nusxalash",
+    "statusCopied": "Status nusxalandi",
+    "copyFailed": "Statusni olib bo‘lmadi",
+    "copyManually": "Matnni nusxalang:"
   },
   "tripDetail": {
     "title": "Reys hujjatlari",

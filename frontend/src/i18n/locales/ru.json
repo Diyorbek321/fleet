@@ -73,14 +73,14 @@
     "heading_accent": "в реальном времени",
     "signIn": "Войти",
     "signingIn": "Вход…",
-    "email": "Электронная почта",
+    "email": "Логин или email",
     "password": "Пароль",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "логин или вы@пример.com",
     "passwordPlaceholder": "••••••••",
     "welcome": "С возвращением!",
     "welcomeDescription": "Вы успешно вошли в систему.",
     "loginFailed": "Не удалось войти",
-    "invalidCredentials": "Неверный email или пароль.",
+    "invalidCredentials": "Неверный логин или пароль.",
     "backendUnreachable": "Не удалось подключиться к серверу. Backend запущен?",
     "genericError": "Что-то пошло не так. Попробуйте ещё раз.",
     "highlights": {
@@ -312,7 +312,11 @@
       "createAction": "Создать",
       "toastCreated": "Доступ создан",
       "toastFailed": "Не удалось создать доступ",
-      "createFailed": "Не удалось создать доступ"
+      "createFailed": "Не удалось создать доступ",
+      "login": "Логин",
+      "loginHint": "Латинские буквы и цифры, без пробелов — например, номер машины: 10422tca. Регистр не важен.",
+      "resetLogin": "Сменить логин/пароль",
+      "resetAction": "Сохранить"
     },
     "phone2": "Телефон 2",
     "phone3": "Телефон 3",
@@ -495,7 +499,11 @@
       "unloadingAddress": "Локация выгрузки",
       "declarantContact": "Контакт декларанта",
       "notes": "Примечание"
-    }
+    },
+    "copyStatus": "Скопировать статус",
+    "statusCopied": "Статус скопирован",
+    "copyFailed": "Не удалось получить статус",
+    "copyManually": "Скопируйте текст:"
   },
   "tripDetail": {
     "title": "Документы рейса",

@@ -382,6 +382,11 @@ export const tripsApi = {
     });
     return adaptDetails(data);
   },
+  /** The trip's status as plain text, ready to paste to the cargo owner. */
+  card: async (id: string): Promise<string> => {
+    const data = await api<{ text: string }>(`/api/trips/${id}/card`);
+    return data.text;
+  },
   pnl: async (id: string): Promise<TripPnL> => {
     const d = await api<{
       trip_id: string;

@@ -73,14 +73,14 @@
     "heading_accent": "Management",
     "signIn": "Sign in",
     "signingIn": "Signing in…",
-    "email": "Email",
+    "email": "Login or email",
     "password": "Password",
-    "emailPlaceholder": "you@example.com",
+    "emailPlaceholder": "login or you@example.com",
     "passwordPlaceholder": "••••••••",
     "welcome": "Welcome back!",
     "welcomeDescription": "You have successfully logged in.",
     "loginFailed": "Login failed",
-    "invalidCredentials": "Invalid email or password.",
+    "invalidCredentials": "Invalid login or password.",
     "backendUnreachable": "Cannot reach the backend. Is the API running?",
     "genericError": "Something went wrong. Please try again.",
     "highlights": {
@@ -312,7 +312,11 @@
       "createAction": "Create login",
       "toastCreated": "App login created",
       "toastFailed": "Failed to create login",
-      "createFailed": "Could not create login"
+      "createFailed": "Could not create login",
+      "login": "Login",
+      "loginHint": "Latin letters and digits, no spaces — e.g. the plate: 10422tca. Case does not matter.",
+      "resetLogin": "Reset login/password",
+      "resetAction": "Save"
     },
     "phone2": "Phone 2",
     "phone3": "Phone 3",
@@ -495,7 +499,11 @@
       "unloadingAddress": "Unloading location",
       "declarantContact": "Declarant contact",
       "notes": "Note"
-    }
+    },
+    "copyStatus": "Copy status",
+    "statusCopied": "Status copied",
+    "copyFailed": "Could not fetch the status",
+    "copyManually": "Copy the text:"
   },
   "tripDetail": {
     "title": "Trip documents",

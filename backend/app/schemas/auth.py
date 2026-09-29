@@ -1,5 +1,5 @@
 from __future__ import annotations
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import AliasChoices, BaseModel, EmailStr, Field
 from typing import Optional
 import uuid
 from app.models.enums import UserRole
@@ -48,7 +48,12 @@ class ChangePasswordIn(BaseModel):
 
 
 class LoginIn(BaseModel):
-    email: EmailStr
+    """Staff sign in with their email, drivers with the login the panel gave them.
+
+    Not ``EmailStr``: a driver's login is usually the plate. The old app posts
+    the field as ``email``, so that name is still accepted.
+    """
+    login: str = Field(min_length=1, max_length=255, validation_alias=AliasChoices("login", "email"))
     password: str
 
 class TokenOut(BaseModel):
