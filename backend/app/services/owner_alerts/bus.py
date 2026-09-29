@@ -48,6 +48,7 @@ from app.models.owner_alerts import (
     NotificationLog,
     TelegramAccount,
 )
+from app.services.panel_notifications import record_panel_notification
 from app.services.period_reports import report_tz
 from app.services.telegram import SendResult, send_message
 
@@ -310,6 +311,10 @@ async def notify_owner(db: AsyncSession, org_id: uuid.UUID, alert: Alert) -> int
     scheduler job whose whole tick must survive a blocked bot or an unreachable
     Telegram.
     """
+    # First, and outside every Telegram rule below: the panel's bell has no
+    # quiet hours or mute list, and needs no chat to be linked.
+    await record_panel_notification(db, org_id, alert)
+
     text = render_alert(alert)
 
     async def _send(chat_id: str) -> SendResult:

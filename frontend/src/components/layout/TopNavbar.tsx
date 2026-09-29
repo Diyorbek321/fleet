@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
-import { Bell, User, Search, Menu } from 'lucide-react';
+import { User, Search, Menu } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
+import { NotificationBell } from './NotificationBell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -16,15 +17,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from '@/lib/datetime';
 
-interface AppNotification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'error' | 'warning' | 'success' | 'info';
-  read: boolean;
-  timestamp: Date;
-}
-
 interface TopNavbarProps {
   onMenuClick?: () => void;
 }
@@ -32,12 +24,6 @@ interface TopNavbarProps {
 export function TopNavbar({ onMenuClick }: TopNavbarProps) {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
-  // TODO: wire to backend notifications endpoint once it exists.
-  // Until then, render a clean empty state with no unread count.
-  const notifications: AppNotification[] = [];
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
   return (
     <header className="sticky top-0 z-30 h-16 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-full items-center justify-between px-4 lg:px-6">
@@ -75,61 +61,7 @@ export function TopNavbar({ onMenuClick }: TopNavbarProps) {
             <span className="text-xs font-medium text-status-moving">Live</span>
           </div>
 
-          {/* Notifications */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                {unreadCount > 0 && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs flex items-center justify-center"
-                  >
-                    {unreadCount}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 bg-popover">
-              <DropdownMenuLabel className="font-semibold">{t('notifications.title')}</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <div className="max-h-[300px] overflow-y-auto">
-                {notifications.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
-                    <Bell className="h-6 w-6 text-muted-foreground/60" />
-                    <p className="text-sm text-muted-foreground">{t('notifications.empty')}</p>
-                  </div>
-                ) : (
-                  notifications.map((notification) => (
-                    <DropdownMenuItem
-                      key={notification.id}
-                      className={cn(
-                        'flex flex-col items-start gap-1 p-3 cursor-pointer',
-                        !notification.read && 'bg-primary/5'
-                      )}
-                    >
-                      <div className="flex items-center gap-2 w-full">
-                        <span
-                          className={cn(
-                            'h-2 w-2 rounded-full shrink-0',
-                            notification.type === 'error' && 'bg-destructive',
-                            notification.type === 'warning' && 'bg-status-stopped',
-                            notification.type === 'success' && 'bg-status-moving',
-                            notification.type === 'info' && 'bg-primary'
-                          )}
-                        />
-                        <span className="font-medium text-sm">{notification.title}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground pl-4">{notification.message}</p>
-                      <span className="text-xs text-muted-foreground/70 pl-4">
-                        {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
-                      </span>
-                    </DropdownMenuItem>
-                  ))
-                )}
-              </div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <NotificationBell />
 
           {/* User menu */}
           <DropdownMenu>

@@ -17,3 +17,4 @@ from app.models.devices import Device  # noqa
 from app.models.audit import AuditEvent  # noqa
 from app.models.owner_alerts import TelegramAccount, NotificationLog  # noqa
 from app.models.driver_messages import DriverMessage  # noqa
+from app.models.panel_notifications import PanelNotification  # noqa

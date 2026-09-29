@@ -42,6 +42,7 @@ from app.services.owner_alerts import trips as owner_trips
 from app.services.queue import poll_active_watches
 from app.services.reminders import check_document_expiries
 from app.services.truck_freshness import mark_silent_trucks_offline
+from app.services.panel_notifications import prune_panel_notifications
 
 try:  # pragma: no cover - exercised only when redis is installed/enabled
     import redis.asyncio as aioredis
@@ -324,6 +325,8 @@ async def prune_owner_alert_log() -> None:
         async with SessionLocal() as db:
             removed = await prune_notification_log(db)
             logger.info("owner_alert_log_pruned", rows_removed=removed)
+            removed = await prune_panel_notifications(db)
+            logger.info("panel_notifications_pruned", rows_removed=removed)
     except Exception:  # noqa: BLE001 — never let a job crash the scheduler
         logger.exception("owner_alert_log_prune_failed")
 

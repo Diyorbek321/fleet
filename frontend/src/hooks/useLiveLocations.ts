@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchTruckLocations, type LiveLocation, type LocationUpdateMessage } from '@/lib/locations';
 import { tokenStorage } from '@/lib/api';
+import { NOTIFICATIONS_KEY } from '@/lib/notifications';
 
 /** Negotiated with the API; must match app/routers/ws.py. */
 const WS_SUBPROTOCOL = 'fleetwatch.v1';
@@ -56,10 +57,16 @@ export function useLiveLocations() {
       };
 
       ws.onmessage = (evt: MessageEvent<string>) => {
-        let msg: LocationUpdateMessage;
+        let msg: LocationUpdateMessage | { type: 'notification' };
         try {
-          msg = JSON.parse(evt.data) as LocationUpdateMessage;
+          msg = JSON.parse(evt.data) as LocationUpdateMessage | { type: 'notification' };
         } catch {
+          return;
+        }
+        // The bell's socket message is only a nudge; the list itself is
+        // always fetched through the role-checked REST endpoint.
+        if (msg.type === 'notification') {
+          void queryClient.invalidateQueries({ queryKey: NOTIFICATIONS_KEY });
           return;
         }
         if (msg.type !== 'truck_location_update') return;

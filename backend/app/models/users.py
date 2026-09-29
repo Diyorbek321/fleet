@@ -35,5 +35,10 @@ class User(Base):
     must_change_password: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=false(), nullable=False
     )
+    # Everything in the panel's bell newer than this is unread. NULL means the
+    # bell was never opened; account creation stands in for it.
+    notifications_seen_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     driver: Mapped["Driver"] = relationship("Driver", lazy="joined")
