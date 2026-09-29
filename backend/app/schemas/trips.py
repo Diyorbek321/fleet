@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -14,6 +14,10 @@ from app.models.enums import (
     TripStatus,
     places_for_stage,
 )
+
+# Which way the run goes. Customs is cleared in the destination country: a
+# Russian post on uz_ru, an Uzbek one on ru_uz.
+TripDirection = Literal["uz_ru", "ru_uz"]
 
 
 class TripCreate(BaseModel):
@@ -28,6 +32,7 @@ class TripCreate(BaseModel):
     destination_name: Optional[str] = Field(default=None, max_length=200)
     destination_lat: Optional[float] = Field(default=None, ge=-90, le=90)
     destination_lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    direction: Optional[TripDirection] = None
     border_crossing: Optional[str] = Field(default=None, max_length=120)
     loading_address: Optional[str] = None
     loading_contact: Optional[str] = Field(default=None, max_length=200)
@@ -56,6 +61,7 @@ class TripUpdate(BaseModel):
     destination_name: Optional[str] = Field(default=None, max_length=200)
     destination_lat: Optional[float] = Field(default=None, ge=-90, le=90)
     destination_lng: Optional[float] = Field(default=None, ge=-180, le=180)
+    direction: Optional[TripDirection] = None
     border_crossing: Optional[str] = Field(default=None, max_length=120)
     loading_address: Optional[str] = None
     loading_contact: Optional[str] = Field(default=None, max_length=200)
@@ -132,6 +138,7 @@ class TripOut(BaseModel):
     destination_name: Optional[str]
     destination_lat: Optional[float]
     destination_lng: Optional[float]
+    direction: Optional[str] = None
     border_crossing: Optional[str] = None
     loading_address: Optional[str] = None
     loading_contact: Optional[str] = None

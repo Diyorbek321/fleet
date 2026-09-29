@@ -498,12 +498,30 @@
       "customsPoint": "Растаможка",
       "unloadingAddress": "Локация выгрузки",
       "declarantContact": "Контакт декларанта",
-      "notes": "Примечание"
+      "notes": "Примечание",
+      "direction": "Направление",
+      "directionRequired": "Выберите направление",
+      "customsIn": {
+        "uz_ru": "Растаможка (Россия)",
+        "ru_uz": "Растаможка (Узбекистан)"
+      },
+      "customsPlaceholder": {
+        "uz_ru": "например, Тюменский таможенный пост",
+        "ru_uz": "например, Ташкент, Чукурсай"
+      }
     },
     "copyStatus": "Скопировать статус",
     "statusCopied": "Статус скопирован",
     "copyFailed": "Не удалось получить статус",
-    "copyManually": "Скопируйте текст:"
+    "copyManually": "Скопируйте текст:",
+    "direction": {
+      "uz_ru": "Узбекистан → Россия",
+      "ru_uz": "Россия → Узбекистан"
+    },
+    "directionShort": {
+      "uz_ru": "UZ → RU",
+      "ru_uz": "RU → UZ"
+    }
   },
   "tripDetail": {
     "title": "Документы рейса",

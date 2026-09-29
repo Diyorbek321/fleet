@@ -1,5 +1,11 @@
 import { api } from '@/lib/api';
 
+/** Which way the run goes. Customs is cleared in the destination country:
+ *  in Russia on uz_ru, in Uzbekistan on ru_uz. */
+export type TripDirection = 'uz_ru' | 'ru_uz';
+
+export const TRIP_DIRECTIONS: TripDirection[] = ['uz_ru', 'ru_uz'];
+
 export type TripStatus =
   | 'draft'
   | 'planned'
@@ -87,6 +93,7 @@ export interface Trip {
   consignee: string | null;
   originName: string | null;
   destinationName: string | null;
+  direction: TripDirection | null;
   borderCrossing: string | null;
   loadingAddress: string | null;
   loadingContact: string | null;
@@ -181,6 +188,7 @@ interface BackendTrip {
   consignee: string | null;
   origin_name: string | null;
   destination_name: string | null;
+  direction?: TripDirection | null;
   border_crossing?: string | null;
   loading_address?: string | null;
   loading_contact?: string | null;
@@ -234,6 +242,7 @@ function adapt(t: BackendTrip): Trip {
     consignee: t.consignee,
     originName: t.origin_name,
     destinationName: t.destination_name,
+    direction: t.direction ?? null,
     borderCrossing: t.border_crossing ?? null,
     loadingAddress: t.loading_address ?? null,
     loadingContact: t.loading_contact ?? null,
@@ -281,6 +290,7 @@ function adaptDetails(t: BackendTripDetails): TripDetails {
 export interface TripCreateInput {
   truckId?: string | null;
   driverId?: string | null;
+  direction?: TripDirection | null;
   borderCrossing?: string | null;
   shipper?: string | null;
   loadingAddress?: string | null;
@@ -305,6 +315,7 @@ export interface TripCreateInput {
 const WIRE_NAMES: Record<keyof TripCreateInput, string> = {
   truckId: 'truck_id',
   driverId: 'driver_id',
+  direction: 'direction',
   borderCrossing: 'border_crossing',
   shipper: 'shipper',
   loadingAddress: 'loading_address',

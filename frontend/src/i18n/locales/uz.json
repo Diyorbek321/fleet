@@ -498,12 +498,30 @@
       "customsPoint": "Rastamojka",
       "unloadingAddress": "Tushirish lokatsiyasi",
       "declarantContact": "Deklarant kontakti",
-      "notes": "Izoh"
+      "notes": "Izoh",
+      "direction": "Yo‘nalish",
+      "directionRequired": "Yo‘nalishni tanlang",
+      "customsIn": {
+        "uz_ru": "Rastamojka (Rossiya)",
+        "ru_uz": "Rastamojka (O‘zbekiston)"
+      },
+      "customsPlaceholder": {
+        "uz_ru": "masalan, Tyumen bojxona posti",
+        "ru_uz": "masalan, Toshkent, Chuqursoy"
+      }
     },
     "copyStatus": "Statusni nusxalash",
     "statusCopied": "Status nusxalandi",
     "copyFailed": "Statusni olib bo‘lmadi",
-    "copyManually": "Matnni nusxalang:"
+    "copyManually": "Matnni nusxalang:",
+    "direction": {
+      "uz_ru": "O‘zbekiston → Rossiya",
+      "ru_uz": "Rossiya → O‘zbekiston"
+    },
+    "directionShort": {
+      "uz_ru": "UZ → RU",
+      "ru_uz": "RU → UZ"
+    }
   },
   "tripDetail": {
     "title": "Reys hujjatlari",

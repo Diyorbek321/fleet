@@ -276,6 +276,7 @@ export default function TripDetailPage() {
               <dl className="grid gap-2 text-sm">
                 {(
                   [
+                    ['direction', trip.direction ? t(`trips.direction.${trip.direction}`) : null],
                     ['borderCrossing', trip.borderCrossing],
                     ['shipper', trip.shipper],
                     ['loadingAddress', trip.loadingAddress],
@@ -289,7 +290,11 @@ export default function TripDetailPage() {
                   ] as const
                 ).map(([key, value]) => (
                   <div key={key} className="grid grid-cols-[10rem_1fr] gap-2">
-                    <dt className="text-muted-foreground">{t(`trips.form.${key}`)}</dt>
+                    <dt className="text-muted-foreground">
+                      {key === 'customsPoint' && trip.direction
+                        ? t(`trips.form.customsIn.${trip.direction}`)
+                        : t(`trips.form.${key}`)}
+                    </dt>
                     <dd className="whitespace-pre-line break-words font-medium">{value || '—'}</dd>
                   </div>
                 ))}

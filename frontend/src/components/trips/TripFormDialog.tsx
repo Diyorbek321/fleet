@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { Trip, TripCreateInput } from '@/lib/trips';
+import { TRIP_DIRECTIONS, type Trip, type TripCreateInput, type TripDirection } from '@/lib/trips';
 import type { Driver } from '@/lib/drivers';
 import type { Truck } from '@/types';
 
@@ -40,6 +40,8 @@ type TextField =
   | 'notes';
 
 type FormState = Record<TextField, string> & {
+  /** Empty until the dispatcher picks one; a new trip cannot be saved without. */
+  direction: TripDirection | '';
   truckId: string;
   driverId: string;
   cargoTons: string;
@@ -49,6 +51,7 @@ type FormState = Record<TextField, string> & {
 
 function stateFor(trip: Trip | null): FormState {
   return {
+    direction: trip?.direction ?? '',
     truckId: trip?.truckId ?? '',
     driverId: trip?.driverId ?? '',
     originName: trip?.originName ?? '',
@@ -78,6 +81,7 @@ function tonsToKg(tons: string): number | null {
 function toInput(form: FormState): TripCreateInput {
   const text = (v: string) => v.trim() || null;
   return {
+    direction: form.direction || null,
     truckId: form.truckId || null,
     driverId: form.driverId || null,
     originName: text(form.originName),
@@ -122,18 +126,32 @@ export function TripFormDialog({
 }: TripFormDialogProps) {
   const { t } = useTranslation();
   const [form, setForm] = useState<FormState>(() => stateFor(trip));
+  const [directionMissing, setDirectionMissing] = useState(false);
+  const directionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (open) setForm(stateFor(trip));
+    if (open) {
+      setForm(stateFor(trip));
+      setDirectionMissing(false);
+    }
   }, [open, trip]);
+
+  // The customs post is in the country the load is going to, so its label
+  // names that country once the direction is known.
+  const customsLabel = form.direction
+    ? t(`trips.form.customsIn.${form.direction}`)
+    : t('trips.form.customsPoint');
 
   const set = (key: keyof FormState) => (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const field = (key: TextField, opts: { multiline?: boolean; placeholder?: string } = {}) => (
+  const field = (
+    key: TextField,
+    opts: { multiline?: boolean; placeholder?: string; label?: string } = {},
+  ) => (
     <div className="space-y-2">
-      <Label htmlFor={`trip-${key}`}>{t(`trips.form.${key}`)}</Label>
+      <Label htmlFor={`trip-${key}`}>{opts.label ?? t(`trips.form.${key}`)}</Label>
       {opts.multiline ? (
         <Textarea
           id={`trip-${key}`}
@@ -166,15 +184,52 @@ export function TripFormDialog({
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            // Required for a new trip only: trips created before the field
+            // existed must stay editable without someone guessing their route.
+            if (!trip && !form.direction) {
+              setDirectionMissing(true);
+              // The picker is at the top of a long form; the save button is at
+              // the bottom. Without this the refusal happens off-screen.
+              directionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+              return;
+            }
             onSubmit(toInput(form));
           }}
           className="space-y-3"
         >
           {section(t('trips.form.sectionRoute'))}
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div ref={directionRef} className="space-y-2">
+            <Label>{t('trips.form.direction')}</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {TRIP_DIRECTIONS.map((d) => (
+                <Button
+                  key={d}
+                  type="button"
+                  variant={form.direction === d ? 'default' : 'outline'}
+                  aria-pressed={form.direction === d}
+                  onClick={() => {
+                    setForm((f) => ({ ...f, direction: d }));
+                    setDirectionMissing(false);
+                  }}
+                >
+                  {t(`trips.direction.${d}`)}
+                </Button>
+              ))}
+            </div>
+            {directionMissing && (
+              <p className="text-sm text-destructive">{t('trips.form.directionRequired')}</p>
+            )}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
             {field('originName', { placeholder: 'Елабуга' })}
             {field('destinationName', { placeholder: 'Ташкент' })}
             {field('borderCrossing', { placeholder: 'Майский' })}
+            {field('customsPoint', {
+              label: customsLabel,
+              placeholder: form.direction
+                ? t(`trips.form.customsPlaceholder.${form.direction}`)
+                : undefined,
+            })}
           </div>
 
           {section(t('trips.form.sectionLoading'))}
@@ -205,10 +260,7 @@ export function TripFormDialog({
           {field('loadingContact')}
 
           {section(t('trips.form.sectionUnloading'))}
-          <div className="grid gap-3 sm:grid-cols-2">
-            {field('consignee')}
-            {field('customsPoint')}
-          </div>
+          {field('consignee')}
           {field('unloadingAddress', { multiline: true })}
           {field('declarantContact')}
 

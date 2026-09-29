@@ -70,6 +70,9 @@ class Trip(Base):
     # crossing to use, where exactly to load and unload, the customs post, and
     # who to call at each end. Free text, because that is how they arrive —
     # an address with a map link, a phone with "декларант" after it.
+    # "uz_ru" or "ru_uz". The customs post is in the country the load is going
+    # to, so this is what says which side of the border `customs_point` means.
+    direction: Mapped[str | None] = mapped_column(String(8), nullable=True)
     border_crossing: Mapped[str | None] = mapped_column(String(120), nullable=True)
     loading_address: Mapped[str | None] = mapped_column(Text, nullable=True)
     loading_contact: Mapped[str | None] = mapped_column(String(200), nullable=True)

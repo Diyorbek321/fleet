@@ -182,6 +182,11 @@ export default function TripsPage() {
                   <TableCell className="font-mono text-xs font-medium">{trip.reference}</TableCell>
                   <TableCell className="text-sm">
                     {(trip.originName ?? '—')} → {(trip.destinationName ?? '—')}
+                    {trip.direction && (
+                      <Badge variant="secondary" className="ml-2">
+                        {t(`trips.directionShort.${trip.direction}`)}
+                      </Badge>
+                    )}
                     {trip.isReefer && (
                       <Badge variant="outline" className="ml-2">
                         {t('trips.reefer')}

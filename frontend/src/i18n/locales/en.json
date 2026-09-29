@@ -498,12 +498,30 @@
       "customsPoint": "Customs clearance",
       "unloadingAddress": "Unloading location",
       "declarantContact": "Declarant contact",
-      "notes": "Note"
+      "notes": "Note",
+      "direction": "Direction",
+      "directionRequired": "Choose a direction",
+      "customsIn": {
+        "uz_ru": "Customs (Russia)",
+        "ru_uz": "Customs (Uzbekistan)"
+      },
+      "customsPlaceholder": {
+        "uz_ru": "e.g. Tyumen customs post",
+        "ru_uz": "e.g. Tashkent, Chukursay"
+      }
     },
     "copyStatus": "Copy status",
     "statusCopied": "Status copied",
     "copyFailed": "Could not fetch the status",
-    "copyManually": "Copy the text:"
+    "copyManually": "Copy the text:",
+    "direction": {
+      "uz_ru": "Uzbekistan → Russia",
+      "ru_uz": "Russia → Uzbekistan"
+    },
+    "directionShort": {
+      "uz_ru": "UZ → RU",
+      "ru_uz": "RU → UZ"
+    }
   },
   "tripDetail": {
     "title": "Trip documents",
