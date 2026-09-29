@@ -18,6 +18,9 @@ buildscript {
         classpath('com.android.tools.build:gradle')
         classpath('com.facebook.react:react-native-gradle-plugin')
         classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+        // Firebase Cloud Messaging: Expo delivers Android pushes through FCM, and
+        // FCM needs google-services.json processed into the app at build time.
+        classpath('com.google.gms:google-services:4.4.2')
     }
 }
 

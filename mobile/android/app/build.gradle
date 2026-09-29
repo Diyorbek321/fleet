@@ -114,8 +114,8 @@ android {
         applicationId 'com.fleetwatch.driver'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 2
-        versionName "0.2.0"
+        versionCode 3
+        versionName "0.3.0"
     }
     signingConfigs {
         debug {
@@ -213,4 +213,13 @@ dependencies {
 if (rnVersion < versionToNumber(0, 75, 0)) {
     apply from: new File(["node", "--print", "require.resolve('@react-native-community/cli-platform-android/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim(), "../native_modules.gradle");
     applyNativeModulesAppBuildGradle(project)
+}
+
+// Applied only when the Firebase config is present, so a checkout without it
+// still builds — it just cannot receive pushes. Download it from the Firebase
+// console (Android app com.fleetwatch.driver) into android/app/.
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+} else {
+    logger.warn('google-services.json missing: this build will not receive push notifications')
 }
