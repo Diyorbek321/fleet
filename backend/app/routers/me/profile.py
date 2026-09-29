@@ -30,6 +30,17 @@ from app.services.gps import upsert_latest_location
 
 router = APIRouter(prefix=PREFIX, tags=TAGS)
 
+# The driver app reports ``coords.speed`` straight from expo-location, which is
+# metres per second; everything downstream (status thresholds, trip segments,
+# the Telegram "Скорость: N км/ч" line) works in km/h. Converting here rather
+# than in the app fixes every phone already installed without a new APK.
+MPS_TO_KMH = 3.6
+
+
+def _phone_speed_kmh(speed_mps: float) -> float:
+    # iOS reports -1 when it has no speed estimate; that is "unknown", not reverse.
+    return max(0.0, speed_mps) * MPS_TO_KMH
+
 
 # ── Profile & assignment ──────────────────────────────────────────────
 
@@ -139,12 +150,13 @@ async def ping_location(
     phones instead of trackers had geofences that silently never fired.
     """
     truck = await require_assigned_truck(db, driver.id)
+    speed_kmh = _phone_speed_kmh(data.speed)
     await upsert_latest_location(
         db=db,
         truck_id=truck.id,
         latitude=data.latitude,
         longitude=data.longitude,
-        speed=data.speed,
+        speed=speed_kmh,
         heading=data.heading,
         recorded_at=data.recorded_at,
         truck=truck,
@@ -164,7 +176,7 @@ async def ping_location(
         "truck_id": str(truck.id),
         "lat": data.latitude,
         "lng": data.longitude,
-        "speed": data.speed,
+        "speed": speed_kmh,
         "heading": data.heading,
         "recorded_at": (data.recorded_at or datetime.now(timezone.utc)).isoformat(),
     })

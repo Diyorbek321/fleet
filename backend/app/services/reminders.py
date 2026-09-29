@@ -29,7 +29,7 @@ DEFAULT_DAYS_AHEAD = 30
 
 
 async def upcoming_expiries(db: AsyncSession, org_id, days_ahead: int = DEFAULT_DAYS_AHEAD) -> dict:
-    """Licence + service items expiring within ``days_ahead`` for one org."""
+    """Licence, insurance and service items expiring within ``days_ahead`` for one org."""
     today = date.today()
     horizon = today + timedelta(days=days_ahead)
 
@@ -87,11 +87,39 @@ async def upcoming_expiries(db: AsyncSession, org_id, days_ahead: int = DEFAULT_
         for si, t in service_rows
     ]
 
+    # Truck insurance. Trucks taken off the board are skipped: nobody is
+    # driving them, so a lapsed policy there is not something to act on.
+    insurance_rows = (
+        await db.execute(
+            select(Truck)
+            .where(
+                Truck.org_id == org_id,
+                Truck.is_enabled.is_(True),
+                Truck.insurance_expiry.is_not(None),
+                Truck.insurance_expiry <= horizon,
+            )
+            .order_by(Truck.insurance_expiry)
+        )
+    ).scalars().all()
+
+    insurance = [
+        {
+            "truck_id": str(t.id),
+            "truck_name": t.name,
+            "plate_number": t.plate_number,
+            "insurance_expiry": t.insurance_expiry.isoformat(),
+            "days_left": (t.insurance_expiry - today).days,
+            "expired": t.insurance_expiry < today,
+        }
+        for t in insurance_rows
+    ]
+
     return {
         "days_ahead": days_ahead,
         "license_expiries": licences,
+        "insurance_expiries": insurance,
         "service_due": services,
-        "total": len(licences) + len(services),
+        "total": len(licences) + len(insurance) + len(services),
     }
 
 

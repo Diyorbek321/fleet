@@ -63,6 +63,12 @@ class Settings(BaseSettings):
     # Rows deleted per statement. Batched so a first purge on a table that has
     # grown to millions of rows never takes a long lock or blows up the WAL.
     gps_purge_batch_size: int = Field(default=10_000, alias="GPS_PURGE_BATCH_SIZE")
+    # A truck whose newest fix is older than this is shown as "offline" instead
+    # of whatever the last ping said. Generous on purpose: the driver app only
+    # reports after 50 m of movement, so a lorry parked for a meal break is
+    # silent too, and calling that "offline" every lunch would train
+    # dispatchers to ignore the badge. 0 disables the job.
+    gps_offline_after_minutes: int = Field(default=120, alias="GPS_OFFLINE_AFTER_MINUTES")
 
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
     use_redis_refresh_tokens: bool = Field(default=False, alias="USE_REDIS_REFRESH_TOKENS")

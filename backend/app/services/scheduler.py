@@ -12,7 +12,7 @@ idempotent — re-running it produces the same end state.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from functools import partial
 from typing import Any
 
@@ -40,6 +40,7 @@ from app.services.owner_alerts import reports as owner_reports
 from app.services.owner_alerts import trips as owner_trips
 from app.services.queue import poll_active_watches
 from app.services.reminders import check_document_expiries
+from app.services.truck_freshness import mark_silent_trucks_offline
 
 try:  # pragma: no cover - exercised only when redis is installed/enabled
     import redis.asyncio as aioredis
@@ -274,6 +275,24 @@ async def purge_gps_history() -> None:
         logger.exception("gps_retention_failed")
 
 
+async def mark_silent_trucks() -> None:
+    """Flip trucks that stopped reporting to ``offline``.
+
+    Status is only written when a ping arrives, so without this a truck whose
+    phone died keeps its last badge — "moving" — indefinitely.
+    """
+    minutes = settings.gps_offline_after_minutes
+    if minutes <= 0:
+        return
+    try:
+        async with SessionLocal() as db:
+            changed = await mark_silent_trucks_offline(db, timedelta(minutes=minutes))
+            if changed:
+                logger.info("silent_trucks_marked_offline", count=changed)
+    except Exception:  # noqa: BLE001 — never let a job crash the scheduler
+        logger.exception("silent_trucks_failed")
+
+
 async def _run_owner_watch(name: str, run_fn) -> None:
     """Run one owner-alert watcher on its own session.
 
@@ -372,6 +391,9 @@ def start_scheduler() -> AsyncIOScheduler | None:
     async def _location_label_job() -> None:
         await _run_locked("label_truck_locations", label_truck_locations)
 
+    async def _silent_trucks_job() -> None:
+        await _run_locked("mark_silent_trucks", mark_silent_trucks)
+
     async def _daily_updates_job() -> None:
         # The job itself self-gates on the configured hour of day, so it's
         # safe (and cheap) to invoke on every scheduler tick.
@@ -446,6 +468,15 @@ def start_scheduler() -> AsyncIOScheduler | None:
         trigger="interval",
         minutes=max(interval, 5),
         id="label_truck_locations",
+        max_instances=1,
+        coalesce=True,
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _silent_trucks_job,
+        trigger="interval",
+        minutes=max(interval, 5),
+        id="mark_silent_trucks",
         max_instances=1,
         coalesce=True,
         replace_existing=True,

@@ -274,6 +274,7 @@ async def collect(db: AsyncSession, org_id: uuid.UUID, day: date) -> BriefingFac
 
     expiries = await upcoming_expiries(db, org_id, days_ahead=EXPIRY_HORIZON_DAYS)
     overdue = sum(1 for row in expiries["license_expiries"] if row["expired"])
+    overdue += sum(1 for row in expiries["insurance_expiries"] if row["expired"])
     overdue += sum(
         1 for row in expiries["service_due"] if row["status"] == ServiceStatus.overdue.value
     )

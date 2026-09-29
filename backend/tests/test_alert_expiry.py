@@ -389,3 +389,62 @@ async def test_a_licence_is_reannounced_once_its_weekly_window_lapses(db, captur
 
     assert await run(db) == 1
     assert len(captured) == 2
+
+
+# ── Truck insurance ──────────────────────────────────────────────────────
+
+
+async def _insured_truck(db, org_id, *, days: int, enabled: bool = True, plate: str = "10332YBA"):
+    truck = Truck(
+        org_id=org_id,
+        name="DAF",
+        plate_number=plate,
+        insurance_expiry=date.today() + timedelta(days=days),
+        is_enabled=enabled,
+    )
+    db.add(truck)
+    await db.commit()
+    return truck
+
+
+async def test_expired_insurance_reaches_the_owner_as_critical(db, captured):
+    """The field shipped with the truck card, but nothing ever read it — an
+    Angren TEK truck ran 19 days on expired insurance with no one told."""
+    org_id = await _org_with_chat(db)
+    await _insured_truck(db, org_id, days=-19)
+
+    assert await run(db) == 1
+    _, text = captured[0]
+    assert "10332YBA" in text
+    assert "страховк" in text.lower()
+    assert "19 дн." in text
+
+
+async def test_insurance_beyond_the_horizon_stays_silent(db, captured):
+    org_id = await _org_with_chat(db)
+    await _insured_truck(db, org_id, days=90)
+
+    assert await run(db) == 0
+
+
+async def test_a_disabled_trucks_insurance_is_never_announced(db, captured):
+    """A truck taken off the board is not being driven; its lapsed policy is
+    not news every week."""
+    org_id = await _org_with_chat(db)
+    await _insured_truck(db, org_id, days=-5, enabled=False)
+
+    assert await run(db) == 0
+
+
+async def test_insurance_is_listed_in_the_reminders_payload(db):
+    from app.services.reminders import upcoming_expiries
+
+    org_id = await _org_with_chat(db)
+    truck = await _insured_truck(db, org_id, days=7)
+
+    data = await upcoming_expiries(db, org_id)
+    assert data["total"] == 1
+    [row] = data["insurance_expiries"]
+    assert row["truck_id"] == str(truck.id)
+    assert row["days_left"] == 7
+    assert row["expired"] is False

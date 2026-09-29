@@ -1,7 +1,7 @@
 """Owner alerts for documents and services that are running out of time.
 
 The facts were already there. :func:`app.services.reminders.upcoming_expiries`
-has been computing expiring driver licences and due service intervals for the
+has been computing expiring driver licences, truck insurance and due service intervals for the
 dashboard, and the scheduler has been writing one ``logger.warning`` per item
 since the beginning — into a log nobody reads. This module is the last hop: the
 same org-scoped query, turned into a message the owner actually receives.
@@ -157,6 +157,32 @@ def _licence_alert(row: dict, severity: AlertSeverity) -> Alert:
     )
 
 
+def _insurance_alert(row: dict, severity: AlertSeverity) -> Alert:
+    plate = row.get("plate_number") or "—"
+    verb = "истекла" if severity is AlertSeverity.critical else "истекает"
+
+    lines = [
+        f"<b>Машина:</b> {_esc(row.get('truck_name') or '—')} ({_esc(plate)})",
+        f"<b>Действительна до:</b> {_esc(row.get('insurance_expiry') or '—')}",
+    ]
+    remaining = _remaining_line(row.get("days_left"))
+    if remaining:
+        lines.append(remaining)
+    if severity is AlertSeverity.critical:
+        lines.append("Рейс без действующей страховки — штраф на границе и груз без покрытия.")
+
+    truck_id = row.get("truck_id")
+    return Alert(
+        kind=AlertKind.document_expiry,
+        severity=severity,
+        title=f"Страховка {verb} — {plate}",
+        body="\n".join(lines),
+        dedupe_key=f"expiry:insurance:{truck_id}:{severity.value}",
+        dedupe_ttl_hours=dedupe_ttl_hours(severity),
+        path=f"/trucks/{truck_id}" if truck_id else None,
+    )
+
+
 def _service_alert(row: dict, severity: AlertSeverity) -> Alert:
     plate = row.get("plate_number") or "—"
     service_type = str(row.get("service_type") or "")
@@ -237,6 +263,10 @@ def _collect(data: dict, skip_driver_ids: set[str]) -> list[_Due]:
             continue
         severity = severity_for(row.get("days_left"), already_late=bool(row.get("expired")))
         items.append(_Due(severity, row.get("days_left"), _licence_alert(row, severity)))
+
+    for row in data.get("insurance_expiries") or []:
+        severity = severity_for(row.get("days_left"), already_late=bool(row.get("expired")))
+        items.append(_Due(severity, row.get("days_left"), _insurance_alert(row, severity)))
 
     for row in data.get("service_due") or []:
         overdue = row.get("status") == ServiceStatus.overdue.value

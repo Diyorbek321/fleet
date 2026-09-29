@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional, Sequence
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -100,25 +100,29 @@ async def record_positions(
 
     latest = positions[-1]
     latest_at = latest.when(now=now)
+    stmt = insert(TruckLocation).values(
+        truck_id=truck_id,
+        latitude=latest.latitude,
+        longitude=latest.longitude,
+        speed=latest.speed or 0,
+        heading=latest.heading,
+        address=latest.address,
+        recorded_at=latest_at,
+    )
     await db.execute(
-        insert(TruckLocation)
-        .values(
-            truck_id=truck_id,
-            latitude=latest.latitude,
-            longitude=latest.longitude,
-            speed=latest.speed or 0,
-            heading=latest.heading,
-            address=latest.address,
-            recorded_at=latest_at,
-        )
-        .on_conflict_do_update(
+        stmt.on_conflict_do_update(
             index_elements=["truck_id"],
             set_={
                 "latitude": latest.latitude,
                 "longitude": latest.longitude,
                 "speed": latest.speed or 0,
                 "heading": latest.heading,
-                "address": latest.address,
+                # Neither phones nor GT06 trackers send a place name, so a
+                # plain overwrite blanked the label the scheduler's geocoding
+                # job had just written — on every ping. Keep the old label
+                # until that job relabels the new position; a place name one
+                # tick stale beats an empty cell.
+                "address": func.coalesce(stmt.excluded.address, TruckLocation.address),
                 "recorded_at": latest_at,
             },
         )
