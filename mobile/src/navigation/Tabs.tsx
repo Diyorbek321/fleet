@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { palette, shadow } from '../theme/theme';
 import { HomeScreen } from '../screens/HomeScreen';
@@ -28,6 +29,10 @@ const ICONS: Record<string, [keyof typeof Ionicons.glyphMap, keyof typeof Ionico
 
 export function Tabs() {
   const { t } = useTranslation();
+  // Android 16 draws every app edge-to-edge: without the bottom inset the tab
+  // bar sits under the system navigation buttons.
+  const insets = useSafeAreaInsets();
+  const baseHeight = Platform.OS === 'ios' ? 86 - insets.bottom : 66;
 
   return (
     <Tab.Navigator
@@ -39,8 +44,9 @@ export function Tabs() {
         tabBarStyle: {
           backgroundColor: palette.surface,
           borderTopWidth: 0,
-          height: Platform.OS === 'ios' ? 86 : 66,
+          height: Math.max(baseHeight, 58) + insets.bottom,
           paddingTop: 8,
+          paddingBottom: insets.bottom,
           ...shadow.lg,
         },
         tabBarIcon: ({ color, size, focused }) => {

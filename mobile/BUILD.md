@@ -112,16 +112,45 @@ An empty table means registration never happened; look at point 1.
 
 ---
 
-## Path C — Fully local APK (advanced, needs Android SDK)
+## Path C — Local release build (how releases are actually made)
 
-Only if you want to build without Expo's cloud. Requires Android SDK + `ANDROID_HOME` set.
+Expo SDK 54, targetSdk 36 (what Google Play requires since 2026-08-31).
+Needs the Android SDK at `/home/diyorbek/android-sdk` and JDK 17; the first
+build downloads build-tools 36 and NDK 27 (~1 GB) and takes ~40 min.
+
+Three files are **not in git** and must be in place before building:
+
+| File | What | Where it comes from |
+|---|---|---|
+| `mobile/google-services.json` | Firebase client config (push) | Firebase console → Android app `com.fleetwatch.driver`; prebuild copies it into `android/app/` |
+| `mobile/android/app/fleetwatch-release.keystore` | the release signing key — **the only copy that can update installed apps** | backup kept outside the repo |
+| `mobile/android/keystore.properties` | its passwords (template: `mobile/keystore.properties.example`) | same backup |
+
 ```bash
 cd mobile
-npx expo prebuild --platform android
+npx expo prebuild --clean -p android --no-install   # regenerates android/
+# --clean deletes android/, so put the key back afterwards:
+cp <backup>/fleetwatch-release.keystore android/app/
+cp <backup>/keystore.properties android/
 cd android
-./gradlew assembleRelease
-# APK at: android/app/build/outputs/apk/release/app-release.apk
+ANDROID_HOME=/home/diyorbek/android-sdk \
+JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+EXPO_PUBLIC_API_URL=https://fleetapi.eduly.uz \
+./gradlew assembleRelease bundleRelease
+# APK (sideload): app/build/outputs/apk/release/app-release.apk
+# AAB (Play):     app/build/outputs/bundle/release/app-release.aab
 ```
+
+`EXPO_PUBLIC_API_URL` must be given by hand — a local gradle build does not
+read eas.json, and without it the app points at the emulator address.
+
+Release signing is written by `plugins/with-fleet-android.js`, so prebuild
+keeps it; if the build is ever signed with the debug key, that plugin did not
+run. Check a build with
+`apksigner verify --print-certs app-release.apk` — the SHA-256 must be
+`7a:a3:ee:1d:…:5a:39`, or it will not install over the drivers' current app.
+
+Bump `version` / `android.versionCode` in `app.json` for every release.
 
 ---
 

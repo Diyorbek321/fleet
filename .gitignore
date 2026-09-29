@@ -88,6 +88,7 @@ FleetWatch-*.pdf
 # Firebase client config: carries API keys for every app in the Firebase
 # project, and the repo is public. Download it from the Firebase console.
 mobile/android/app/google-services.json
+mobile/google-services.json
 # FCM service account key for the server; never in git.
 *service-account*.json
 secrets/

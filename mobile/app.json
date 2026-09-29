@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fleet Watch",
     "slug": "fleet-watch-driver",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -12,7 +12,7 @@
     },
     "android": {
       "package": "com.fleetwatch.driver",
-      "versionCode": 3,
+      "versionCode": 4,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -23,9 +23,10 @@
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#14b8a6"
+        "backgroundColor": "#14b8a6",
+        "monochromeImage": "./assets/adaptive-icon.png"
       },
-      "googleServicesFile": "./android/app/google-services.json"
+      "googleServicesFile": "./google-services.json"
     },
     "ios": {
       "supportsTablet": true,
@@ -53,9 +54,11 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#14b8a6"
+          "color": "#14b8a6",
+          "defaultChannel": "default"
         }
-      ]
+      ],
+      "./plugins/with-fleet-android"
     ],
     "extra": {
       "_apiUrl_note": "LOCAL DEV ONLY. Shipped builds (development/preview/production) get their HTTPS backend host from EXPO_PUBLIC_API_URL in eas.json — this value is the fallback for `npm start`. Android emulator reaches the host via 10.0.2.2; for a real phone on the same Wi-Fi use http://<your-LAN-IP>:8000. NEVER put a production URL here.",

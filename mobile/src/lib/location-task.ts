@@ -33,7 +33,8 @@ export const LOCATION_TASK_NAME = 'fleet-watch-background-location';
 // has already done it.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
   }),
