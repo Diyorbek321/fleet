@@ -64,9 +64,11 @@ class TripSubscription(Base):
     language: Mapped[str | None] = mapped_column(String(10), nullable=True)
     username: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
-    # Owner-controlled toggles. Default both on so activation immediately
-    # produces useful traffic; the /settings command in the bot flips them.
-    daily_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Owner-controlled toggles. The daily digest starts off: the activation
+    # message pins a map button that always shows the lorry's latest position,
+    # so a morning message would only repeat it. Rows created before that
+    # change keep their ``True``; a dispatcher can turn it back on per customer.
+    daily_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     event_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

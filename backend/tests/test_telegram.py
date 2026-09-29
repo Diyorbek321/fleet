@@ -164,7 +164,7 @@ async def test_webhook_activates_subscription_on_start_command(
 
     sends: list[tuple[str, str]] = []
 
-    async def _fake_send(chat_id, text, *, disable_notification=False):
+    async def _fake_send(chat_id, text, *, disable_notification=False, **_kwargs):
         sends.append((chat_id, text))
         return SendResult(ok=True, status_code=200)
 
@@ -255,7 +255,7 @@ async def test_two_subscribers_on_one_trip_get_their_own_map_links(
 
     sends: list[tuple[str, str]] = []
 
-    async def _fake_send(chat_id, text, *, disable_notification=False):
+    async def _fake_send(chat_id, text, *, disable_notification=False, **_kwargs):
         sends.append((chat_id, text))
         return SendResult(ok=True, status_code=200)
 
@@ -306,7 +306,7 @@ async def test_without_a_web_address_the_card_carries_no_link(
 
     sends: list[tuple[str, str]] = []
 
-    async def _fake_send(chat_id, text, *, disable_notification=False):
+    async def _fake_send(chat_id, text, *, disable_notification=False, **_kwargs):
         sends.append((chat_id, text))
         return SendResult(ok=True, status_code=200)
 
@@ -333,3 +333,150 @@ async def test_without_a_web_address_the_card_carries_no_link(
     assert sends, "expected a status-change card"
     assert "track/" not in sends[0][1]
     assert "None" not in sends[0][1]
+
+
+# ── The map button, sent once and pinned ─────────────────────────────────
+
+
+def _record_sends(monkeypatch, *, message_id: int | None = 77):
+    """Capture every send (with its keyboard) and every pin the router makes."""
+    from app.routers import telegram as telegram_router
+
+    sends: list[dict] = []
+    pins: list[tuple[str, int]] = []
+
+    async def _fake_send(chat_id, text, *, disable_notification=False, reply_markup=None):
+        sends.append({"chat_id": chat_id, "text": text, "reply_markup": reply_markup})
+        return SendResult(ok=True, status_code=200, message_id=message_id)
+
+    async def _fake_pin(chat_id, mid):
+        pins.append((chat_id, mid))
+        return True
+
+    monkeypatch.setattr(telegram_service, "send_message", _fake_send)
+    monkeypatch.setattr(telegram_router, "send_message", _fake_send)
+    monkeypatch.setattr(telegram_router, "pin_message", _fake_pin)
+    return sends, pins
+
+
+async def _new_subscription(client: AsyncClient, admin_headers) -> dict:
+    trip_id = await _create_trip(client, admin_headers)
+    return (
+        await client.post(
+            "/api/trip-subscriptions", headers=admin_headers, json={"trip_id": trip_id}
+        )
+    ).json()
+
+
+async def test_activation_sends_the_map_button_once_and_pins_it(
+    client: AsyncClient, admin_headers, monkeypatch
+):
+    monkeypatch.setattr(settings, "telegram_bot_token", "TEST:token", raising=False)
+    monkeypatch.setattr(settings, "telegram_bot_username", "TestBot", raising=False)
+    monkeypatch.setattr(settings, "telegram_webhook_secret", "", raising=False)
+    monkeypatch.setattr(settings, "public_web_url", "https://fleet.example", raising=False)
+    sends, pins = _record_sends(monkeypatch)
+
+    sub = await _new_subscription(client, admin_headers)
+    token = sub["deep_link"].rsplit("trip_", 1)[1]
+    await _activate(client, token, 444)
+
+    assert len(sends) == 1
+    button = sends[0]["reply_markup"]["inline_keyboard"][0][0]
+    assert button["url"] == f"https://fleet.example/track/{token}"
+    assert "Где машина" in sends[0]["text"]
+    assert "Каждое утро" not in sends[0]["text"]
+    assert pins == [("444", 77)]
+
+
+async def test_activation_without_a_web_address_sends_no_button(
+    client: AsyncClient, admin_headers, monkeypatch
+):
+    monkeypatch.setattr(settings, "telegram_bot_token", "TEST:token", raising=False)
+    monkeypatch.setattr(settings, "telegram_bot_username", "TestBot", raising=False)
+    monkeypatch.setattr(settings, "telegram_webhook_secret", "", raising=False)
+    monkeypatch.setattr(settings, "public_web_url", "", raising=False)
+    monkeypatch.setattr(settings, "cors_origins", "", raising=False)
+    monkeypatch.delenv("PUBLIC_WEB_URL", raising=False)
+    sends, pins = _record_sends(monkeypatch)
+
+    sub = await _new_subscription(client, admin_headers)
+    await _activate(client, sub["deep_link"].rsplit("trip_", 1)[1], 555)
+
+    assert len(sends) == 1
+    assert sends[0]["reply_markup"] is None
+    assert "Где машина" not in sends[0]["text"]
+    assert pins == []
+
+
+async def test_activation_skips_the_pin_when_telegram_gives_no_message_id(
+    client: AsyncClient, admin_headers, monkeypatch
+):
+    monkeypatch.setattr(settings, "telegram_bot_token", "TEST:token", raising=False)
+    monkeypatch.setattr(settings, "telegram_bot_username", "TestBot", raising=False)
+    monkeypatch.setattr(settings, "telegram_webhook_secret", "", raising=False)
+    monkeypatch.setattr(settings, "public_web_url", "https://fleet.example", raising=False)
+    sends, pins = _record_sends(monkeypatch, message_id=None)
+
+    sub = await _new_subscription(client, admin_headers)
+    await _activate(client, sub["deep_link"].rsplit("trip_", 1)[1], 666)
+
+    assert len(sends) == 1
+    assert pins == []
+
+
+# ── The daily digest: off by default, dispatcher can turn it on ──────────
+
+
+async def test_new_subscription_starts_without_the_daily_digest(
+    client: AsyncClient, admin_headers
+):
+    sub = await _new_subscription(client, admin_headers)
+    assert sub["daily_enabled"] is False
+    assert sub["event_enabled"] is True
+
+
+async def test_dispatcher_can_turn_the_daily_digest_on_and_off(
+    client: AsyncClient, admin_headers
+):
+    sub = await _new_subscription(client, admin_headers)
+
+    on = await client.patch(
+        f"/api/trip-subscriptions/{sub['id']}", headers=admin_headers, json={"daily_enabled": True}
+    )
+    assert on.status_code == 200, on.text
+    assert on.json()["daily_enabled"] is True
+    assert on.json()["event_enabled"] is True  # untouched
+
+    off = await client.patch(
+        f"/api/trip-subscriptions/{sub['id']}", headers=admin_headers, json={"daily_enabled": False}
+    )
+    assert off.json()["daily_enabled"] is False
+
+
+async def test_patching_an_unknown_subscription_is_404(client: AsyncClient, admin_headers):
+    res = await client.patch(
+        "/api/trip-subscriptions/00000000-0000-0000-0000-000000000000",
+        headers=admin_headers,
+        json={"daily_enabled": True},
+    )
+    assert res.status_code == 404
+
+
+async def test_daily_batch_skips_subscriptions_left_on_the_default(
+    client: AsyncClient, admin_headers, monkeypatch
+):
+    """The point of the change: a customer who only has the pinned button
+    gets no morning message."""
+    from app.core.database import SessionLocal
+    from app.services import daily_updates
+
+    monkeypatch.setattr(settings, "telegram_bot_token", "TEST:token", raising=False)
+    monkeypatch.setattr(settings, "telegram_webhook_secret", "", raising=False)
+    _record_sends(monkeypatch)
+    sub = await _new_subscription(client, admin_headers)
+    await _activate(client, sub["deep_link"].rsplit("trip_", 1)[1], 777)
+
+    async with SessionLocal() as db:
+        considered, _sent = await daily_updates._run_batch(db)
+    assert considered == 0

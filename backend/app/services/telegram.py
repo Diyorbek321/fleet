@@ -48,9 +48,17 @@ class SendResult:
     ok: bool
     status_code: int
     permanently_failed: bool = False
+    # Telegram's id for the sent message — what :func:`pin_message` needs.
+    message_id: int | None = None
 
 
-async def send_message(chat_id: str, text: str, *, disable_notification: bool = False) -> SendResult:
+async def send_message(
+    chat_id: str,
+    text: str,
+    *,
+    disable_notification: bool = False,
+    reply_markup: dict[str, Any] | None = None,
+) -> SendResult:
     """Send a plain-text (HTML-formatted) message to a Telegram chat.
 
     Never raises: any transport / auth failure is logged and reflected in the
@@ -68,6 +76,8 @@ async def send_message(chat_id: str, text: str, *, disable_notification: bool = 
         "disable_web_page_preview": True,
         "disable_notification": disable_notification,
     }
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
     try:
         async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT_S) as client:
             resp = await client.post(url, json=payload)
@@ -76,7 +86,7 @@ async def send_message(chat_id: str, text: str, *, disable_notification: bool = 
         return SendResult(ok=False, status_code=0)
 
     if resp.status_code == 200:
-        return SendResult(ok=True, status_code=200)
+        return SendResult(ok=True, status_code=200, message_id=_message_id(resp))
 
     # Common permanent failures — see https://core.telegram.org/bots/api#making-requests
     permanent = resp.status_code in (400, 403)
@@ -87,6 +97,45 @@ async def send_message(chat_id: str, text: str, *, disable_notification: bool = 
         body=resp.text[:200],
     )
     return SendResult(ok=False, status_code=resp.status_code, permanently_failed=permanent)
+
+
+def _message_id(resp: httpx.Response) -> int | None:
+    """The sent message's id, or ``None`` if Telegram's body is not what we expect."""
+    try:
+        message_id = resp.json().get("result", {}).get("message_id")
+    except (ValueError, AttributeError):
+        return None
+    return message_id if isinstance(message_id, int) else None
+
+
+async def pin_message(chat_id: str, message_id: int) -> bool:
+    """Pin one message to the top of a chat, silently. Never raises.
+
+    Used for the cargo owner's map button: it is sent once per trip, so it
+    has to stay findable after a week of status cards have scrolled past it.
+    A failed pin costs only convenience — the message itself is already sent.
+    """
+    if not settings.telegram_configured:
+        return False
+    url = f"{_TELEGRAM_API}/bot{settings.telegram_bot_token}/pinChatMessage"
+    payload = {"chat_id": chat_id, "message_id": message_id, "disable_notification": True}
+    try:
+        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT_S) as client:
+            resp = await client.post(url, json=payload)
+    except httpx.HTTPError as exc:
+        logger.warning("telegram_pin_transport_error", chat_id=chat_id, error=str(exc))
+        return False
+    if resp.status_code != 200:
+        logger.warning(
+            "telegram_pin_failed", chat_id=chat_id, status=resp.status_code, body=resp.text[:200]
+        )
+        return False
+    return True
+
+
+def link_button(label: str, url: str) -> dict[str, Any]:
+    """An inline keyboard holding a single URL button."""
+    return {"inline_keyboard": [[{"text": label, "url": url}]]}
 
 
 async def register_webhook() -> None:
@@ -206,16 +255,30 @@ def _fmt_location(
     return f"{line}\n   {_fmt_coords(lat, lng)}"
 
 
-def format_activation(trip_reference: str, cargo: str | None) -> str:
-    """First message the cargo owner sees after clicking the deep link."""
+TRACK_BUTTON_LABEL = "🗺 Где машина?"
+
+
+def format_activation(trip_reference: str, cargo: str | None, *, has_map: bool = False) -> str:
+    """First message the cargo owner sees after clicking the deep link.
+
+    With a map it is also the only time the map link is sent on its own: the
+    button under this message opens the live page for the whole trip, so the
+    owner is told to tap it rather than wait for a daily message.
+    """
     safe_reference = html.escape(trip_reference)
     cargo_line = f"\n📦 Груз: {html.escape(cargo)}" if cargo else ""
+    map_line = (
+        "Нажмите кнопку «Где машина?» под этим сообщением — каждый раз откроется карта "
+        "с текущим положением машины. Сообщение закреплено вверху чата.\n\n"
+        if has_map
+        else ""
+    )
     return (
         f"👋 Здравствуйте! Вы подписаны на отслеживание рейса <b>{safe_reference}</b>."
         f"{cargo_line}\n\n"
-        "Каждое утро вы будете получать короткое сообщение о том, где находится груз. "
+        f"{map_line}"
         "При изменении статуса груза сообщение придёт сразу.\n\n"
-        "Настройки: /settings — включить или отключить ежедневные и срочные сообщения."
+        "Настройки: /settings · отключить все сообщения: /stop"
     )
 
 

@@ -490,6 +490,13 @@ export const tripSubscriptionsApi = {
     });
     return adaptSubscription(data);
   },
+  setDaily: async (id: string, enabled: boolean): Promise<TripSubscription> => {
+    const data = await api<BackendTripSubscription>(`/api/trip-subscriptions/${id}`, {
+      method: 'PATCH',
+      body: { daily_enabled: enabled },
+    });
+    return adaptSubscription(data);
+  },
   remove: async (id: string): Promise<void> => {
     await api<void>(`/api/trip-subscriptions/${id}`, { method: 'DELETE' });
   },

@@ -46,12 +46,16 @@ from app.services.trip_orders import (
     handle_group_membership,
     parse_group_start,
 )
+from app.core.urls import track_url
 from app.services.telegram import (
+    TRACK_BUTTON_LABEL,
     build_deep_link,
     extract_chat,
     extract_text,
     format_activation,
+    link_button,
     parse_start_command,
+    pin_message,
     send_message,
 )
 
@@ -215,7 +219,19 @@ async def _activate_subscription(
 
     ref = trip.reference if trip else "рейс"
     cargo = trip.cargo_description if trip else None
-    await send_message(chat_id, format_activation(ref, cargo))
+    # The map link is sent once, here, as a button pinned to the top of the
+    # chat — the page behind it always shows the lorry's latest position, so
+    # there is nothing to resend each morning.
+    map_url = track_url(sub.token)
+    text = format_activation(ref, cargo, has_map=map_url is not None)
+    if map_url is None:
+        await send_message(chat_id, text)
+        return
+    result = await send_message(
+        chat_id, text, reply_markup=link_button(TRACK_BUTTON_LABEL, map_url)
+    )
+    if result.ok and result.message_id is not None:
+        await pin_message(chat_id, result.message_id)
 
 
 async def _stop_all_for_chat(db: AsyncSession, chat_id: str) -> None:
@@ -334,6 +350,41 @@ async def create_subscription(
         contact_phone=data.contact_phone,
     )
     db.add(sub)
+    await db.commit()
+    await db.refresh(sub)
+    return _to_out(sub)
+
+
+class SubscriptionUpdate(BaseModel):
+    daily_enabled: bool | None = None
+    event_enabled: bool | None = None
+
+
+@api_router.patch("/{sub_id}", response_model=SubscriptionOut)
+async def update_subscription(
+    sub_id: uuid.UUID,
+    data: SubscriptionUpdate,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _user=Depends(_MANAGE),
+):
+    """Turn one customer's daily digest or status pushes on or off.
+
+    The daily digest is off for new subscriptions — the pinned map button
+    replaces it — so this is how a dispatcher gives it back to a customer
+    who still wants a morning message.
+    """
+    sub = (
+        await db.execute(
+            select(TripSubscription).where(TripSubscription.id == sub_id, TripSubscription.org_id == org)
+        )
+    ).scalar_one_or_none()
+    if sub is None:
+        raise HTTPException(status_code=404, detail="Подписка не найдена")
+    if data.daily_enabled is not None:
+        sub.daily_enabled = data.daily_enabled
+    if data.event_enabled is not None:
+        sub.event_enabled = data.event_enabled
     await db.commit()
     await db.refresh(sub)
     return _to_out(sub)

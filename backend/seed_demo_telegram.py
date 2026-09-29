@@ -111,6 +111,9 @@ async def seed_trip_subscriptions(db, org: Organization) -> list[tuple[Trip, Tri
                 token=secrets.token_urlsafe(16),
                 contact_name=name,
                 contact_phone=phone,
+                # New subscriptions start without the morning digest, but the
+                # demo runbook shows it (demo_fire customer-daily).
+                daily_enabled=True,
             )
             db.add(sub)
             minted += 1

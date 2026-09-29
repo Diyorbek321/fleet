@@ -3,9 +3,10 @@
  *
  * The dispatcher enters a contact name/phone, gets back a magic ``t.me`` link,
  * and shares it with the cargo owner over any channel. Once the owner opens
- * the link the row flips to "activated" — from then on they receive event
- * pushes (status changes) and a daily location digest until they say /stop
- * or the dispatcher deletes the row.
+ * the link the row flips to "activated" — the bot pins a map button in their
+ * chat and sends event pushes (status changes) until they say /stop or the
+ * dispatcher deletes the row. The morning digest starts off; the switch on
+ * each row turns it on for a customer who still wants one.
  */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Switch } from '@/components/ui/switch';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -95,6 +97,18 @@ export function TripSubscriptionsCard({ tripId }: Props) {
     onError: (err) =>
       toast({
         title: t('tripSubscriptions.deleteErrorTitle'),
+        description: err instanceof ApiError ? err.detail : String(err),
+        variant: 'destructive',
+      }),
+  });
+
+  const dailyMutation = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      tripSubscriptionsApi.setDaily(id, enabled),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['trip', tripId, 'subscriptions'] }),
+    onError: (err) =>
+      toast({
+        title: t('tripSubscriptions.dailyUpdateErrorTitle'),
         description: err instanceof ApiError ? err.detail : String(err),
         variant: 'destructive',
       }),
@@ -198,9 +212,6 @@ export function TripSubscriptionsCard({ tripId }: Props) {
                     ) : (
                       <Badge variant="outline">{t('tripSubscriptions.pendingBadge')}</Badge>
                     )}
-                    {!sub.dailyEnabled && sub.activated && (
-                      <Badge variant="outline">{t('tripSubscriptions.dailyDisabledBadge')}</Badge>
-                    )}
                   </div>
                   {sub.contactPhone && (
                     <p className="text-xs text-muted-foreground">{sub.contactPhone}</p>
@@ -217,6 +228,14 @@ export function TripSubscriptionsCard({ tripId }: Props) {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1">
+                  <label className="mr-2 flex items-center gap-2 text-xs text-muted-foreground">
+                    <Switch
+                      checked={sub.dailyEnabled}
+                      disabled={dailyMutation.isPending}
+                      onCheckedChange={(enabled) => dailyMutation.mutate({ id: sub.id, enabled })}
+                    />
+                    {t('tripSubscriptions.dailyLabel')}
+                  </label>
                   <Button
                     variant="outline"
                     size="sm"
