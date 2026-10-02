@@ -1085,7 +1085,9 @@
     "updatedAt": "Last update: {{time}}",
     "noPosition": "The truck has not reported a position yet.",
     "unavailableTitle": "Link not available",
-    "unavailableBody": "The trip is finished or the link has expired. Ask the dispatcher for a new one."
+    "unavailableBody": "The trip is finished or the link has expired. Ask the dispatcher for a new one.",
+    "notStartedTitle": "The trip has not started yet",
+    "notStartedBody": "The map will open on this page by itself once the truck is on its way. Keep this link."
   },
   "driverMessages": {
     "title": "Message the driver",

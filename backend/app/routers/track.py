@@ -42,7 +42,14 @@ router = APIRouter(prefix="/api/track", tags=["Public tracking"])
 # Trips a customer can still be shown live. A delivered or cancelled load has
 # nothing left to watch, and leaving the page live afterwards would keep the
 # fleet's lorry visible to a stranger long after the job it was shared for.
-_WATCHABLE = {TripStatus.loading, TripStatus.en_route, TripStatus.at_border}
+# ``planned`` counts once a lorry is booked: the customer wants to see it coming
+# to load, and dispatchers share the link the moment the job is set up.
+_WATCHABLE = {TripStatus.planned, TripStatus.loading, TripStatus.en_route, TripStatus.at_border}
+# Not live yet, but will be. Answered apart from "invalid" so the page can tell
+# the customer to wait instead of sending them back for a link that would fail
+# the same way. Only reachable with a real token, so it reveals nothing to a
+# guesser that the token's 32 random characters do not already protect.
+_NOT_STARTED = {TripStatus.draft, TripStatus.planned}
 
 
 class TrackPoint(BaseModel):
@@ -106,7 +113,14 @@ async def track(
     sub = await _subscription_or_404(db, token)
 
     trip = (await db.execute(select(Trip).where(Trip.id == sub.trip_id))).scalar_one_or_none()
-    if trip is None or trip.status not in _WATCHABLE:
+    if trip is None:
+        raise HTTPException(status_code=404, detail="Ссылка недействительна")
+    live = trip.status in _WATCHABLE and not (
+        trip.status == TripStatus.planned and trip.truck_id is None
+    )
+    if not live:
+        if trip.status in _NOT_STARTED:
+            raise HTTPException(status_code=409, detail="not_started")
         raise HTTPException(status_code=404, detail="Ссылка недействительна")
 
     org_name = (

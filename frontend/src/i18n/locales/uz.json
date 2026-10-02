@@ -1085,7 +1085,9 @@
     "updatedAt": "Oxirgi ma’lumot: {{time}}",
     "noPosition": "Mashina hali joylashuvini yubormagan.",
     "unavailableTitle": "Havola ishlamayapti",
-    "unavailableBody": "Reys yakunlangan yoki havola eskirgan. Yangi havola uchun dispetcherga murojaat qiling."
+    "unavailableBody": "Reys yakunlangan yoki havola eskirgan. Yangi havola uchun dispetcherga murojaat qiling.",
+    "notStartedTitle": "Reys hali boshlanmagan",
+    "notStartedBody": "Mashina yo'lga chiqqach xarita shu sahifada o'zi ochiladi. Havolani saqlab qo'ying."
   },
   "driverMessages": {
     "title": "Haydovchiga xabar",

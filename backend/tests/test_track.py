@@ -156,12 +156,47 @@ async def test_a_delivered_trip_stops_being_watchable(
     assert gone.json() == (await client.get("/api/track/not-a-real-token")).json()
 
 
-async def test_a_trip_that_has_not_started_is_not_watchable(
+async def test_a_draft_trip_says_it_has_not_started_rather_than_expired(
     client: AsyncClient, admin_headers, monkeypatch
 ):
+    """A dispatcher shares the link while the job is still being set up. Telling
+    the customer the link "expired" sends them back for a new one that would
+    fail the same way; saying the trip has not started tells them to wait."""
     _, trip_id = await _trip_with_truck(client, admin_headers)
     token = await _token_for(client, admin_headers, trip_id, monkeypatch)
-    assert (await client.get(f"/api/track/{token}")).status_code == 404
+    res = await client.get(f"/api/track/{token}")
+    assert res.status_code == 409
+    assert res.json()["detail"] == "not_started"
+
+
+async def test_a_planned_trip_with_a_truck_is_watchable(
+    client: AsyncClient, admin_headers, monkeypatch
+):
+    """Once a lorry is booked the customer wants to see it coming to load."""
+    _, trip_id = await _trip_with_truck(client, admin_headers)
+    token = await _token_for(client, admin_headers, trip_id, monkeypatch)
+    await _move(client, admin_headers, trip_id, "planned")
+    res = await client.get(f"/api/track/{token}")
+    assert res.status_code == 200, res.text
+    assert res.json()["plate"] == "10 990 NBA"
+
+
+async def test_a_planned_trip_without_a_truck_has_not_started(
+    client: AsyncClient, admin_headers, monkeypatch
+):
+    """No lorry means nothing to put on the map yet."""
+    trip = (
+        await client.post(
+            "/api/trips",
+            headers=admin_headers,
+            json={"origin_name": "Tobolsk", "destination_name": "Tashkent"},
+        )
+    ).json()
+    token = await _token_for(client, admin_headers, trip["id"], monkeypatch)
+    await _move(client, admin_headers, trip["id"], "planned")
+    res = await client.get(f"/api/track/{token}")
+    assert res.status_code == 409
+    assert res.json()["detail"] == "not_started"
 
 
 # ── The link that gets a customer here ───────────────────────────────────

@@ -6,6 +6,7 @@ import { MapContainer, Marker, Polyline, TileLayer, Tooltip } from 'react-leafle
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
+import { ApiError } from '@/lib/api';
 import { trackApi, type Track } from '@/lib/track';
 import { Badge } from '@/components/ui/badge';
 
@@ -65,7 +66,7 @@ export default function TrackPage() {
   const { t, i18n } = useTranslation();
   const { token = '' } = useParams<{ token: string }>();
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['track', token],
     queryFn: () => trackApi.get(token),
     enabled: !!token,
@@ -92,11 +93,18 @@ export default function TrackPage() {
     return <Centered>{t('common.loading')}</Centered>;
   }
   if (isError || !data) {
+    // 409 is a real link to a trip that has not started: the page keeps polling,
+    // so it opens by itself once the lorry is on its way.
+    const notStarted = error instanceof ApiError && error.status === 409;
     return (
       <Centered>
         <div className="max-w-sm space-y-2 text-center">
-          <p className="text-lg font-semibold">{t('track.unavailableTitle')}</p>
-          <p className="text-sm text-muted-foreground">{t('track.unavailableBody')}</p>
+          <p className="text-lg font-semibold">
+            {t(notStarted ? 'track.notStartedTitle' : 'track.unavailableTitle')}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {t(notStarted ? 'track.notStartedBody' : 'track.unavailableBody')}
+          </p>
         </div>
       </Centered>
     );
