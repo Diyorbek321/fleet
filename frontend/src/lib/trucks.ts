@@ -15,6 +15,8 @@ interface BackendTruck {
   trailer_brand: string | null;
   trailer_volume: TrailerVolume | null;
   insurance_expiry?: string | null;
+  insurance_expiry_kz?: string | null;
+  insurance_expiry_rf?: string | null;
   gps_disabled_at?: string | null;
   status: BackendStatus;
   is_enabled: boolean;
@@ -68,6 +70,8 @@ export interface TruckDetails {
   trailerBrand: string | null;
   trailerVolume: TrailerVolume | null;
   insuranceExpiry: string | null;
+  insuranceExpiryKz: string | null;
+  insuranceExpiryRf: string | null;
   /** When the driver's phone reported its GPS switched off; null while on. */
   gpsDisabledAt: Date | null;
   status: BackendStatus;
@@ -91,6 +95,8 @@ function adaptDetails(d: BackendTruckDetails): TruckDetails {
     trailerBrand: d.trailer_brand,
     trailerVolume: d.trailer_volume,
     insuranceExpiry: d.insurance_expiry ?? null,
+    insuranceExpiryKz: d.insurance_expiry_kz ?? null,
+    insuranceExpiryRf: d.insurance_expiry_rf ?? null,
     gpsDisabledAt: d.gps_disabled_at ? new Date(d.gps_disabled_at) : null,
     status: d.status,
     isEnabled: d.is_enabled,
@@ -138,6 +144,8 @@ export function toFrontendTruck(b: BackendTruck, extras?: Partial<BackendTruckDe
     trailerBrand: b.trailer_brand ?? undefined,
     trailerVolume: b.trailer_volume ?? undefined,
     insuranceExpiry: b.insurance_expiry ?? null,
+    insuranceExpiryKz: b.insurance_expiry_kz ?? null,
+    insuranceExpiryRf: b.insurance_expiry_rf ?? null,
     driverName: driver?.name,
     status: mapStatus(b.status),
     speed: loc?.speed ?? 0,
@@ -163,8 +171,10 @@ export interface TruckInput {
   tractorBrand?: string;
   trailerBrand?: string;
   trailerVolume?: TrailerVolume;
-  /** ISO date; null clears it on an edit. */
+  /** ISO dates, one per country's policy; null clears one on an edit. */
   insuranceExpiry?: string | null;
+  insuranceExpiryKz?: string | null;
+  insuranceExpiryRf?: string | null;
 }
 
 // ---- Endpoint wrappers ----
@@ -193,6 +203,8 @@ export const trucksApi = {
         trailer_brand: input.trailerBrand,
         trailer_volume: input.trailerVolume,
         insurance_expiry: input.insuranceExpiry || null,
+        insurance_expiry_kz: input.insuranceExpiryKz || null,
+        insurance_expiry_rf: input.insuranceExpiryRf || null,
       },
     });
     return toFrontendTruck(created);
@@ -209,6 +221,8 @@ export const trucksApi = {
     if (patch.trailerBrand !== undefined) body.trailer_brand = patch.trailerBrand;
     if (patch.trailerVolume !== undefined) body.trailer_volume = patch.trailerVolume;
     if (patch.insuranceExpiry !== undefined) body.insurance_expiry = patch.insuranceExpiry || null;
+    if (patch.insuranceExpiryKz !== undefined) body.insurance_expiry_kz = patch.insuranceExpiryKz || null;
+    if (patch.insuranceExpiryRf !== undefined) body.insurance_expiry_rf = patch.insuranceExpiryRf || null;
     if (patch.status !== undefined) body.status = patch.status;
     if (patch.isEnabled !== undefined) body.is_enabled = patch.isEnabled;
 
@@ -218,7 +232,27 @@ export const trucksApi = {
   remove: async (id: string): Promise<void> => {
     await api<{ message: string }>(`/api/trucks/${id}`, { method: 'DELETE' });
   },
+  /** Save the dispatcher's arrangement: every truck id, top to bottom. */
+  reorder: async (truckIds: string[]): Promise<Truck[]> => {
+    const data = await api<BackendTruck[]>('/api/trucks/order', {
+      method: 'PUT',
+      body: { truck_ids: truckIds },
+    });
+    return data.map((t) => toFrontendTruck(t));
+  },
 };
+
+/** The list with `movedId` taken out and put where `targetId` is. Returns the
+ *  same array when nothing moves, so a drop onto itself is not a save. */
+export function moveTruck<T extends { id: string }>(list: T[], movedId: string, targetId: string): T[] {
+  if (movedId === targetId) return list;
+  const from = list.findIndex((t) => t.id === movedId);
+  const to = list.findIndex((t) => t.id === targetId);
+  if (from < 0 || to < 0) return list;
+  const next = list.filter((t) => t.id !== movedId);
+  next.splice(to, 0, list[from]);
+  return next;
+}
 
 // ---- Stats ----
 

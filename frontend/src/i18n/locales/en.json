@@ -17,7 +17,8 @@
     "trips": "Trips",
     "leakage": "Leakage",
     "organizations": "Organizations",
-    "users": "Users"
+    "users": "Users",
+    "insurance": "Insurance"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -146,7 +147,8 @@
       "updated": "Last update",
       "driver": "Driver",
       "model": "Model",
-      "close": "Close"
+      "close": "Close",
+      "noDriverToMessage": "No driver is attached to this truck — there is no phone to message."
     },
     "title": "Trucks",
     "subtitle": "Manage your fleet vehicles and tracking devices",
@@ -227,12 +229,16 @@
       "disabled": "Truck disabled",
       "enabled": "Truck enabled",
       "disabledBody": "{{name}} has been disabled.",
-      "enabledBody": "{{name}} has been enabled."
+      "enabledBody": "{{name}} has been enabled.",
+      "reorderFailed": "Order not saved"
     },
     "volume": {
       "standart": "Standard",
       "mega": "Mega"
-    }
+    },
+    "reorderHint": "Drag to reorder",
+    "moveUp": "Move up",
+    "moveDown": "Move down"
   },
   "devices": {
     "title": "Devices",
@@ -661,7 +667,9 @@
     "confirmDeleteTitle": "Delete subscription",
     "confirmDeleteDescription": "Delete this subscription? This action cannot be undone.",
     "confirmDeleteCancel": "Cancel",
-    "confirmDeleteConfirm": "Delete"
+    "confirmDeleteConfirm": "Delete",
+    "mapCopySuccessTitle": "Map link copied",
+    "mapCopyAriaLabel": "Copy map link"
   },
   "leakage": {
     "title": "Leakage",
@@ -1132,5 +1140,35 @@
     "rulesHint": "Leave empty to use the built-in list.",
     "footer": "Dispatcher phones (last line)",
     "templateSaved": "Template saved"
+  },
+  "insurance": {
+    "title": "Insurance",
+    "subtitle": "Each truck’s UZ, KZ and RU policies and when they run out",
+    "country": {
+      "uz": "UZ insurance",
+      "kz": "KZ insurance",
+      "rf": "RU insurance"
+    },
+    "state": {
+      "missing": "Not set",
+      "expired": "Expired {{count}} d ago",
+      "left": "{{count}} d left"
+    },
+    "editAria": "{{plate}} — {{country}} expiry",
+    "summary": {
+      "expired": "Expired policies",
+      "soon": "Expiring within 30 days",
+      "missing": "No date entered"
+    },
+    "searchPlaceholder": "Search by plate…",
+    "filter": {
+      "all": "All trucks",
+      "attention": "Expiring only"
+    },
+    "sort": {
+      "list": "List order",
+      "urgent": "Soonest first"
+    },
+    "empty": "No matching trucks"
   }
 }

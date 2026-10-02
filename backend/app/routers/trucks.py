@@ -15,7 +15,7 @@ from app.deps.auth import get_org_id, require_role
 from app.models.enums import TruckStatus, UserRole
 from app.models.trucks import Truck, TruckLocation, TruckLocationHistory
 from app.schemas.trucks import (
-    TruckCreate, TruckUpdate, TruckOut, TruckDetailsOut,
+    TruckCreate, TruckUpdate, TruckOut, TruckDetailsOut, TruckOrderIn,
     TruckLocationOut, LocationHistoryItem
 )
 from app.models.drivers import DriverAssignment, Driver
@@ -63,8 +63,37 @@ async def list_trucks(
     if search:
         like = f"%{search}%"
         stmt = stmt.where(or_(Truck.name.ilike(like), Truck.plate_number.ilike(like), Truck.model.ilike(like)))
-    res = await db.execute(stmt.order_by(Truck.created_at.desc()))
+    # The dispatcher's arrangement first; trucks never placed follow, newest
+    # first, which is also the whole order before anyone arranges anything.
+    res = await db.execute(
+        stmt.order_by(Truck.sort_order.asc().nulls_last(), Truck.created_at.desc())
+    )
     return res.scalars().all()
+
+
+@router.put("/order", response_model=list[TruckOut])
+async def reorder_trucks(
+    data: TruckOrderIn,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _user=Depends(_MANAGE),
+):
+    """Save the list order the dispatcher arranged.
+
+    ``truck_ids`` is the list top to bottom. Ids not in this fleet are ignored
+    rather than rejected: a truck deleted in another tab while this one was
+    being dragged should not cost the dispatcher the rest of their arrangement.
+    Trucks of this fleet missing from the list keep no position and fall to
+    the bottom.
+    """
+    trucks = (
+        await db.execute(select(Truck).where(Truck.org_id == org))
+    ).scalars().all()
+    position = {tid: i for i, tid in enumerate(dict.fromkeys(data.truck_ids))}
+    for truck in trucks:
+        truck.sort_order = position.get(truck.id)
+    await db.commit()
+    return await list_trucks(db=db, org=org)
 
 async def _reject_duplicate_plate(
     db: AsyncSession, org: uuid.UUID, plate: str | None, exclude_id: uuid.UUID | None = None

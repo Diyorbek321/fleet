@@ -28,7 +28,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import SessionLocal
@@ -38,7 +38,7 @@ from app.models.drivers import Driver, DriverAssignment
 from app.models.enums import DriverStatus, ServiceStatus, ServiceType, TripStatus
 from app.models.maintenance import ServiceInterval
 from app.models.trips import Trip, TripDocument
-from app.models.trucks import Truck
+from app.models.trucks import INSURANCE_POLICIES, Truck
 from app.services.driver_messages import send_driver_message
 from app.services.maintenance import DUE_SOON_DAYS, DUE_SOON_KM
 from app.services.period_reports import report_tz
@@ -62,6 +62,10 @@ CMR_GRACE = timedelta(hours=2)
 CMR_WINDOW = timedelta(days=3)
 
 EXPIRY_BUCKETS = (30, 7)  # days left; plus the day it lapses
+
+# How a policy is named to the driver. The plate follows, so the country is
+# the part that tells two otherwise identical warnings apart.
+_INSURANCE_COUNTRY = {"uz": "UZ", "kz": "KZ", "rf": "RU"}
 
 # A trip in one of these has not left yet — the only time a loading reminder helps.
 _NOT_STARTED = (TripStatus.draft, TripStatus.planned)
@@ -416,34 +420,41 @@ async def _document_reminders(db: AsyncSession, now: datetime) -> int:
         )
 
     assigned = _current_drivers_query().subquery()
+    policy_columns = [getattr(Truck, attr) for _, attr in INSURANCE_POLICIES]
     trucks = (
         await db.execute(
             select(Truck, assigned.c.id)
             .join(assigned, assigned.c.truck_id == Truck.id)
             .where(
                 Truck.is_enabled.is_(True),
-                Truck.insurance_expiry.is_not(None),
-                Truck.insurance_expiry <= horizon,
-                Truck.insurance_expiry >= today - timedelta(days=1),
+                or_(*[col.between(today - timedelta(days=1), horizon) for col in policy_columns]),
             )
         )
     ).all()
     for truck, driver_id in trucks:
-        days_left = (truck.insurance_expiry - today).days
-        bucket = _expiry_bucket(days_left)
-        if bucket is None:
-            continue
-        title, body = _expiry_text(f"Страховка {truck.plate_number}", truck.insurance_expiry, days_left)
-        sent += await _send(
-            db,
-            org_id=truck.org_id,
-            driver_id=driver_id,
-            truck_id=truck.id,
-            kind=DriverMessageKind.document_expiry,
-            title=title,
-            body=body,
-            dedupe_key=f"insurance:{truck.id}:{driver_id}:{truck.insurance_expiry.isoformat()}:{bucket}",
-        )
+        for country, attr in INSURANCE_POLICIES:
+            expiry = getattr(truck, attr)
+            if expiry is None or not (today - timedelta(days=1) <= expiry <= horizon):
+                continue
+            days_left = (expiry - today).days
+            bucket = _expiry_bucket(days_left)
+            if bucket is None:
+                continue
+            label = _INSURANCE_COUNTRY[country]
+            title, body = _expiry_text(f"Страховка {label} {truck.plate_number}", expiry, days_left)
+            # The Uzbek policy keeps its pre-split key: a driver already told
+            # about it is not told again because two more countries appeared.
+            policy = "" if country == "uz" else f"{country}:"
+            sent += await _send(
+                db,
+                org_id=truck.org_id,
+                driver_id=driver_id,
+                truck_id=truck.id,
+                kind=DriverMessageKind.document_expiry,
+                title=title,
+                body=body,
+                dedupe_key=f"insurance:{policy}{truck.id}:{driver_id}:{expiry.isoformat()}:{bucket}",
+            )
     return sent
 
 

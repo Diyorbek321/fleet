@@ -300,6 +300,11 @@ class SubscriptionOut(BaseModel):
     activated: bool
     activated_at: str | None
     deep_link: str
+    # The live map page for this load — the same one the bot pins in the
+    # customer's chat — so a dispatcher can hand it over by phone, WhatsApp or
+    # e-mail to someone who will never open Telegram. None when the panel's
+    # public address is not configured.
+    track_url: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -315,6 +320,7 @@ def _to_out(sub: TripSubscription) -> SubscriptionOut:
         activated=sub.chat_id is not None,
         activated_at=sub.activated_at.isoformat() if sub.activated_at else None,
         deep_link=build_deep_link(sub.token),
+        track_url=track_url(sub.token),
     )
 
 

@@ -11,7 +11,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Send, Trash2, MessageSquare, Check } from 'lucide-react';
+import { Copy, Send, Trash2, MessageSquare, Check, Map as MapIcon, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from '@/lib/datetime';
 
 import { Badge } from '@/components/ui/badge';
@@ -44,6 +44,8 @@ export function TripSubscriptionsCard({ tripId }: Props) {
   const queryClient = useQueryClient();
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
+  // Which button last copied, as "<sub id>:<link kind>", so the tick lands on
+  // the button that was pressed and not on its neighbour too.
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
@@ -116,11 +118,16 @@ export function TripSubscriptionsCard({ tripId }: Props) {
 
   const subscriptions = listQuery.data ?? [];
 
-  const handleCopy = (sub: TripSubscription) => {
-    copyToClipboard(sub.deepLink, () => {
-      setCopiedId(sub.id);
-      window.setTimeout(() => setCopiedId((prev) => (prev === sub.id ? null : prev)), 1500);
-      toast({ title: t('tripSubscriptions.copySuccessTitle') });
+  const handleCopy = (sub: TripSubscription, kind: 'telegram' | 'map' = 'telegram') => {
+    const link = kind === 'map' ? sub.trackUrl : sub.deepLink;
+    if (!link) return;
+    const key = `${sub.id}:${kind}`;
+    copyToClipboard(link, () => {
+      setCopiedId(key);
+      window.setTimeout(() => setCopiedId((prev) => (prev === key ? null : prev)), 1500);
+      toast({
+        title: kind === 'map' ? t('tripSubscriptions.mapCopySuccessTitle') : t('tripSubscriptions.copySuccessTitle'),
+      });
     });
   };
 
@@ -225,6 +232,23 @@ export function TripSubscriptionsCard({ tripId }: Props) {
                   <p className="truncate text-xs text-muted-foreground" title={sub.deepLink}>
                     {sub.deepLink}
                   </p>
+                  {/* The live map itself, for a customer reached by phone or
+                      WhatsApp who will never open the bot. */}
+                  {sub.trackUrl && (
+                    <div className="flex min-w-0 items-center gap-1 text-xs">
+                      <MapIcon className="h-3 w-3 shrink-0 text-primary" />
+                      <a
+                        href={sub.trackUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate text-primary hover:underline"
+                        title={sub.trackUrl}
+                      >
+                        {sub.trackUrl}
+                      </a>
+                      <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1">
@@ -236,13 +260,29 @@ export function TripSubscriptionsCard({ tripId }: Props) {
                     />
                     {t('tripSubscriptions.dailyLabel')}
                   </label>
+                  {sub.trackUrl && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopy(sub, 'map')}
+                      aria-label={t('tripSubscriptions.mapCopyAriaLabel')}
+                      title={t('tripSubscriptions.mapCopyAriaLabel')}
+                    >
+                      {copiedId === `${sub.id}:map` ? (
+                        <Check className="h-4 w-4" />
+                      ) : (
+                        <MapIcon className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleCopy(sub)}
                     aria-label={t('tripSubscriptions.copyAriaLabel')}
+                    title={t('tripSubscriptions.copyAriaLabel')}
                   >
-                    {copiedId === sub.id ? (
+                    {copiedId === `${sub.id}:telegram` ? (
                       <Check className="h-4 w-4" />
                     ) : (
                       <Copy className="h-4 w-4" />

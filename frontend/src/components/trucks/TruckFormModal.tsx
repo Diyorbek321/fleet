@@ -41,17 +41,29 @@ const TRAILER_VOLUMES: TrailerVolume[] = ['standart', 'mega'];
 // for "this tractor has no trailer on it".
 const NO_VOLUME = '__none__';
 
+/** Matches the backend's limit: room for "tractor / trailer" plates. */
+const PLATE_MAX = 40;
+
+/** One date per country a rig is insured for, in the order they are crossed. */
+const INSURANCE_FIELDS = [
+  { name: 'insuranceExpiry', labelKey: 'insurance.country.uz' },
+  { name: 'insuranceExpiryKz', labelKey: 'insurance.country.kz' },
+  { name: 'insuranceExpiryRf', labelKey: 'insurance.country.rf' },
+] as const;
+
 const buildTruckSchema = (t: Translate) =>
   z.object({
     plateNumber: z
       .string()
       .min(1, t('trucks.form.plateRequired'))
-      .max(20, t('trucks.form.plateTooLong')),
+      .max(PLATE_MAX, t('trucks.form.plateTooLong')),
     tractorBrand: z.string().max(60, t('trucks.form.brandTooLong')).optional(),
     trailerBrand: z.string().max(60, t('trucks.form.brandTooLong')).optional(),
     trailerVolume: z.enum(['standart', 'mega']).optional(),
     // ISO date from <input type="date">, or '' when left blank.
     insuranceExpiry: z.string().optional(),
+    insuranceExpiryKz: z.string().optional(),
+    insuranceExpiryRf: z.string().optional(),
   });
 
 type TruckFormData = z.infer<ReturnType<typeof buildTruckSchema>>;
@@ -67,6 +79,8 @@ function defaultsFor(truck: Truck | null): TruckFormData {
     trailerBrand: truck?.trailerBrand || '',
     trailerVolume: truck?.trailerVolume,
     insuranceExpiry: truck?.insuranceExpiry || '',
+    insuranceExpiryKz: truck?.insuranceExpiryKz || '',
+    insuranceExpiryRf: truck?.insuranceExpiryRf || '',
   };
 }
 
@@ -102,7 +116,12 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
       // No name: the truck is known by its plate, and the backend names a
       // new one after it. The driver is attached from the Drivers page.
       if (isEditing) {
-        await updateTruck(truck.id, { ...data, insuranceExpiry: data.insuranceExpiry || null });
+        await updateTruck(truck.id, {
+          ...data,
+          insuranceExpiry: data.insuranceExpiry || null,
+          insuranceExpiryKz: data.insuranceExpiryKz || null,
+          insuranceExpiryRf: data.insuranceExpiryRf || null,
+        });
       } else {
         await addTruck({
           plateNumber: data.plateNumber,
@@ -110,6 +129,8 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
           trailerBrand: data.trailerBrand || undefined,
           trailerVolume: data.trailerVolume,
           insuranceExpiry: data.insuranceExpiry || null,
+          insuranceExpiryKz: data.insuranceExpiryKz || null,
+          insuranceExpiryRf: data.insuranceExpiryRf || null,
         });
       }
       onClose();
@@ -143,6 +164,7 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
                   <FormControl>
                     <Input
                       placeholder={t('trucks.form.platePlaceholder')}
+                      maxLength={PLATE_MAX}
                       className="bg-secondary/50 border-0"
                       {...field}
                     />
@@ -225,19 +247,27 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="insuranceExpiry"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t('trucks.form.insuranceExpiry')}</FormLabel>
-                  <FormControl>
-                    <Input type="date" className="bg-secondary/50 border-0" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">{t('trucks.form.insuranceExpiry')}</legend>
+              <div className="grid grid-cols-3 gap-2">
+                {INSURANCE_FIELDS.map(({ name, labelKey }) => (
+                  <FormField
+                    key={name}
+                    control={form.control}
+                    name={name}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs text-muted-foreground">{t(labelKey)}</FormLabel>
+                        <FormControl>
+                          <Input type="date" className="bg-secondary/50 border-0 px-2" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
+              </div>
+            </fieldset>
 
             <div className="flex justify-end gap-3 pt-4">
               <Button type="button" variant="outline" onClick={onClose}>

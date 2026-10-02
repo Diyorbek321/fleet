@@ -448,3 +448,24 @@ async def test_insurance_is_listed_in_the_reminders_payload(db):
     assert row["truck_id"] == str(truck.id)
     assert row["days_left"] == 7
     assert row["expired"] is False
+
+
+async def test_each_country_policy_is_its_own_alert(db, captured):
+    """The Kazakh policy lapsing while the Uzbek one is fine is still a truck
+    that cannot cross into Kazakhstan."""
+    from app.services.reminders import upcoming_expiries
+
+    org_id = await _org_with_chat(db)
+    truck = await _insured_truck(db, org_id, days=200)
+    truck.insurance_expiry_kz = date.today() - timedelta(days=2)
+    truck.insurance_expiry_rf = date.today() + timedelta(days=5)
+    await db.commit()
+
+    data = await upcoming_expiries(db, org_id)
+    assert [r["country"] for r in data["insurance_expiries"]] == ["kz", "rf"]
+
+    assert await run(db) == 2
+    texts = " ".join(text for _, text in captured)
+    assert "KZ" in texts and "RU" in texts
+
+

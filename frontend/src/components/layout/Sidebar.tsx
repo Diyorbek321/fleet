@@ -20,7 +20,8 @@ import {
   TrendingDown,
   ListChecks,
   Building2,
-  UserCog
+  UserCog,
+  ShieldCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -47,6 +48,7 @@ const navItems: readonly NavItem[] = [
   { icon: TrendingDown, labelKey: 'nav.leakage', path: '/leakage' },
   { icon: Package, labelKey: 'nav.trips', path: '/trips' },
   { icon: Truck, labelKey: 'nav.trucks', path: '/trucks' },
+  { icon: ShieldCheck, labelKey: 'nav.insurance', path: '/insurance' },
   { icon: Users, labelKey: 'nav.drivers', path: '/drivers' },
   { icon: Map, labelKey: 'nav.map', path: '/map' },
   { icon: ListChecks, labelKey: 'nav.queue', path: '/queue' },

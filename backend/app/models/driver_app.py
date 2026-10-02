@@ -82,7 +82,7 @@ class QueueWatch(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     driver_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("drivers.id", ondelete="CASCADE"), nullable=False, index=True)
-    plate: Mapped[str] = mapped_column(String(20), nullable=False)
+    plate: Mapped[str] = mapped_column(String(40), nullable=False)
     checkpoint: Mapped[str] = mapped_column(String(200), nullable=False)
     country: Mapped[str | None] = mapped_column(String(100), nullable=True)
     active: Mapped[bool] = mapped_column(default=True, nullable=False)

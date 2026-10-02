@@ -5,27 +5,34 @@ from datetime import datetime, date
 import uuid
 from app.models.enums import TrailerVolume, TruckStatus
 
+# Matches trucks.plate_number. Long enough for "tractor / trailer" plates.
+PLATE_MAX = 40
+
 class TruckCreate(BaseModel):
     # Optional: the form asks for the plate only, and the router names the
     # truck after it so no screen that prints a name prints a blank.
     name: Optional[str] = Field(default=None, max_length=100)
-    plate_number: str = Field(min_length=1, max_length=20)
+    plate_number: str = Field(min_length=1, max_length=PLATE_MAX)
     model: Optional[str] = None
     year: Optional[int] = Field(default=None, ge=1900, le=2100)
     tractor_brand: Optional[str] = Field(default=None, max_length=60)
     trailer_brand: Optional[str] = Field(default=None, max_length=60)
     trailer_volume: Optional[TrailerVolume] = None
     insurance_expiry: Optional[date] = None
+    insurance_expiry_kz: Optional[date] = None
+    insurance_expiry_rf: Optional[date] = None
 
 class TruckUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    plate_number: Optional[str] = Field(default=None, min_length=1, max_length=20)
+    plate_number: Optional[str] = Field(default=None, min_length=1, max_length=PLATE_MAX)
     model: Optional[str] = None
     year: Optional[int] = Field(default=None, ge=1900, le=2100)
     tractor_brand: Optional[str] = Field(default=None, max_length=60)
     trailer_brand: Optional[str] = Field(default=None, max_length=60)
     trailer_volume: Optional[TrailerVolume] = None
     insurance_expiry: Optional[date] = None
+    insurance_expiry_kz: Optional[date] = None
+    insurance_expiry_rf: Optional[date] = None
     status: Optional[TruckStatus] = None
     # The dispatcher's switch, independent of `status`: a truck can be in
     # service and out of coverage at the same time.
@@ -43,6 +50,9 @@ class TruckOut(BaseModel):
     trailer_brand: Optional[str] = None
     trailer_volume: Optional[TrailerVolume] = None
     insurance_expiry: Optional[date] = None
+    insurance_expiry_kz: Optional[date] = None
+    insurance_expiry_rf: Optional[date] = None
+    sort_order: Optional[int] = None
     status: TruckStatus
     gps_disabled_at: Optional[datetime] = None
     is_enabled: bool
@@ -53,6 +63,10 @@ class TruckOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+class TruckOrderIn(BaseModel):
+    """The whole list, top to bottom, as the dispatcher arranged it."""
+    truck_ids: List[uuid.UUID] = Field(min_length=1, max_length=2000)
 
 class TruckLocationOut(BaseModel):
     truck_id: uuid.UUID

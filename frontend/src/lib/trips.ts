@@ -441,6 +441,9 @@ export interface TripSubscription {
   activated: boolean;
   activatedAt: string | null;
   deepLink: string;
+  /** The public live-map page for this load; null when the panel's public
+   *  address is not configured on the server. */
+  trackUrl: string | null;
 }
 
 interface BackendTripSubscription {
@@ -453,6 +456,7 @@ interface BackendTripSubscription {
   activated: boolean;
   activated_at: string | null;
   deep_link: string;
+  track_url?: string | null;
 }
 
 function adaptSubscription(s: BackendTripSubscription): TripSubscription {
@@ -466,6 +470,7 @@ function adaptSubscription(s: BackendTripSubscription): TripSubscription {
     activated: s.activated,
     activatedAt: s.activated_at,
     deepLink: s.deep_link,
+    trackUrl: s.track_url ?? null,
   };
 }
 

@@ -20,6 +20,8 @@ interface TruckContextType {
   updateTruck: (id: string, data: Partial<Truck>) => Promise<void>;
   removeTruck: (id: string) => Promise<void>;
   toggleTruckEnabled: (id: string) => Promise<void>;
+  /** Save a new list order — every truck id, top to bottom. */
+  reorderTrucks: (truckIds: string[]) => Promise<void>;
   refreshTrucks: () => Promise<void>;
 }
 
@@ -151,6 +153,8 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
           trailerBrand: data.trailerBrand,
           trailerVolume: data.trailerVolume,
           insuranceExpiry: data.insuranceExpiry,
+          insuranceExpiryKz: data.insuranceExpiryKz,
+          insuranceExpiryRf: data.insuranceExpiryRf,
         },
       });
       toast({
@@ -186,6 +190,32 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
     [trucks, updateMutation],
   );
 
+  const reorderTrucks = useCallback(
+    async (truckIds: string[]) => {
+      // Shown at once: a row that snaps back to where it was and then jumps
+      // to where it was dropped, a second later, reads as the drag failing.
+      const previous = queryClient.getQueryData<Truck[]>(TRUCKS_KEY);
+      if (previous) {
+        const byId = new Map(previous.map((t) => [t.id, t]));
+        const arranged = truckIds.map((id) => byId.get(id)).filter((t): t is Truck => !!t);
+        queryClient.setQueryData<Truck[]>(TRUCKS_KEY, arranged);
+      }
+      try {
+        await trucksApi.reorder(truckIds);
+      } catch (err) {
+        if (previous) queryClient.setQueryData(TRUCKS_KEY, previous);
+        toast({
+          title: i18n.t('trucks.toast.reorderFailed'),
+          description: errorMessage(err, i18n.t('common.tryAgain')),
+          variant: 'destructive',
+        });
+      } finally {
+        invalidate();
+      }
+    },
+    [queryClient, invalidate],
+  );
+
   const refreshTrucks = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: TRUCKS_KEY });
   }, [queryClient]);
@@ -203,6 +233,7 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
       updateTruck,
       removeTruck,
       toggleTruckEnabled,
+      reorderTrucks,
       refreshTrucks,
     }),
     [
@@ -214,6 +245,7 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
       updateTruck,
       removeTruck,
       toggleTruckEnabled,
+      reorderTrucks,
       refreshTrucks,
     ],
   );

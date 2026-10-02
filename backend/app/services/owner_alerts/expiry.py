@@ -157,12 +157,18 @@ def _licence_alert(row: dict, severity: AlertSeverity) -> Alert:
     )
 
 
+_INSURANCE_COUNTRY_RU: dict[str, str] = {"uz": "UZ", "kz": "KZ", "rf": "RU"}
+
+
 def _insurance_alert(row: dict, severity: AlertSeverity) -> Alert:
     plate = row.get("plate_number") or "—"
     verb = "истекла" if severity is AlertSeverity.critical else "истекает"
+    country = row.get("country") or "uz"
+    label = _INSURANCE_COUNTRY_RU.get(country, country.upper())
 
     lines = [
         f"<b>Машина:</b> {_esc(row.get('truck_name') or '—')} ({_esc(plate)})",
+        f"<b>Страна:</b> {_esc(label)}",
         f"<b>Действительна до:</b> {_esc(row.get('insurance_expiry') or '—')}",
     ]
     remaining = _remaining_line(row.get("days_left"))
@@ -172,14 +178,17 @@ def _insurance_alert(row: dict, severity: AlertSeverity) -> Alert:
         lines.append("Рейс без действующей страховки — штраф на границе и груз без покрытия.")
 
     truck_id = row.get("truck_id")
+    # The Uzbek policy keeps the key it had before there were three, so a
+    # warning already sent for it is not sent a second time by the upgrade.
+    policy = "" if country == "uz" else f":{country}"
     return Alert(
         kind=AlertKind.document_expiry,
         severity=severity,
-        title=f"Страховка {verb} — {plate}",
+        title=f"Страховка {label} {verb} — {plate}",
         body="\n".join(lines),
-        dedupe_key=f"expiry:insurance:{truck_id}:{severity.value}",
+        dedupe_key=f"expiry:insurance:{truck_id}{policy}:{severity.value}",
         dedupe_ttl_hours=dedupe_ttl_hours(severity),
-        path=f"/trucks/{truck_id}" if truck_id else None,
+        path="/insurance",
     )
 
 

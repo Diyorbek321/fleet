@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   SatelliteDish,
 } from 'lucide-react';
-import { formatDistanceToNow } from '@/lib/datetime';
+import { format, formatDistanceToNow } from '@/lib/datetime';
+import { INSURANCE_POLICIES, insuranceState } from '@/lib/insurance';
 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -103,6 +104,8 @@ export default function TruckDetailPage() {
     trailerBrand: truck.trailerBrand ?? undefined,
     trailerVolume: truck.trailerVolume ?? undefined,
     insuranceExpiry: truck.insuranceExpiry,
+    insuranceExpiryKz: truck.insuranceExpiryKz,
+    insuranceExpiryRf: truck.insuranceExpiryRf,
     driverName: truck.driver?.name,
     status: truck.status === 'moving' ? 'moving' : truck.status === 'offline' ? 'offline' : 'stopped',
     speed: truck.location?.speed ?? 0,
@@ -168,19 +171,25 @@ export default function TruckDetailPage() {
               {truck.trailerVolume ? t(`trucks.volume.${truck.trailerVolume}`) : '—'}
             </InfoRow>
             <InfoRow icon={<ShieldCheck className="h-4 w-4" />} label={t('trucks.form.insuranceExpiry')}>
-              {truck.insuranceExpiry ? (
-                <span
-                  className={
-                    truck.insuranceExpiry < new Date().toISOString().slice(0, 10)
-                      ? 'text-destructive'
-                      : undefined
-                  }
-                >
-                  {new Date(truck.insuranceExpiry).toLocaleDateString()}
-                </span>
-              ) : (
-                '—'
-              )}
+              <span className="flex flex-wrap gap-x-3 gap-y-1">
+                {INSURANCE_POLICIES.map(({ country, field }) => {
+                  const expiry = truck[field];
+                  const state = insuranceState(expiry);
+                  return (
+                    <span key={country} className="whitespace-nowrap">
+                      <span className="text-muted-foreground">{t(`insurance.country.${country}`)}: </span>
+                      <span
+                        className={cn(
+                          state === 'expired' && 'text-destructive',
+                          state === 'urgent' && 'text-status-stopped',
+                        )}
+                      >
+                        {expiry ? format(`${expiry}T00:00:00`, 'dd.MM.yyyy') : '—'}
+                      </span>
+                    </span>
+                  );
+                })}
+              </span>
             </InfoRow>
             {/* The model is no longer asked for; kept where it was entered. */}
             {truck.model && (

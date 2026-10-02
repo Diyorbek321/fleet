@@ -19,7 +19,7 @@ import { lazyPages } from "@/routes/lazyPages";
 // etc.) are split into their own chunks and only fetched on demand. The auth
 // and layout shell above stays eager so the app boots fast.
 //
-// The sidebar's fourteen destinations come from `@/routes/lazyPages`, which
+// The sidebar's destinations come from `@/routes/lazyPages`, which
 // owns the same loaders the sidebar prefetches on hover — one registry, so a
 // route can never be split here and left un-warmable there. The rest are
 // detail views reached from inside a page, where there is no link to hover.
@@ -34,6 +34,7 @@ const TrackPage = lazy(() => import("@/pages/TrackPage"));
 
 const LazyDashboardPage = lazyPages["/dashboard"];
 const LazyTrucksPage = lazyPages["/trucks"];
+const LazyInsurancePage = lazyPages["/insurance"];
 const LazyDriversPage = lazyPages["/drivers"];
 const LazyTripsPage = lazyPages["/trips"];
 const LazyLeakagePage = lazyPages["/leakage"];
@@ -106,6 +107,7 @@ const App = () => (
                       <Route path="/dashboard" element={<LazyDashboardPage />} />
                       <Route path="/trucks" element={<LazyTrucksPage />} />
                       <Route path="/trucks/:id" element={<TruckDetailPage />} />
+                      <Route path="/insurance" element={<LazyInsurancePage />} />
                       <Route path="/drivers" element={<LazyDriversPage />} />
                       <Route path="/drivers/:id" element={<DriverDetailPage />} />
                       <Route path="/trips" element={<LazyTripsPage />} />

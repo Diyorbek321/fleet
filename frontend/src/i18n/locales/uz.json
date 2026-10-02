@@ -17,7 +17,8 @@
     "trips": "Reyslar",
     "leakage": "Yo‘qotishlar",
     "organizations": "Kompaniyalar",
-    "users": "Foydalanuvchilar"
+    "users": "Foydalanuvchilar",
+    "insurance": "Sug‘urta"
   },
   "dashboard": {
     "title": "Boshqaruv paneli",
@@ -146,7 +147,8 @@
       "updated": "Oxirgi ma’lumot",
       "driver": "Haydovchi",
       "model": "Model",
-      "close": "Yopish"
+      "close": "Yopish",
+      "noDriverToMessage": "Bu mashinaga haydovchi biriktirilmagan — xabar yuboradigan telefon yo‘q."
     },
     "title": "Yuk mashinalari",
     "subtitle": "Avtopark va trekerlarni boshqarish",
@@ -227,12 +229,16 @@
       "disabled": "Mashina o‘chirildi",
       "enabled": "Mashina yoqildi",
       "disabledBody": "{{name}} o‘chirildi.",
-      "enabledBody": "{{name}} yoqildi."
+      "enabledBody": "{{name}} yoqildi.",
+      "reorderFailed": "Tartib saqlanmadi"
     },
     "volume": {
       "standart": "Standart",
       "mega": "Mega"
-    }
+    },
+    "reorderHint": "Tartibni o‘zgartirish uchun sudrab o‘tkazing",
+    "moveUp": "Yuqoriga",
+    "moveDown": "Pastga"
   },
   "devices": {
     "title": "Qurilmalar",
@@ -661,7 +667,9 @@
     "confirmDeleteTitle": "Obunani o'chirish",
     "confirmDeleteDescription": "Ushbu obunani o'chirilsinmi? Bu amalni ortga qaytarib bo'lmaydi.",
     "confirmDeleteCancel": "Bekor qilish",
-    "confirmDeleteConfirm": "O'chirish"
+    "confirmDeleteConfirm": "O'chirish",
+    "mapCopySuccessTitle": "Xarita havolasi nusxa olindi",
+    "mapCopyAriaLabel": "Xarita havolasini nusxa olish"
   },
   "leakage": {
     "title": "Yo‘qotishlar",
@@ -1132,5 +1140,35 @@
     "rulesHint": "Bo‘sh qoldirilsa, standart ro‘yxat ishlatiladi.",
     "footer": "Dispetcher telefonlari (oxirgi qator)",
     "templateSaved": "Shablon saqlandi"
+  },
+  "insurance": {
+    "title": "Sug‘urta",
+    "subtitle": "Har bir mashinaning UZ, KZ va RU sug‘urtasi va ularning tugash muddati",
+    "country": {
+      "uz": "UZ sug‘urta",
+      "kz": "KZ sug‘urta",
+      "rf": "RU sug‘urta"
+    },
+    "state": {
+      "missing": "Kiritilmagan",
+      "expired": "{{count}} kun oldin tugagan",
+      "left": "{{count}} kun qoldi"
+    },
+    "editAria": "{{plate}} — {{country}} muddati",
+    "summary": {
+      "expired": "Muddati o‘tgan polislar",
+      "soon": "30 kun ichida tugaydi",
+      "missing": "Sana kiritilmagan"
+    },
+    "searchPlaceholder": "Davlat raqami bo‘yicha qidirish…",
+    "filter": {
+      "all": "Barcha mashinalar",
+      "attention": "Faqat tugayotganlar"
+    },
+    "sort": {
+      "list": "Ro‘yxat tartibida",
+      "urgent": "Avval muddati yaqinlari"
+    },
+    "empty": "Mos mashina topilmadi"
   }
 }

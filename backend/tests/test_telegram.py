@@ -119,6 +119,21 @@ async def test_create_subscription_returns_deep_link(
     assert body["activated"] is False
 
 
+async def test_a_subscription_hands_the_dispatcher_the_map_link(
+    client: AsyncClient, admin_headers, monkeypatch
+):
+    """The dispatcher can pass the live map on without the customer ever
+    opening Telegram — it is the same token, on the public track page."""
+    monkeypatch.setattr(settings, "public_web_url", "https://fleet.example/", raising=False)
+    trip_id = await _create_trip(client, admin_headers)
+
+    body = (
+        await client.post("/api/trip-subscriptions", headers=admin_headers, json={"trip_id": trip_id})
+    ).json()
+    token = body["deep_link"].rsplit("trip_", 1)[1]
+    assert body["track_url"] == f"https://fleet.example/track/{token}"
+
+
 async def test_list_subscriptions_filtered_by_trip(client: AsyncClient, admin_headers):
     trip_a = await _create_trip(client, admin_headers)
     trip_b = await _create_trip(client, admin_headers)

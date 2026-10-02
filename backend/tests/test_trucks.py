@@ -318,3 +318,83 @@ async def test_insurance_expiry_is_stored_and_editable(client: AsyncClient, admi
         f"/api/trucks/{created['id']}", headers=admin_headers, json={"insurance_expiry": None}
     )
     assert updated.json()["insurance_expiry"] is None
+
+
+async def test_each_country_policy_is_stored_on_its_own(client: AsyncClient, admin_headers):
+    """A rig crossing into Kazakhstan and Russia carries a policy for each,
+    and each runs out on its own date."""
+    created = (
+        await client.post(
+            "/api/trucks",
+            headers=admin_headers,
+            json={
+                "plate_number": "01A889AA",
+                "insurance_expiry": "2027-03-01",
+                "insurance_expiry_kz": "2026-12-15",
+                "insurance_expiry_rf": "2027-01-20",
+            },
+        )
+    ).json()
+    assert created["insurance_expiry_kz"] == "2026-12-15"
+    assert created["insurance_expiry_rf"] == "2027-01-20"
+
+    updated = (
+        await client.put(
+            f"/api/trucks/{created['id']}", headers=admin_headers, json={"insurance_expiry_kz": None}
+        )
+    ).json()
+    assert updated["insurance_expiry_kz"] is None
+    assert updated["insurance_expiry_rf"] == "2027-01-20"
+    assert updated["insurance_expiry"] == "2027-03-01"
+
+
+async def test_a_tractor_and_trailer_plate_fit_in_one_field(client: AsyncClient, admin_headers):
+    plate = "01 A 123 BC / 01 XA 4567"
+    res = await client.post("/api/trucks", headers=admin_headers, json={"plate_number": plate})
+    assert res.status_code == 200, res.text
+    assert res.json()["plate_number"] == plate
+
+
+# ── the dispatcher's own order ─────────────────────────────────────────
+
+
+async def _plates(client: AsyncClient, headers) -> list[str]:
+    return [t["plate_number"] for t in (await client.get("/api/trucks", headers=headers)).json()]
+
+
+async def test_the_dispatcher_arranges_the_list(client: AsyncClient, admin_headers):
+    ids = {}
+    for plate in ("A1", "B2", "C3"):
+        ids[plate] = (
+            await client.post("/api/trucks", headers=admin_headers, json={"plate_number": plate})
+        ).json()["id"]
+    # Newest first until someone arranges it.
+    assert await _plates(client, admin_headers) == ["C3", "B2", "A1"]
+
+    res = await client.put(
+        "/api/trucks/order",
+        headers=admin_headers,
+        json={"truck_ids": [ids["B2"], ids["A1"], ids["C3"]]},
+    )
+    assert res.status_code == 200, res.text
+    assert [t["plate_number"] for t in res.json()] == ["B2", "A1", "C3"]
+    assert await _plates(client, admin_headers) == ["B2", "A1", "C3"]
+
+    # A truck added afterwards lands at the bottom, not in the middle.
+    await client.post("/api/trucks", headers=admin_headers, json={"plate_number": "D4"})
+    assert await _plates(client, admin_headers) == ["B2", "A1", "C3", "D4"]
+
+
+async def test_reordering_ignores_ids_from_elsewhere(client: AsyncClient, admin_headers):
+    import uuid
+
+    truck_id = (
+        await client.post("/api/trucks", headers=admin_headers, json={"plate_number": "E5"})
+    ).json()["id"]
+    res = await client.put(
+        "/api/trucks/order",
+        headers=admin_headers,
+        json={"truck_ids": [str(uuid.uuid4()), truck_id]},
+    )
+    assert res.status_code == 200, res.text
+    assert [t["id"] for t in res.json()] == [truck_id]

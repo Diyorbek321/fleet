@@ -32,7 +32,7 @@ class TripExpenseReport(Base):
 
     # Header — plate/driver default from the trip's truck/driver at read time,
     # but are kept editable here since the paper form can name a substitute driver.
-    plate_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    plate_number: Mapped[str | None] = mapped_column(String(40), nullable=True)
     driver_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     report_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     odometer_out: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)

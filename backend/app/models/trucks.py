@@ -8,6 +8,16 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.models.enums import TrailerVolume, TruckStatus
 
+# (country code, Truck attribute) for every policy a rig carries. The one place
+# that says which columns are insurance, so the reminders, the owner alerts and
+# the API cannot each grow their own list and disagree about a fourth country.
+INSURANCE_POLICIES: tuple[tuple[str, str], ...] = (
+    ("uz", "insurance_expiry"),
+    ("kz", "insurance_expiry_kz"),
+    ("rf", "insurance_expiry_rf"),
+)
+
+
 class Truck(Base):
     __tablename__ = "trucks"
     # Plates are unique *within a fleet*, not across the platform. A global
@@ -25,7 +35,7 @@ class Truck(Base):
         UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    plate_number: Mapped[str] = mapped_column(String(20), nullable=False)
+    plate_number: Mapped[str] = mapped_column(String(40), nullable=False)
     model: Mapped[str | None] = mapped_column(String(100), nullable=True)
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # A rig is two vehicles that are bought, serviced and written off
@@ -50,8 +60,16 @@ class Truck(Base):
     # the panel hid it from the map and from the fuel and service pickers
     # until a first ping happened to arrive.
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    # When the policy runs out. A rig without cover cannot be sent over a border.
+    # When each policy runs out. A rig without cover cannot be sent over a
+    # border, and each country it crosses wants its own: `insurance_expiry` is
+    # the Uzbek one (every date entered before the split was the home policy),
+    # the other two are Kazakhstan and Russia. See INSURANCE_POLICIES.
     insurance_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    insurance_expiry_kz: Mapped[date | None] = mapped_column(Date, nullable=True)
+    insurance_expiry_rf: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Where the dispatcher put this truck in the list. NULL sorts last, so a
+    # truck added after the list was arranged lands at the bottom of it.
+    sort_order: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # When the driver's phone reported location services switched off. Cleared
     # by the next fix, or by the phone reporting them back on. NULL is the
     # normal state, including for trucks tracked by a hardware device.

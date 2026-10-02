@@ -1,11 +1,15 @@
 import React from 'react';
-import { X, MapPin, Gauge, Clock, User, Truck as TruckIcon } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { X, MapPin, Gauge, Clock, User, Truck as TruckIcon, MessageSquare } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useTranslation } from 'react-i18next';
 import { Truck } from '@/types';
 import { cn } from '@/lib/utils';
+import { format, formatDistanceToNow } from '@/lib/datetime';
+import { trucksApi } from '@/lib/trucks';
+import { TruckMessageBox } from '@/components/map/TruckMessageBox';
 
 interface TruckPopupProps {
   truck: Truck;
@@ -15,6 +19,16 @@ interface TruckPopupProps {
 export function TruckPopup({ truck, onClose }: TruckPopupProps) {
   const { t } = useTranslation();
 
+  // The list endpoint carries no driver, so the popup asks for this one
+  // truck's details — the same query the truck page makes, so it is shared.
+  const { data: details } = useQuery({
+    queryKey: ['truck', truck.id],
+    queryFn: () => trucksApi.getDetails(truck.id),
+    staleTime: 30_000,
+  });
+  const driver = details?.driver ?? null;
+  const driverName = driver?.name ?? truck.driverName;
+
   const statusBadgeClasses = {
     moving: 'bg-status-moving/20 text-status-moving border-status-moving/30',
     stopped: 'bg-status-stopped/20 text-status-stopped border-status-stopped/30',
@@ -22,7 +36,7 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
   };
 
   return (
-    <Card className="absolute top-4 right-4 z-10 w-80 border-border/50 bg-card/95 backdrop-blur-sm shadow-elevated animate-slide-in-right">
+    <Card className="absolute top-4 right-4 z-10 w-80 max-h-[calc(100%-2rem)] overflow-y-auto border-border/50 bg-card/95 backdrop-blur-sm shadow-elevated animate-slide-in-right">
       <CardContent className="p-4">
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
@@ -104,11 +118,17 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
             </span>
           </div>
 
-          <div className="flex items-center gap-3 text-sm">
-            <Clock className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">{t('trucks.popup.updated')}:</span>
-            <span className="font-mono">
-              {truck.lastUpdate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {/* The date, not only the time: a truck last heard from at 21:43
+              three days ago is a very different truck from one heard from
+              at 21:43 tonight. */}
+          <div className="flex items-start gap-3 text-sm">
+            <Clock className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
+            <span className="text-muted-foreground shrink-0">{t('trucks.popup.updated')}:</span>
+            <span className="min-w-0">
+              <span className="block font-mono">{format(truck.lastUpdate, 'dd.MM.yyyy HH:mm')}</span>
+              <span className="text-xs text-muted-foreground">
+                {formatDistanceToNow(truck.lastUpdate, { addSuffix: true })}
+              </span>
             </span>
           </div>
 
@@ -118,11 +138,11 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
             truck on this map would claim to have nobody driving it — a
             statement the fleet page contradicts one click away.
           */}
-          {truck.driverName && (
+          {driverName && (
             <div className="flex items-center gap-3 text-sm">
               <User className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">{t('trucks.popup.driver')}:</span>
-              <span>{truck.driverName}</span>
+              <span>{driverName}</span>
             </div>
           )}
         </div>
@@ -134,6 +154,22 @@ export function TruckPopup({ truck, onClose }: TruckPopupProps) {
             <span>{truck.model || '—'}</span>
           </div>
         </div>
+
+        {/* A message to whoever is driving it. No driver attached means no
+            phone to send to, which the popup says instead of a dead box. */}
+        {details && (
+          <div className="mt-4 pt-4 border-t border-border/50 space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              {t('driverMessages.title')}
+            </div>
+            {driver ? (
+              <TruckMessageBox key={driver.id} driverId={driver.id} driverName={driver.name} />
+            ) : (
+              <p className="text-xs text-muted-foreground">{t('trucks.popup.noDriverToMessage')}</p>
+            )}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { toFrontendTruck, calculateStats } from './trucks';
+import { toFrontendTruck, calculateStats, moveTruck } from './trucks';
 
 const sampleBackend = {
   id: 't-1',
@@ -104,5 +104,23 @@ describe('calculateStats', () => {
       stoppedTrucks: 0,
       offlineTrucks: 0,
     });
+  });
+});
+
+describe('moveTruck', () => {
+  const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }];
+  const ids = (l: { id: string }[]) => l.map((t) => t.id).join('');
+
+  it('puts a truck dragged down where the target was', () => {
+    expect(ids(moveTruck(list, 'a', 'c'))).toBe('bcad');
+  });
+
+  it('puts a truck dragged up where the target was', () => {
+    expect(ids(moveTruck(list, 'd', 'b'))).toBe('adbc');
+  });
+
+  it('returns the same list when nothing moves', () => {
+    expect(moveTruck(list, 'b', 'b')).toBe(list);
+    expect(moveTruck(list, 'x', 'b')).toBe(list);
   });
 });

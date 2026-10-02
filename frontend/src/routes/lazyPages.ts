@@ -22,6 +22,7 @@ const loaders = {
   '/leakage': () => import('@/pages/LeakagePage'),
   '/trips': () => import('@/pages/TripsPage'),
   '/trucks': () => import('@/pages/TrucksPage'),
+  '/insurance': () => import('@/pages/InsurancePage'),
   '/drivers': () => import('@/pages/DriversPage'),
   '/map': () => import('@/pages/MapViewPage'),
   '/queue': () => import('@/pages/BorderQueuePage'),

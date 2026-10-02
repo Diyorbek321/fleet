@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import SessionLocal
@@ -23,7 +23,7 @@ from app.core.logging import logger
 from app.models.drivers import Driver
 from app.models.enums import ServiceStatus
 from app.models.maintenance import ServiceInterval
-from app.models.trucks import Truck
+from app.models.trucks import INSURANCE_POLICIES, Truck
 
 DEFAULT_DAYS_AHEAD = 30
 
@@ -87,32 +87,38 @@ async def upcoming_expiries(db: AsyncSession, org_id, days_ahead: int = DEFAULT_
         for si, t in service_rows
     ]
 
-    # Truck insurance. Trucks taken off the board are skipped: nobody is
-    # driving them, so a lapsed policy there is not something to act on.
+    # Truck insurance, one row per lapsing policy — a rig can have its Kazakh
+    # cover run out while the Uzbek one is good for a year. Trucks taken off
+    # the board are skipped: nobody is driving them, so a lapsed policy there
+    # is not something to act on.
+    policy_columns = [getattr(Truck, attr) for _, attr in INSURANCE_POLICIES]
     insurance_rows = (
         await db.execute(
-            select(Truck)
-            .where(
+            select(Truck).where(
                 Truck.org_id == org_id,
                 Truck.is_enabled.is_(True),
-                Truck.insurance_expiry.is_not(None),
-                Truck.insurance_expiry <= horizon,
+                or_(*[col <= horizon for col in policy_columns]),
             )
-            .order_by(Truck.insurance_expiry)
         )
     ).scalars().all()
 
-    insurance = [
-        {
-            "truck_id": str(t.id),
-            "truck_name": t.name,
-            "plate_number": t.plate_number,
-            "insurance_expiry": t.insurance_expiry.isoformat(),
-            "days_left": (t.insurance_expiry - today).days,
-            "expired": t.insurance_expiry < today,
-        }
-        for t in insurance_rows
-    ]
+    insurance = sorted(
+        (
+            {
+                "truck_id": str(t.id),
+                "truck_name": t.name,
+                "plate_number": t.plate_number,
+                "country": country,
+                "insurance_expiry": expiry.isoformat(),
+                "days_left": (expiry - today).days,
+                "expired": expiry < today,
+            }
+            for t in insurance_rows
+            for country, attr in INSURANCE_POLICIES
+            if (expiry := getattr(t, attr)) is not None and expiry <= horizon
+        ),
+        key=lambda row: row["insurance_expiry"],
+    )
 
     return {
         "days_ahead": days_ahead,

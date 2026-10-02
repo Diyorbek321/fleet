@@ -234,7 +234,7 @@ async def test_papers_are_warned_about_at_30_and_7_days_and_on_the_day(db):
     titles = sorted(m.title for m in await _messages(db, driver, "document_expiry"))
     assert titles == [
         "⚠️ Водительское удостоверение: осталось 19 дн.",
-        "⛔ Страховка 01A123BC: срок истёк",
+        "⛔ Страховка UZ 01A123BC: срок истёк",
     ]
 
     await run(db, now=EVENING + timedelta(days=13))  # 6 days left: the 7-day warning

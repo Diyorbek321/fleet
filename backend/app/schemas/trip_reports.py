@@ -43,7 +43,7 @@ class TripExpenseReportIn(BaseModel):
     Every field is optional so a driver can save partial progress; ``fuel_rows``
     and ``country_expenses`` fully replace whatever was previously stored.
     """
-    plate_number: Optional[str] = Field(default=None, max_length=20)
+    plate_number: Optional[str] = Field(default=None, max_length=40)
     driver_name: Optional[str] = Field(default=None, max_length=200)
     report_date: Optional[date] = None
     odometer_out: Optional[float] = Field(default=None, ge=0)

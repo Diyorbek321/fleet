@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Plus, Search, Filter, MapPin, Clock, MoreHorizontal, Pencil, Power, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, MapPin, Clock, MoreHorizontal, Pencil, Power, Trash2, GripVertical, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -33,9 +33,10 @@ import { TruckFormModal } from '@/components/trucks/TruckFormModal';
 import { Truck, TruckStatus } from '@/types';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from '@/lib/datetime';
+import { moveTruck } from '@/lib/trucks';
 
 export default function TrucksPage() {
-  const { trucks, isLoading, setSelectedTruck, toggleTruckEnabled, removeTruck } = useTrucks();
+  const { trucks, isLoading, setSelectedTruck, toggleTruckEnabled, removeTruck, reorderTrucks } = useTrucks();
   const navigate = useNavigate();
   const { t } = useTranslation();
   
@@ -43,6 +44,31 @@ export default function TrucksPage() {
   const [statusFilter, setStatusFilter] = useState<TruckStatus | 'all'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTruck, setEditingTruck] = useState<Truck | null>(null);
+  // The row being dragged, and the row it is over. A row only becomes
+  // draggable while its grip is held, so dragging across the rest of the row
+  // still selects text and a click still opens the truck.
+  const [armedId, setArmedId] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
+
+  // Moves are made against the whole fleet, not the filtered view, so a
+  // search that hides half the trucks cannot scramble the hidden half.
+  const placeTruck = (movedId: string, targetId: string) => {
+    const next = moveTruck(trucks, movedId, targetId);
+    if (next !== trucks) reorderTrucks(next.map((t) => t.id));
+  };
+
+  const nudgeTruck = (truck: Truck, step: -1 | 1) => {
+    const index = filteredTrucks.findIndex((t) => t.id === truck.id);
+    const neighbour = filteredTrucks[index + step];
+    if (neighbour) placeTruck(truck.id, neighbour.id);
+  };
+
+  const endDrag = () => {
+    setArmedId(null);
+    setDraggingId(null);
+    setOverId(null);
+  };
 
   const filteredTrucks = useMemo(() => {
     return trucks.filter((truck) => {
@@ -159,6 +185,7 @@ export default function TrucksPage() {
           <Table>
             <TableHeader>
               <TableRow className="border-border/50 hover:bg-transparent">
+                <TableHead className="w-8 px-2" aria-label={t('trucks.reorderHint')}></TableHead>
                 <TableHead className="text-muted-foreground">{t('trucks.colTruck')}</TableHead>
                 <TableHead className="text-muted-foreground">{t('trucks.colDriver')}</TableHead>
                 <TableHead className="text-muted-foreground">{t('trucks.colStatus')}</TableHead>
@@ -171,20 +198,50 @@ export default function TrucksPage() {
             <TableBody>
               {filteredTrucks.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                     {t('trucks.empty')}
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredTrucks.map((truck) => (
+                filteredTrucks.map((truck, index) => (
                   <TableRow
                     key={truck.id}
                     className={cn(
                       'border-border/50 cursor-pointer transition-colors',
-                      !truck.isEnabled && 'opacity-50'
+                      !truck.isEnabled && 'opacity-50',
+                      draggingId === truck.id && 'opacity-40',
+                      overId === truck.id && draggingId !== truck.id && 'bg-primary/10 outline outline-1 outline-primary/40'
                     )}
                     onClick={() => handleTruckClick(truck)}
+                    draggable={armedId === truck.id}
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', truck.id);
+                      setDraggingId(truck.id);
+                    }}
+                    onDragOver={(e) => {
+                      if (!draggingId) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      if (overId !== truck.id) setOverId(truck.id);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggingId) placeTruck(draggingId, truck.id);
+                      endDrag();
+                    }}
+                    onDragEnd={endDrag}
                   >
+                    <TableCell className="w-8 px-2" onClick={(e) => e.stopPropagation()}>
+                      <span
+                        className="flex cursor-grab items-center text-muted-foreground hover:text-foreground active:cursor-grabbing"
+                        title={t('trucks.reorderHint')}
+                        onMouseDown={() => setArmedId(truck.id)}
+                        onMouseUp={() => setArmedId(null)}
+                      >
+                        <GripVertical className="h-4 w-4" />
+                      </span>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium">{truck.plateNumber}</span>
@@ -234,6 +291,20 @@ export default function TrucksPage() {
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleViewOnMap(truck); }}>
                             <MapPin className="mr-2 h-4 w-4" />
                             {t('trucks.viewOnMap')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={index === 0}
+                            onClick={(e) => { e.stopPropagation(); nudgeTruck(truck, -1); }}
+                          >
+                            <ArrowUp className="mr-2 h-4 w-4" />
+                            {t('trucks.moveUp')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            disabled={index === filteredTrucks.length - 1}
+                            onClick={(e) => { e.stopPropagation(); nudgeTruck(truck, 1); }}
+                          >
+                            <ArrowDown className="mr-2 h-4 w-4" />
+                            {t('trucks.moveDown')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEdit(truck); }}>
                             <Pencil className="mr-2 h-4 w-4" />

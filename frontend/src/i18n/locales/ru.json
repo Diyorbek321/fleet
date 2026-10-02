@@ -17,7 +17,8 @@
     "trips": "Рейсы",
     "leakage": "Потери",
     "organizations": "Компании",
-    "users": "Пользователи"
+    "users": "Пользователи",
+    "insurance": "Страховка"
   },
   "dashboard": {
     "title": "Панель управления",
@@ -146,7 +147,8 @@
       "updated": "Обновлено",
       "driver": "Водитель",
       "model": "Модель",
-      "close": "Закрыть"
+      "close": "Закрыть",
+      "noDriverToMessage": "К машине не привязан водитель — некому отправить сообщение."
     },
     "title": "Грузовики",
     "subtitle": "Управление автопарком и трекерами",
@@ -227,12 +229,16 @@
       "disabled": "Машина отключена",
       "enabled": "Машина включена",
       "disabledBody": "{{name}} отключена.",
-      "enabledBody": "{{name}} включена."
+      "enabledBody": "{{name}} включена.",
+      "reorderFailed": "Порядок не сохранён"
     },
     "volume": {
       "standart": "Стандарт",
       "mega": "Мега"
-    }
+    },
+    "reorderHint": "Перетащите, чтобы изменить порядок",
+    "moveUp": "Выше",
+    "moveDown": "Ниже"
   },
   "devices": {
     "title": "Устройства",
@@ -661,7 +667,9 @@
     "confirmDeleteTitle": "Удалить подписку",
     "confirmDeleteDescription": "Удалить эту подписку? Это действие нельзя отменить.",
     "confirmDeleteCancel": "Отмена",
-    "confirmDeleteConfirm": "Удалить"
+    "confirmDeleteConfirm": "Удалить",
+    "mapCopySuccessTitle": "Ссылка на карту скопирована",
+    "mapCopyAriaLabel": "Скопировать ссылку на карту"
   },
   "leakage": {
     "title": "Потери",
@@ -1132,5 +1140,35 @@
     "rulesHint": "Если оставить пустым, используется стандартный список.",
     "footer": "Телефоны диспетчеров (последняя строка)",
     "templateSaved": "Шаблон сохранён"
+  },
+  "insurance": {
+    "title": "Страховка",
+    "subtitle": "Страховки UZ, KZ и RU по каждой машине и сроки их окончания",
+    "country": {
+      "uz": "Страховка UZ",
+      "kz": "Страховка KZ",
+      "rf": "Страховка RU"
+    },
+    "state": {
+      "missing": "Не указана",
+      "expired": "Истекла {{count}} дн. назад",
+      "left": "Осталось {{count}} дн."
+    },
+    "editAria": "{{plate}} — срок: {{country}}",
+    "summary": {
+      "expired": "Просроченные полисы",
+      "soon": "Истекают в течение 30 дней",
+      "missing": "Дата не указана"
+    },
+    "searchPlaceholder": "Поиск по госномеру…",
+    "filter": {
+      "all": "Все машины",
+      "attention": "Только истекающие"
+    },
+    "sort": {
+      "list": "В порядке списка",
+      "urgent": "Сначала ближайшие"
+    },
+    "empty": "Подходящих машин нет"
   }
 }
