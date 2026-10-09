@@ -32,6 +32,12 @@ class Driver(Base):
     passport_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
     license_number: Mapped[str | None] = mapped_column(String(50), unique=True, nullable=True)
     license_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # The rest of the papers a driver crosses a border with, one expiry each.
+    # The licence is `license_expiry` above.
+    foreign_passport_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    passport_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    certificate_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    chip_card_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[DriverStatus] = mapped_column(Enum(DriverStatus, name="driver_status"), default=DriverStatus.active, nullable=False)
     photo_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

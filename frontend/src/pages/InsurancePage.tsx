@@ -1,18 +1,23 @@
 /**
- * Every rig's insurance on one screen: a policy per country (UZ, KZ, RU),
- * each with its own expiry, editable in place.
+ * Every paper that can stop a rig at a border, on one screen, in two tabs.
  *
- * The dates already drive the reminders — the driver's phone and the owner's
- * Telegram are warned a month out, a week out and on the day — but a reminder
- * says one thing about one truck. This is where the dispatcher sees the whole
- * fleet's cover at once and types in the new date when a policy is renewed.
+ * "Truck": the insurance policy per country (UZ, KZ, RU), then technical
+ * inspection, permit, transport licence, certificate and tachograph.
+ * "Driver": foreign passport, certificate, chip card, licence and passport.
+ * Each is one expiry date, editable in place.
+ *
+ * The insurance and licence dates already drive the reminders — the driver's
+ * phone and the owner's Telegram are warned a month out, a week out and on the
+ * day — but a reminder says one thing about one truck. This is where the
+ * dispatcher sees the whole fleet at once and types in the new date when a
+ * document is renewed.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ShieldAlert, ShieldCheck, ShieldQuestion, Search } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ShieldAlert, ShieldCheck, ShieldQuestion, Search, Truck as TruckIcon, User } from 'lucide-react';
 
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
@@ -23,81 +28,42 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DocumentDateCell } from '@/components/documents/DocumentDateCell';
 import { useTrucks } from '@/contexts/TruckContext';
+import { ApiError } from '@/lib/api';
 import {
-  INSURANCE_POLICIES,
-  daysLeft,
-  insuranceState,
-  localToday,
-  nearestDaysLeft,
-  summarize,
-  type InsuranceField,
-  type InsuranceState,
-} from '@/lib/insurance';
+  DRIVER_COLUMNS,
+  TRUCK_COLUMNS,
+  needsAttention,
+  nearestDocumentDays,
+  summarizeDocuments,
+  type DocumentColumn,
+} from '@/lib/documents';
+import { driversApi, type Driver, type DriverDocumentField } from '@/lib/drivers';
+import { localToday } from '@/lib/insurance';
+import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { Truck } from '@/types';
 
 type SortMode = 'list' | 'urgent';
 type FilterMode = 'all' | 'attention';
+type Tab = 'trucks' | 'drivers';
 
-const STATE_CLASSES: Record<InsuranceState, string> = {
-  expired: 'bg-destructive/15 text-destructive border-destructive/30',
-  urgent: 'bg-status-stopped/20 text-status-stopped border-status-stopped/30',
-  soon: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/30',
-  ok: 'bg-status-moving/15 text-status-moving border-status-moving/30',
-  missing: 'bg-muted text-muted-foreground border-border',
-};
+/** One row of either table, reduced to what the table needs. */
+interface DocumentRow {
+  id: string;
+  title: string;
+  subtitle?: string;
+  dimmed: boolean;
+  dates: Partial<Record<string, string | null | undefined>>;
+  href: string;
+}
 
-function PolicyCell({
-  truck,
-  field,
-  country,
-  today,
-}: {
-  truck: Truck;
-  field: InsuranceField;
-  country: string;
-  today: string;
-}) {
-  const { t } = useTranslation();
-  const { updateTruck } = useTrucks();
-  const saved = truck[field] ?? '';
-  // Held locally and saved on blur: typing a date into the segments fires a
-  // change per complete date, and a save per keystroke is a toast per keystroke.
-  const [draft, setDraft] = useState(saved);
-  useEffect(() => setDraft(saved), [saved]);
-
-  const state = insuranceState(draft, today);
-  const days = draft ? daysLeft(draft, today) : 0;
-  const label =
-    state === 'missing'
-      ? t('insurance.state.missing')
-      : state === 'expired'
-        ? t('insurance.state.expired', { count: Math.abs(days) })
-        : t('insurance.state.left', { count: days });
-
-  const commit = () => {
-    if (draft !== saved) updateTruck(truck.id, { [field]: draft || null });
-  };
-
-  return (
-    <div className="flex min-w-[9.5rem] flex-col gap-1">
-      <Input
-        type="date"
-        value={draft}
-        className="h-8 bg-secondary/50 border-0 px-2 text-sm"
-        aria-label={t('insurance.editAria', { plate: truck.plateNumber, country: t(`insurance.country.${country}`) })}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') commit();
-        }}
-      />
-      <Badge variant="outline" className={cn('w-fit text-[11px] font-normal', STATE_CLASSES[state])}>
-        {label}
-      </Badge>
-    </div>
-  );
+function pickDates<F extends string>(
+  source: { [K in F]?: string | null },
+  cols: readonly DocumentColumn<F>[],
+): DocumentRow['dates'] {
+  return Object.fromEntries(cols.map(({ field }) => [field, source[field]]));
 }
 
 function SummaryCard({
@@ -126,39 +92,90 @@ function SummaryCard({
   );
 }
 
+function useDriverDocuments() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const query = useQuery({ queryKey: ['drivers'], queryFn: driversApi.list });
+  const mutation = useMutation({
+    mutationFn: ({ id, field, value }: { id: string; field: DriverDocumentField; value: string | null }) =>
+      driversApi.update(id, { [field]: value }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['drivers'] });
+      toast({ title: t('drivers.updated') });
+    },
+    onError: (err) =>
+      toast({
+        title: t('drivers.saveFailed'),
+        description: err instanceof ApiError ? err.detail : String(err),
+        variant: 'destructive',
+      }),
+  });
+  return { drivers: query.data ?? [], isLoading: query.isLoading, update: mutation.mutate };
+}
+
 export default function InsurancePage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { trucks, isLoading } = useTrucks();
+  const { trucks, isLoading: trucksLoading, updateTruck } = useTrucks();
+  const { drivers, isLoading: driversLoading, update: updateDriver } = useDriverDocuments();
+  const [tab, setTab] = useState<Tab>('trucks');
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortMode>('list');
   const [filter, setFilter] = useState<FilterMode>('all');
   const today = localToday();
 
-  const summary = useMemo(() => summarize(trucks, today), [trucks, today]);
+  const columns: readonly DocumentColumn<string>[] = tab === 'trucks' ? TRUCK_COLUMNS : DRIVER_COLUMNS;
+  const isLoading = tab === 'trucks' ? trucksLoading : driversLoading;
+
+  const allRows = useMemo<DocumentRow[]>(
+    () =>
+      tab === 'trucks'
+        ? trucks.map((truck) => ({
+            id: truck.id,
+            title: truck.plateNumber,
+            subtitle: truck.name !== truck.plateNumber ? truck.name : undefined,
+            dimmed: !truck.isEnabled,
+            dates: pickDates(truck, TRUCK_COLUMNS),
+            href: `/trucks/${truck.id}`,
+          }))
+        : drivers.map((driver: Driver) => ({
+            id: driver.id,
+            title: driver.name,
+            subtitle: driver.passportNumber ?? undefined,
+            dimmed: driver.status !== 'active',
+            dates: pickDates(driver, DRIVER_COLUMNS),
+            href: `/drivers/${driver.id}`,
+          })),
+    [tab, trucks, drivers],
+  );
+
+  const summary = useMemo(
+    () => summarizeDocuments(allRows.map((r) => r.dates), columns, today),
+    [allRows, columns, today],
+  );
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let list = trucks.filter(
-      (truck) => !q || truck.plateNumber.toLowerCase().includes(q) || truck.name.toLowerCase().includes(q),
+    let list = allRows.filter(
+      (row) => !q || row.title.toLowerCase().includes(q) || (row.subtitle ?? '').toLowerCase().includes(q),
     );
-    if (filter === 'attention') {
-      list = list.filter((truck) =>
-        INSURANCE_POLICIES.some(({ field }) => {
-          const state = insuranceState(truck[field], today);
-          return state === 'expired' || state === 'urgent' || state === 'soon';
-        }),
-      );
-    }
+    if (filter === 'attention') list = list.filter((row) => needsAttention(row.dates, columns, today));
     if (sort === 'urgent') {
-      // Trucks with no date at all go last: there is nothing to renew yet,
+      // Rows with no date at all go last: there is nothing to renew yet,
       // only something to fill in.
       list = [...list].sort(
-        (a, b) => (nearestDaysLeft(a, today) ?? Infinity) - (nearestDaysLeft(b, today) ?? Infinity),
+        (a, b) =>
+          (nearestDocumentDays(a.dates, columns, today) ?? Infinity) -
+          (nearestDocumentDays(b.dates, columns, today) ?? Infinity),
       );
     }
     return list;
-  }, [trucks, search, filter, sort, today]);
+  }, [allRows, columns, search, filter, sort, today]);
+
+  const commit = (row: DocumentRow, field: string, value: string | null) => {
+    if (tab === 'trucks') void updateTruck(row.id, { [field]: value });
+    else updateDriver({ id: row.id, field: field as DriverDocumentField, value });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -167,11 +184,24 @@ export default function InsurancePage() {
         <p className="text-muted-foreground">{t('insurance.subtitle')}</p>
       </div>
 
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+        <TabsList>
+          <TabsTrigger value="trucks" className="gap-2">
+            <TruckIcon className="h-4 w-4" />
+            {t('documents.tabTrucks')}
+          </TabsTrigger>
+          <TabsTrigger value="drivers" className="gap-2">
+            <User className="h-4 w-4" />
+            {t('documents.tabDrivers')}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       <div className="grid gap-4 sm:grid-cols-3">
         <SummaryCard
           icon={ShieldAlert}
           value={summary.expired}
-          label={t('insurance.summary.expired')}
+          label={t('documents.summary.expired')}
           className="bg-destructive/15 text-destructive"
         />
         <SummaryCard
@@ -193,7 +223,7 @@ export default function InsurancePage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder={t('insurance.searchPlaceholder')}
+              placeholder={tab === 'trucks' ? t('insurance.searchPlaceholder') : t('documents.searchDrivers')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 bg-secondary/50 border-0"
@@ -204,7 +234,9 @@ export default function InsurancePage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="bg-popover">
-              <SelectItem value="all">{t('insurance.filter.all')}</SelectItem>
+              <SelectItem value="all">
+                {tab === 'trucks' ? t('insurance.filter.all') : t('documents.filterAllDrivers')}
+              </SelectItem>
               <SelectItem value="attention">{t('insurance.filter.attention')}</SelectItem>
             </SelectContent>
           </Select>
@@ -225,10 +257,12 @@ export default function InsurancePage() {
           <Table>
             <TableHeader>
               <TableRow className="border-border/50 hover:bg-transparent">
-                <TableHead className="text-muted-foreground">{t('trucks.colTruck')}</TableHead>
-                {INSURANCE_POLICIES.map(({ country }) => (
-                  <TableHead key={country} className="text-muted-foreground">
-                    {t(`insurance.country.${country}`)}
+                <TableHead className="sticky left-0 z-10 bg-card text-muted-foreground">
+                  {tab === 'trucks' ? t('trucks.colTruck') : t('drivers.name')}
+                </TableHead>
+                {columns.map(({ field, labelKey }) => (
+                  <TableHead key={field} className="whitespace-nowrap text-muted-foreground">
+                    {t(labelKey)}
                   </TableHead>
                 ))}
               </TableRow>
@@ -236,34 +270,37 @@ export default function InsurancePage() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-12 text-center text-muted-foreground">
+                  <TableCell colSpan={columns.length + 1} className="py-12 text-center text-muted-foreground">
                     {t('common.loading')}
                   </TableCell>
                 </TableRow>
               ) : rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-12 text-center text-muted-foreground">
-                    {t('insurance.empty')}
+                  <TableCell colSpan={columns.length + 1} className="py-12 text-center text-muted-foreground">
+                    {tab === 'trucks' ? t('insurance.empty') : t('documents.emptyDrivers')}
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((truck) => (
-                  <TableRow key={truck.id} className={cn('border-border/50', !truck.isEnabled && 'opacity-50')}>
-                    <TableCell>
+                rows.map((row) => (
+                  <TableRow key={row.id} className={cn('border-border/50', row.dimmed && 'opacity-50')}>
+                    <TableCell className="sticky left-0 z-10 bg-card">
                       <button
                         type="button"
                         className="flex flex-col text-left hover:underline"
-                        onClick={() => navigate(`/trucks/${truck.id}`)}
+                        onClick={() => navigate(row.href)}
                       >
-                        <span className="font-medium">{truck.plateNumber}</span>
-                        {truck.name !== truck.plateNumber && (
-                          <span className="text-xs text-muted-foreground">{truck.name}</span>
-                        )}
+                        <span className="whitespace-nowrap font-medium">{row.title}</span>
+                        {row.subtitle && <span className="text-xs text-muted-foreground">{row.subtitle}</span>}
                       </button>
                     </TableCell>
-                    {INSURANCE_POLICIES.map(({ field, country }) => (
+                    {columns.map(({ field, labelKey }) => (
                       <TableCell key={field}>
-                        <PolicyCell truck={truck} field={field} country={country} today={today} />
+                        <DocumentDateCell
+                          value={row.dates[field]}
+                          today={today}
+                          ariaLabel={t('documents.editAria', { name: row.title, document: t(labelKey) })}
+                          onCommit={(value) => commit(row, field, value)}
+                        />
                       </TableCell>
                     ))}
                   </TableRow>

@@ -103,6 +103,8 @@ export interface Trip {
   cargoDescription: string | null;
   cargoWeightKg: number | null;
   isReefer: boolean;
+  /** False for an empty leg (порожний) — the dispatcher's mark. */
+  isLoaded: boolean;
   rate: number;
   currency: string;
   plannedDistanceKm: number | null;
@@ -198,6 +200,7 @@ interface BackendTrip {
   cargo_description: string | null;
   cargo_weight_kg: number | null;
   is_reefer: boolean;
+  is_loaded?: boolean;
   rate: number;
   currency: string;
   planned_distance_km: number | null;
@@ -252,6 +255,7 @@ function adapt(t: BackendTrip): Trip {
     cargoDescription: t.cargo_description,
     cargoWeightKg: t.cargo_weight_kg,
     isReefer: t.is_reefer,
+    isLoaded: t.is_loaded ?? true,
     rate: Number(t.rate),
     currency: t.currency,
     plannedDistanceKm: t.planned_distance_km,
@@ -304,11 +308,14 @@ export interface TripCreateInput {
   cargoDescription?: string | null;
   cargoWeightKg?: number | null;
   isReefer?: boolean;
+  isLoaded?: boolean;
   rate?: number;
   currency?: string;
   plannedDistanceKm?: number | null;
   /** Loading date, ISO. */
   scheduledStart?: string | null;
+  /** Unloading date (выгрузка), ISO. */
+  scheduledEnd?: string | null;
   notes?: string | null;
 }
 
@@ -329,10 +336,12 @@ const WIRE_NAMES: Record<keyof TripCreateInput, string> = {
   cargoDescription: 'cargo_description',
   cargoWeightKg: 'cargo_weight_kg',
   isReefer: 'is_reefer',
+  isLoaded: 'is_loaded',
   rate: 'rate',
   currency: 'currency',
   plannedDistanceKm: 'planned_distance_km',
   scheduledStart: 'scheduled_start',
+  scheduledEnd: 'scheduled_end',
   notes: 'notes',
 };
 
@@ -390,6 +399,15 @@ export const tripsApi = {
     const data = await api<BackendTripDetails>(`/api/trips/${id}/advance`, {
       method: 'POST',
       body: { stage, stage_place: place, note: note || undefined },
+    });
+    return adaptDetails(data);
+  },
+  /** Take back a "delivered" pressed by mistake: the trip returns to the
+   *  status and checkpoint it had just before. */
+  reopen: async (id: string, note?: string): Promise<TripDetails> => {
+    const data = await api<BackendTripDetails>(`/api/trips/${id}/reopen`, {
+      method: 'POST',
+      body: { note: note || undefined },
     });
     return adaptDetails(data);
   },

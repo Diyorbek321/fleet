@@ -10,17 +10,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { ApiError } from '@/lib/api';
 import { formatDistanceToNow } from '@/lib/datetime';
 import { driverMessagesApi, type DriverMessage } from '@/lib/driverMessages';
+import { MESSAGE_TEMPLATE_KEYS } from '@/lib/messageTemplates';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 const MAX_LENGTH = 1000;
-
-/**
- * Ready-made texts for what dispatchers send most. They follow the panel's
- * language, and the dispatcher can edit them before sending: the phone shows
- * exactly what is in the box.
- */
-const TEMPLATE_KEYS = ['gpsOn', 'callOffice', 'openApp'] as const;
 
 function DeliveryState({ message }: { message: DriverMessage }) {
   const { t } = useTranslation();
@@ -92,7 +86,7 @@ export function DriverMessagesCard({ driverId }: { driverId: string }) {
           }}
         >
           <div className="flex flex-wrap gap-2">
-            {TEMPLATE_KEYS.map((key) => (
+            {MESSAGE_TEMPLATE_KEYS.map((key) => (
               <Button
                 key={key}
                 type="button"

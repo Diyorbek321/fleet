@@ -37,6 +37,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { driversApi, type DriverInput, type DriverStatus } from '@/lib/drivers';
 import { DriverFormDialog } from '@/components/drivers/DriverFormDialog';
+import { CopyButton } from '@/components/CopyButton';
 import { DriverMessagesCard } from '@/components/drivers/DriverMessagesCard';
 import { driverDataApi } from '@/lib/driverData';
 import { ApiError } from '@/lib/api';
@@ -76,6 +77,16 @@ function scoreColor(score: number): string {
   if (score >= 80) return 'text-status-moving';
   if (score >= 60) return 'text-status-stopped';
   return 'text-destructive';
+}
+
+function PhoneWithCopy({ phone }: { phone: string }) {
+  const { t } = useTranslation();
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="font-mono">{phone}</span>
+      <CopyButton text={phone} label={t('drivers.copyPhone', { phone })} />
+    </span>
+  );
 }
 
 export default function DriverDetailPage() {
@@ -231,18 +242,18 @@ export default function DriverDetailPage() {
           </CardHeader>
           <CardContent className="divide-y divide-border/50">
             <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phoneUz')}>
-              {driver.phone || '—'}
+              {driver.phone ? <PhoneWithCopy phone={driver.phone} /> : '—'}
             </InfoRow>
             {/* Only the numbers that exist: a row of dashes for the two SIMs a
                 driver does not have reads as missing data, not as absent. */}
             {driver.phone2 && (
               <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phoneKz')}>
-                {driver.phone2}
+                <PhoneWithCopy phone={driver.phone2} />
               </InfoRow>
             )}
             {driver.phone3 && (
               <InfoRow icon={<Phone className="h-4 w-4" />} label={t('drivers.phoneRu')}>
-                {driver.phone3}
+                <PhoneWithCopy phone={driver.phone3} />
               </InfoRow>
             )}
             <InfoRow icon={<ShieldAlert className="h-4 w-4" />} label={t('drivers.adr')}>

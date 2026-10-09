@@ -22,6 +22,7 @@ from app.models.trips import Trip, TripDocument, TripEvent, TripSegment
 from app.models.trucks import Truck, TruckLocation
 from app.schemas.trips import (
     TripAdvance,
+    TripReopen,
     TripCardOut,
     TripCreate,
     TripDetailsOut,
@@ -360,6 +361,10 @@ async def advance_trip(
         trip.started_at = now
     if to_status == TripStatus.delivered:
         trip.delivered_at = now
+    elif from_status == TripStatus.delivered:
+        # Moved back off "delivered": the delivery date was wrong, and the
+        # period reports and the CMR reminder both read it.
+        trip.delivered_at = None
     if data.stage is TripStage.loaded_waiting_docs and trip.loaded_at is None:
         trip.loaded_at = now
     if data.stage is not None:
@@ -405,6 +410,69 @@ async def advance_trip(
             data.note,
         )
 
+    return await _detail(db, trip)
+
+
+@router.post("/{trip_id}/reopen", response_model=TripDetailsOut)
+async def reopen_trip(
+    trip_id: uuid.UUID,
+    data: TripReopen,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _user=Depends(_MANAGE),
+):
+    """Take back a "delivered" a driver pressed by mistake.
+
+    The trip goes back to where it stood just before — the status and the
+    checkpoint the delivery replaced — so the driver's app shows it as the
+    current load again. ``delivered_at`` is cleared, because the period
+    reports count deliveries by it and the CMR reminder fires off it. The
+    delivery event stays on the timeline with the undo after it: what the
+    driver pressed is a fact, and so is the correction.
+
+    The cargo owner is not messaged. Telling a customer "not delivered after
+    all" about a tap on the wrong button would worry them over nothing; their
+    next update arrives with the next real checkpoint.
+    """
+    trip = await _get_owned_trip(db, trip_id, org, with_events=True)
+    if trip.status != TripStatus.delivered:
+        raise HTTPException(status_code=409, detail="Рейс не отмечен как доставленный")
+
+    # Events are ordered by time. The latest move into "delivered" says what
+    # status it replaced; the latest checkpoint before it is where the load was.
+    events = list(trip.events)
+    pod_index = next(
+        (i for i in range(len(events) - 1, -1, -1) if events[i].to_status == TripStatus.delivered),
+        None,
+    )
+    restored_status = TripStatus.en_route
+    restored_stage: TripStage | None = None
+    restored_place = None
+    if pod_index is not None:
+        prev = events[pod_index].from_status
+        if prev is not None and prev not in (TripStatus.delivered, TripStatus.cancelled):
+            restored_status = prev
+        earlier = next((e for e in reversed(events[:pod_index]) if e.stage is not None), None)
+        if earlier is not None:
+            restored_stage = earlier.stage
+            restored_place = earlier.stage_place
+
+    now = datetime.now(timezone.utc)
+    trip.status = restored_status
+    trip.current_stage = restored_stage
+    trip.current_stage_place = restored_place
+    trip.delivered_at = None
+    trip.updated_at = now
+    trip.events.append(
+        TripEvent(
+            event=TripEventType.status_change,
+            from_status=TripStatus.delivered,
+            to_status=restored_status,
+            note=(data.note or "").strip() or "Отмена отметки «доставлено»",
+            recorded_at=now,
+        )
+    )
+    await db.commit()
     return await _detail(db, trip)
 
 

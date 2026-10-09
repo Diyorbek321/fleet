@@ -17,6 +17,17 @@ INSURANCE_POLICIES: tuple[tuple[str, str], ...] = (
     ("rf", "insurance_expiry_rf"),
 )
 
+# The rest of a rig's papers, each a single expiry date like the policies:
+# technical inspection, international permit (допуск), transport licence,
+# certificate, tachograph calibration.
+TRUCK_DOCUMENTS: tuple[str, ...] = (
+    "inspection_expiry",
+    "permit_expiry",
+    "transport_license_expiry",
+    "certificate_expiry",
+    "tachograph_expiry",
+)
+
 
 class Truck(Base):
     __tablename__ = "trucks"
@@ -67,6 +78,12 @@ class Truck(Base):
     insurance_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
     insurance_expiry_kz: Mapped[date | None] = mapped_column(Date, nullable=True)
     insurance_expiry_rf: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # See TRUCK_DOCUMENTS.
+    inspection_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    permit_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    transport_license_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    certificate_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
+    tachograph_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
     # Where the dispatcher put this truck in the list. NULL sorts last, so a
     # truck added after the list was arranged lands at the bottom of it.
     sort_order: Mapped[int | None] = mapped_column(Integer, nullable=True)

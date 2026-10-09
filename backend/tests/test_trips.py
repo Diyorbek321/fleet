@@ -404,3 +404,75 @@ async def test_an_edit_can_clear_a_field(client: AsyncClient, admin_headers):
     assert res.json()["customs_point"] == "ЧУКУРСАЙ"
     assert res.json()["declarant_contact"] is None
     assert res.json()["consignee"] == _ORDER_SHEET["consignee"]
+
+
+async def test_a_trip_is_loaded_unless_the_dispatcher_marks_it_empty(
+    client: AsyncClient, admin_headers
+):
+    trip = (await client.post("/api/trips", headers=admin_headers, json={"rate": 1})).json()
+    assert trip["is_loaded"] is True
+
+    empty = (
+        await client.post("/api/trips", headers=admin_headers, json={"rate": 1, "is_loaded": False})
+    ).json()
+    assert empty["is_loaded"] is False
+
+    res = await client.put(f"/api/trips/{empty['id']}", headers=admin_headers, json={"is_loaded": True})
+    assert res.status_code == 200, res.text
+    assert res.json()["is_loaded"] is True
+
+
+# ── taking back a "delivered" pressed by mistake ─────────────────────────
+
+
+async def test_a_mistaken_delivery_is_taken_back_to_where_the_load_was(
+    client: AsyncClient, admin_headers
+):
+    trip = (await client.post("/api/trips", headers=admin_headers, json={"rate": 1})).json()
+    tid = trip["id"]
+    await client.post(
+        f"/api/trips/{tid}/advance",
+        headers=admin_headers,
+        json={"stage": "arrived_customs", "stage_place": "ru"},
+    )
+    delivered = (
+        await client.post(f"/api/trips/{tid}/advance", headers=admin_headers, json={"to_status": "delivered"})
+    ).json()
+    assert delivered["status"] == "delivered"
+    assert delivered["delivered_at"] is not None
+
+    res = await client.post(f"/api/trips/{tid}/reopen", headers=admin_headers, json={})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    # Customs is an at-border status; that is what the delivery replaced.
+    assert body["status"] == "at_border"
+    assert body["current_stage"] == "arrived_customs"
+    assert body["current_stage_place"] == "ru"
+    assert body["delivered_at"] is None
+    # The mistake and the correction both stay on the timeline.
+    last = body["events"][-1]
+    assert last["from_status"] == "delivered" and last["to_status"] == "at_border"
+    assert any(e["to_status"] == "delivered" for e in body["events"])
+
+
+async def test_only_a_delivered_trip_can_be_reopened(client: AsyncClient, admin_headers):
+    trip = (await client.post("/api/trips", headers=admin_headers, json={"rate": 1})).json()
+    res = await client.post(f"/api/trips/{trip['id']}/reopen", headers=admin_headers, json={})
+    assert res.status_code == 409
+
+
+async def test_moving_a_trip_back_off_delivered_clears_the_delivery_date(
+    client: AsyncClient, admin_headers
+):
+    trip = (await client.post("/api/trips", headers=admin_headers, json={"rate": 1})).json()
+    tid = trip["id"]
+    await client.post(f"/api/trips/{tid}/advance", headers=admin_headers, json={"to_status": "delivered"})
+    back = (
+        await client.post(
+            f"/api/trips/{tid}/advance",
+            headers=admin_headers,
+            json={"stage": "arrived_unloading", "stage_place": "uz"},
+        )
+    ).json()
+    assert back["status"] != "delivered"
+    assert back["delivered_at"] is None

@@ -47,6 +47,10 @@ type FormState = Record<TextField, string> & {
   cargoTons: string;
   /** YYYY-MM-DD from <input type="date">. */
   loadingDate: string;
+  /** Unloading date (выгрузка), YYYY-MM-DD. */
+  unloadingDate: string;
+  /** False marks an empty leg (порожний). */
+  isLoaded: boolean;
 };
 
 function stateFor(trip: Trip | null): FormState {
@@ -65,6 +69,8 @@ function stateFor(trip: Trip | null): FormState {
     // every report sums it that way; freight is quoted in tonnes.
     cargoTons: trip?.cargoWeightKg ? String(trip.cargoWeightKg / 1000) : '',
     loadingDate: trip?.scheduledStart ? trip.scheduledStart.slice(0, 10) : '',
+    unloadingDate: trip?.scheduledEnd ? trip.scheduledEnd.slice(0, 10) : '',
+    isLoaded: trip?.isLoaded ?? true,
     consignee: trip?.consignee ?? '',
     customsPoint: trip?.customsPoint ?? '',
     unloadingAddress: trip?.unloadingAddress ?? '',
@@ -78,7 +84,17 @@ function tonsToKg(tons: string): number | null {
   return tons.trim() && Number.isFinite(n) && n > 0 ? n * 1000 : null;
 }
 
-function toInput(form: FormState): TripCreateInput {
+/** The unloading date as a moment: the end of that day in Tashkent (UTC+5),
+ *  so the late-delivery alert does not fire on the morning of the day itself.
+ *  An unchanged date keeps the stored moment, so saving a trip without
+ *  touching it is not reported to the driver as a change. */
+function unloadingMoment(date: string, previous: string | null | undefined): string | null {
+  if (!date) return null;
+  if (previous && previous.slice(0, 10) === date) return previous;
+  return `${date}T18:59:59Z`;
+}
+
+function toInput(form: FormState, trip: Trip | null): TripCreateInput {
   const text = (v: string) => v.trim() || null;
   return {
     direction: form.direction || null,
@@ -94,6 +110,8 @@ function toInput(form: FormState): TripCreateInput {
     cargoWeightKg: tonsToKg(form.cargoTons),
     // Midnight UTC is the same calendar day in Tashkent (UTC+5).
     scheduledStart: form.loadingDate ? `${form.loadingDate}T00:00:00Z` : null,
+    scheduledEnd: unloadingMoment(form.unloadingDate, trip?.scheduledEnd),
+    isLoaded: form.isLoaded,
     consignee: text(form.consignee),
     customsPoint: text(form.customsPoint),
     unloadingAddress: text(form.unloadingAddress),
@@ -193,7 +211,7 @@ export function TripFormDialog({
               directionRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
               return;
             }
-            onSubmit(toInput(form));
+            onSubmit(toInput(form, trip));
           }}
           className="space-y-3"
         >
@@ -219,6 +237,25 @@ export function TripFormDialog({
             {directionMissing && (
               <p className="text-sm text-destructive">{t('trips.form.directionRequired')}</p>
             )}
+          </div>
+          {/* Whether the truck runs with cargo or empty. The dispatcher's call:
+              nothing on the trip can tell an empty leg from a load not yet
+              described. */}
+          <div className="space-y-2">
+            <Label>{t('trips.form.load')}</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {([true, false] as const).map((loaded) => (
+                <Button
+                  key={String(loaded)}
+                  type="button"
+                  variant={form.isLoaded === loaded ? 'default' : 'outline'}
+                  aria-pressed={form.isLoaded === loaded}
+                  onClick={() => setForm((f) => ({ ...f, isLoaded: loaded }))}
+                >
+                  {loaded ? t('trips.loaded') : t('trips.emptyRun')}
+                </Button>
+              ))}
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {field('originName', { placeholder: 'Елабуга' })}
@@ -260,7 +297,18 @@ export function TripFormDialog({
           {field('loadingContact')}
 
           {section(t('trips.form.sectionUnloading'))}
-          {field('consignee')}
+          <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+            {field('consignee')}
+            <div className="space-y-2">
+              <Label htmlFor="trip-unloading-date">{t('trips.form.unloadingDate')}</Label>
+              <Input
+                id="trip-unloading-date"
+                type="date"
+                value={form.unloadingDate}
+                onChange={set('unloadingDate')}
+              />
+            </div>
+          </div>
           {field('unloadingAddress', { multiline: true })}
           {field('declarantContact')}
 

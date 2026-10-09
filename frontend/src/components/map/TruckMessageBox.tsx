@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiError } from '@/lib/api';
 import { driverMessagesApi } from '@/lib/driverMessages';
+import { MESSAGE_TEMPLATE_KEYS } from '@/lib/messageTemplates';
 import { toast } from '@/hooks/use-toast';
 
 const MAX_LENGTH = 1000;
@@ -54,6 +55,26 @@ export function TruckMessageBox({ driverId, driverName }: TruckMessageBoxProps) 
         if (canSend) sendMutation.mutate();
       }}
     >
+      {/* The same ready-made texts as the driver's card: picking one fills the
+          box, so the dispatcher can still adjust it before it goes. */}
+      <div className="flex flex-wrap gap-1.5">
+        {MESSAGE_TEMPLATE_KEYS.map((key) => {
+          const text = t(`driverMessages.templates.${key}.text`);
+          return (
+            <Button
+              key={key}
+              type="button"
+              variant={body === text ? 'default' : 'outline'}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              aria-pressed={body === text}
+              onClick={() => setBody(text)}
+            >
+              {t(`driverMessages.templates.${key}.label`)}
+            </Button>
+          );
+        })}
+      </div>
       <Textarea
         value={body}
         onChange={(e) => setBody(e.target.value)}

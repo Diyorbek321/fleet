@@ -1,11 +1,33 @@
 import type { Truck, TruckStatus, TrailerVolume, DashboardStats } from '@/types';
 import { api } from '@/lib/api';
 
+/** The rig's papers beyond insurance, frontend name → wire name. Mirrors
+ *  `TRUCK_DOCUMENTS` in `app/models/trucks.py`. */
+export const TRUCK_DOCUMENT_WIRE = {
+  inspectionExpiry: 'inspection_expiry',
+  permitExpiry: 'permit_expiry',
+  transportLicenseExpiry: 'transport_license_expiry',
+  certificateExpiry: 'certificate_expiry',
+  tachographExpiry: 'tachograph_expiry',
+} as const;
+
+export type TruckDocumentField = keyof typeof TRUCK_DOCUMENT_WIRE;
+type TruckDocumentWire = (typeof TRUCK_DOCUMENT_WIRE)[TruckDocumentField];
+
+const DOCUMENT_ENTRIES = Object.entries(TRUCK_DOCUMENT_WIRE) as [TruckDocumentField, TruckDocumentWire][];
+
+function documentsFromWire(b: Partial<Record<TruckDocumentWire, string | null>>): Record<TruckDocumentField, string | null> {
+  return Object.fromEntries(DOCUMENT_ENTRIES.map(([field, wire]) => [field, b[wire] ?? null])) as Record<
+    TruckDocumentField,
+    string | null
+  >;
+}
+
 // ---- Backend shapes (from /api/trucks) ----
 
 type BackendStatus = 'moving' | 'stopped' | 'idle' | 'offline' | 'maintenance';
 
-interface BackendTruck {
+interface BackendTruck extends Partial<Record<TruckDocumentWire, string | null>> {
   id: string;
   name: string;
   plate_number: string;
@@ -146,6 +168,7 @@ export function toFrontendTruck(b: BackendTruck, extras?: Partial<BackendTruckDe
     insuranceExpiry: b.insurance_expiry ?? null,
     insuranceExpiryKz: b.insurance_expiry_kz ?? null,
     insuranceExpiryRf: b.insurance_expiry_rf ?? null,
+    ...documentsFromWire(b),
     driverName: driver?.name,
     status: mapStatus(b.status),
     speed: loc?.speed ?? 0,
@@ -175,6 +198,11 @@ export interface TruckInput {
   insuranceExpiry?: string | null;
   insuranceExpiryKz?: string | null;
   insuranceExpiryRf?: string | null;
+  inspectionExpiry?: string | null;
+  permitExpiry?: string | null;
+  transportLicenseExpiry?: string | null;
+  certificateExpiry?: string | null;
+  tachographExpiry?: string | null;
 }
 
 // ---- Endpoint wrappers ----
@@ -223,6 +251,9 @@ export const trucksApi = {
     if (patch.insuranceExpiry !== undefined) body.insurance_expiry = patch.insuranceExpiry || null;
     if (patch.insuranceExpiryKz !== undefined) body.insurance_expiry_kz = patch.insuranceExpiryKz || null;
     if (patch.insuranceExpiryRf !== undefined) body.insurance_expiry_rf = patch.insuranceExpiryRf || null;
+    for (const [field, wire] of DOCUMENT_ENTRIES) {
+      if (patch[field] !== undefined) body[wire] = patch[field] || null;
+    }
     if (patch.status !== undefined) body.status = patch.status;
     if (patch.isEnabled !== undefined) body.is_enabled = patch.isEnabled;
 

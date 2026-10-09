@@ -1,5 +1,20 @@
 import { api } from '@/lib/api';
 
+/** A driver's papers, frontend name → wire name: one expiry date each. The
+ *  licence (`prava`) is the long-standing `licenseExpiry`. */
+export const DRIVER_DOCUMENT_WIRE = {
+  foreignPassportExpiry: 'foreign_passport_expiry',
+  passportExpiry: 'passport_expiry',
+  certificateExpiry: 'certificate_expiry',
+  chipCardExpiry: 'chip_card_expiry',
+  licenseExpiry: 'license_expiry',
+} as const;
+
+export type DriverDocumentField = keyof typeof DRIVER_DOCUMENT_WIRE;
+type DriverDocumentWire = (typeof DRIVER_DOCUMENT_WIRE)[DriverDocumentField];
+
+const DOCUMENT_ENTRIES = Object.entries(DRIVER_DOCUMENT_WIRE) as [DriverDocumentField, DriverDocumentWire][];
+
 export type DriverStatus = 'active' | 'inactive' | 'on_leave';
 
 export interface Driver {
@@ -20,6 +35,10 @@ export interface Driver {
   /** Kept for drivers entered before the passport replaced it. */
   licenseNumber: string | null;
   licenseExpiry: string | null;
+  foreignPassportExpiry: string | null;
+  passportExpiry: string | null;
+  certificateExpiry: string | null;
+  chipCardExpiry: string | null;
   status: DriverStatus;
   photoUrl: string | null;
   createdAt: Date;
@@ -54,6 +73,10 @@ interface BackendDriver {
   passport_number: string | null;
   license_number: string | null;
   license_expiry: string | null;
+  foreign_passport_expiry?: string | null;
+  passport_expiry?: string | null;
+  certificate_expiry?: string | null;
+  chip_card_expiry?: string | null;
   status: DriverStatus;
   photo_url: string | null;
   created_at: string;
@@ -77,6 +100,10 @@ function adapt(d: BackendDriver): Driver {
     passportNumber: d.passport_number ?? null,
     licenseNumber: d.license_number ?? null,
     licenseExpiry: d.license_expiry,
+    foreignPassportExpiry: d.foreign_passport_expiry ?? null,
+    passportExpiry: d.passport_expiry ?? null,
+    certificateExpiry: d.certificate_expiry ?? null,
+    chipCardExpiry: d.chip_card_expiry ?? null,
     status: d.status,
     photoUrl: d.photo_url,
     createdAt: new Date(d.created_at),
@@ -158,7 +185,7 @@ export const driversApi = {
   },
   update: async (
     id: string,
-    patch: Partial<DriverInput & { status: DriverStatus }>,
+    patch: Partial<DriverInput & { status: DriverStatus } & Record<DriverDocumentField, string | null>>,
   ): Promise<Driver> => {
     const body: Record<string, unknown> = {};
     if (patch.name !== undefined) body.name = patch.name;
@@ -169,6 +196,9 @@ export const driversApi = {
     if (patch.phone3 !== undefined) body.phone3 = patch.phone3 || null;
     if (patch.adr !== undefined) body.adr = patch.adr;
     if (patch.status !== undefined) body.status = patch.status;
+    for (const [field, wire] of DOCUMENT_ENTRIES) {
+      if (patch[field] !== undefined) body[wire] = patch[field] || null;
+    }
 
     const data = await api<BackendDriver>(`/api/drivers/${id}`, { method: 'PUT', body });
     return adapt(data);

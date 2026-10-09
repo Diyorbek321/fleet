@@ -21,6 +21,11 @@ class TruckCreate(BaseModel):
     insurance_expiry: Optional[date] = None
     insurance_expiry_kz: Optional[date] = None
     insurance_expiry_rf: Optional[date] = None
+    inspection_expiry: Optional[date] = None
+    permit_expiry: Optional[date] = None
+    transport_license_expiry: Optional[date] = None
+    certificate_expiry: Optional[date] = None
+    tachograph_expiry: Optional[date] = None
 
 class TruckUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=100)
@@ -33,6 +38,11 @@ class TruckUpdate(BaseModel):
     insurance_expiry: Optional[date] = None
     insurance_expiry_kz: Optional[date] = None
     insurance_expiry_rf: Optional[date] = None
+    inspection_expiry: Optional[date] = None
+    permit_expiry: Optional[date] = None
+    transport_license_expiry: Optional[date] = None
+    certificate_expiry: Optional[date] = None
+    tachograph_expiry: Optional[date] = None
     status: Optional[TruckStatus] = None
     # The dispatcher's switch, independent of `status`: a truck can be in
     # service and out of coverage at the same time.
@@ -52,6 +62,11 @@ class TruckOut(BaseModel):
     insurance_expiry: Optional[date] = None
     insurance_expiry_kz: Optional[date] = None
     insurance_expiry_rf: Optional[date] = None
+    inspection_expiry: Optional[date] = None
+    permit_expiry: Optional[date] = None
+    transport_license_expiry: Optional[date] = None
+    certificate_expiry: Optional[date] = None
+    tachograph_expiry: Optional[date] = None
     sort_order: Optional[int] = None
     status: TruckStatus
     gps_disabled_at: Optional[datetime] = None

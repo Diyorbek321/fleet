@@ -84,6 +84,8 @@ class Trip(Base):
     cargo_description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     cargo_weight_kg: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     is_reefer: Mapped[bool] = mapped_column(default=False, nullable=False)
+    # False for an empty leg (порожний): the dispatcher's mark, not derived.
+    is_loaded: Mapped[bool] = mapped_column(default=True, server_default="true", nullable=False)
 
     # Commercials
     rate: Mapped[float] = mapped_column(Numeric(14, 2), default=0, nullable=False)

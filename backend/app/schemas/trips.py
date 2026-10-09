@@ -42,6 +42,7 @@ class TripCreate(BaseModel):
     cargo_description: Optional[str] = Field(default=None, max_length=255)
     cargo_weight_kg: Optional[float] = Field(default=None, ge=0)
     is_reefer: bool = False
+    is_loaded: bool = True
     rate: float = Field(default=0, ge=0)
     currency: str = Field(default="UZS", min_length=3, max_length=3)
     planned_distance_km: Optional[float] = Field(default=None, ge=0)
@@ -71,6 +72,7 @@ class TripUpdate(BaseModel):
     cargo_description: Optional[str] = Field(default=None, max_length=255)
     cargo_weight_kg: Optional[float] = Field(default=None, ge=0)
     is_reefer: Optional[bool] = None
+    is_loaded: Optional[bool] = None
     rate: Optional[float] = Field(default=None, ge=0)
     currency: Optional[str] = Field(default=None, min_length=3, max_length=3)
     planned_distance_km: Optional[float] = Field(default=None, ge=0)
@@ -108,6 +110,12 @@ class TripAdvance(BaseModel):
                 names = ", ".join(p.value for p in allowed)
                 raise ValueError(f"Для этого этапа допустимо: {names}")
         return self
+
+
+class TripReopen(BaseModel):
+    """Undo a "delivered" sent by mistake. The note says why, on the timeline."""
+
+    note: Optional[str] = Field(default=None, max_length=500)
 
 
 class TripEventOut(BaseModel):
@@ -148,6 +156,7 @@ class TripOut(BaseModel):
     cargo_description: Optional[str]
     cargo_weight_kg: Optional[float]
     is_reefer: bool
+    is_loaded: bool = True
     rate: float
     currency: str
     planned_distance_km: Optional[float]

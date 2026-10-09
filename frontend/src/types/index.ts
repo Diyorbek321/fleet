@@ -21,6 +21,12 @@ export interface Truck {
   insuranceExpiryKz?: string | null;
   /** ISO date the Russian policy runs out. */
   insuranceExpiryRf?: string | null;
+  /** The rig's other papers, ISO expiry dates — see `TRUCK_DOCUMENTS`. */
+  inspectionExpiry?: string | null;
+  permitExpiry?: string | null;
+  transportLicenseExpiry?: string | null;
+  certificateExpiry?: string | null;
+  tachographExpiry?: string | null;
   status: TruckStatus;
   speed: number;
   latitude: number;

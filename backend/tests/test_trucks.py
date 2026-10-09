@@ -398,3 +398,41 @@ async def test_reordering_ignores_ids_from_elsewhere(client: AsyncClient, admin_
     )
     assert res.status_code == 200, res.text
     assert [t["id"] for t in res.json()] == [truck_id]
+
+
+async def test_each_rig_document_has_its_own_expiry(client: AsyncClient, admin_headers):
+    """Inspection, permit, licence, certificate and tachograph each run out on
+    their own date, and a renewed one is typed over or cleared."""
+    created = (
+        await client.post(
+            "/api/trucks",
+            headers=admin_headers,
+            json={
+                "plate_number": "01A890AA",
+                "inspection_expiry": "2027-02-01",
+                "tachograph_expiry": "2026-11-30",
+            },
+        )
+    ).json()
+    assert created["inspection_expiry"] == "2027-02-01"
+    assert created["tachograph_expiry"] == "2026-11-30"
+    assert created["permit_expiry"] is None
+
+    updated = (
+        await client.put(
+            f"/api/trucks/{created['id']}",
+            headers=admin_headers,
+            json={
+                "permit_expiry": "2027-05-05",
+                "transport_license_expiry": "2028-01-01",
+                "certificate_expiry": "2027-07-07",
+                "tachograph_expiry": None,
+            },
+        )
+    ).json()
+    assert updated["permit_expiry"] == "2027-05-05"
+    assert updated["transport_license_expiry"] == "2028-01-01"
+    assert updated["certificate_expiry"] == "2027-07-07"
+    assert updated["tachograph_expiry"] is None
+    # Untouched by a patch that did not name it.
+    assert updated["inspection_expiry"] == "2027-02-01"

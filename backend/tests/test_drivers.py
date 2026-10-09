@@ -129,3 +129,30 @@ async def test_every_field_of_a_driver_can_be_edited(client: AsyncClient, admin_
     assert body["phone2"] == "+77714281281"
     assert body["phone3"] is None
     assert body["adr"] is True
+
+
+async def test_each_driver_document_has_its_own_expiry(client: AsyncClient, admin_headers):
+    """Passport, foreign passport, certificate, chip card and licence: one
+    expiry each, editable from the documents page."""
+    driver = await _create(client, admin_headers, passport_expiry="2030-01-01")
+    assert driver["passport_expiry"] == "2030-01-01"
+    assert driver["chip_card_expiry"] is None
+
+    res = await client.put(
+        f"/api/drivers/{driver['id']}",
+        headers=admin_headers,
+        json={
+            "foreign_passport_expiry": "2029-06-01",
+            "certificate_expiry": "2027-03-03",
+            "chip_card_expiry": "2028-08-08",
+            "license_expiry": "2031-12-31",
+            "passport_expiry": None,
+        },
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["foreign_passport_expiry"] == "2029-06-01"
+    assert body["certificate_expiry"] == "2027-03-03"
+    assert body["chip_card_expiry"] == "2028-08-08"
+    assert body["license_expiry"] == "2031-12-31"
+    assert body["passport_expiry"] is None

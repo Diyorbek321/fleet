@@ -15,6 +15,11 @@ class DriverCreate(BaseModel):
     adr: bool = False
     passport_number: Optional[str] = Field(default=None, max_length=20)
     license_number: Optional[str] = Field(default=None, max_length=50)
+    license_expiry: Optional[date] = None
+    foreign_passport_expiry: Optional[date] = None
+    passport_expiry: Optional[date] = None
+    certificate_expiry: Optional[date] = None
+    chip_card_expiry: Optional[date] = None
     status: Optional[DriverStatus] = DriverStatus.active
     photo_url: Optional[str] = Field(default=None, max_length=500)
 
@@ -26,6 +31,11 @@ class DriverUpdate(BaseModel):
     adr: Optional[bool] = None
     passport_number: Optional[str] = Field(default=None, max_length=20)
     license_number: Optional[str] = Field(default=None, max_length=50)
+    license_expiry: Optional[date] = None
+    foreign_passport_expiry: Optional[date] = None
+    passport_expiry: Optional[date] = None
+    certificate_expiry: Optional[date] = None
+    chip_card_expiry: Optional[date] = None
     status: Optional[DriverStatus] = None
     photo_url: Optional[str] = Field(default=None, max_length=500)
 
@@ -44,6 +54,10 @@ class DriverOut(BaseModel):
     passport_number: Optional[str] = None
     license_number: Optional[str] = None
     license_expiry: Optional[date]
+    foreign_passport_expiry: Optional[date] = None
+    passport_expiry: Optional[date] = None
+    certificate_expiry: Optional[date] = None
+    chip_card_expiry: Optional[date] = None
     status: DriverStatus
     photo_url: Optional[str]
     created_at: datetime

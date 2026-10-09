@@ -33,6 +33,7 @@ import {
 } from '@/lib/trips';
 import { useTrucks } from '@/contexts/TruckContext';
 import { TripFormDialog } from '@/components/trips/TripFormDialog';
+import { ReopenTripButton } from '@/components/trips/ReopenTripButton';
 import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
@@ -155,6 +156,7 @@ export default function TripDetailPage() {
                 <Badge variant={STATUS_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
               </CardTitle>
               <div className="flex flex-wrap gap-2">
+                {trip.status === 'delivered' && <ReopenTripButton tripId={trip.id} />}
                 <CopyTripStatusButton tripId={trip.id} />
                 <TripOrderButtons tripId={trip.id} hasTruck={Boolean(trip.truckId)} />
                 <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
@@ -169,6 +171,26 @@ export default function TripDetailPage() {
               <span>{trip.originName ?? '—'}</span>
               <ArrowRight className="h-4 w-4 text-muted-foreground" />
               <span>{trip.destinationName ?? '—'}</span>
+              {/* Loaded or empty, switchable right here: it is a one-tap
+                  fact the dispatcher learns on the phone, not a form edit. */}
+              <div className="ml-auto inline-flex rounded-md border border-border/60 p-0.5">
+                {([true, false] as const).map((loaded) => (
+                  <Button
+                    key={String(loaded)}
+                    type="button"
+                    size="sm"
+                    variant={trip.isLoaded === loaded ? 'default' : 'ghost'}
+                    className="h-7 px-3 text-xs"
+                    aria-pressed={trip.isLoaded === loaded}
+                    disabled={editMutation.isPending}
+                    onClick={() => {
+                      if (trip.isLoaded !== loaded) editMutation.mutate({ isLoaded: loaded });
+                    }}
+                  >
+                    {loaded ? t('trips.loaded') : t('trips.emptyRun')}
+                  </Button>
+                ))}
+              </div>
             </div>
             <div className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
               <div className="flex items-center gap-2">
@@ -279,6 +301,7 @@ export default function TripDetailPage() {
                 {(
                   [
                     ['direction', trip.direction ? t(`trips.direction.${trip.direction}`) : null],
+                    ['load', trip.isLoaded ? t('trips.loaded') : t('trips.emptyRun')],
                     ['borderCrossing', trip.borderCrossing],
                     ['shipper', trip.shipper],
                     ['loadingAddress', trip.loadingAddress],
@@ -286,6 +309,7 @@ export default function TripDetailPage() {
                     ['loadingContact', trip.loadingContact],
                     ['consignee', trip.consignee],
                     ['customsPoint', trip.customsPoint],
+                    ['unloadingDate', trip.scheduledEnd ? format(trip.scheduledEnd, 'dd.MM.yyyy') : null],
                     ['unloadingAddress', trip.unloadingAddress],
                     ['declarantContact', trip.declarantContact],
                     ['notes', trip.notes],
@@ -320,7 +344,7 @@ export default function TripDetailPage() {
       )}
 
       {/* Cargo-owner notifications */}
-      {id && <TripSubscriptionsCard tripId={id} />}
+      {id && <TripSubscriptionsCard tripId={id} trip={trip ?? null} />}
 
       {/* Documents */}
       <Card className="border-border/50 bg-card">

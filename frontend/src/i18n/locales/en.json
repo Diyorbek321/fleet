@@ -18,7 +18,7 @@
     "leakage": "Leakage",
     "organizations": "Organizations",
     "users": "Users",
-    "insurance": "Insurance"
+    "insurance": "Insurance & documents"
   },
   "dashboard": {
     "title": "Dashboard",
@@ -131,7 +131,8 @@
     "tryAgain": "Try again.",
     "unknown": "Something went wrong",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "copyManually": "Copy the text:"
   },
   "trucks": {
     "status": {
@@ -336,7 +337,8 @@
     "passport": "Passport series and number",
     "phoneUz": "Phone (Uzbekistan)",
     "phoneKz": "Phone (Kazakhstan)",
-    "phoneRu": "Phone (Russia)"
+    "phoneRu": "Phone (Russia)",
+    "copyPhone": "Copy {{phone}}"
   },
   "reports": {
     "title": "Reports",
@@ -517,7 +519,9 @@
       "customsPlaceholder": {
         "uz_ru": "e.g. Tyumen customs post",
         "ru_uz": "e.g. Tashkent, Chukursay"
-      }
+      },
+      "load": "Load status",
+      "unloadingDate": "Unloading date"
     },
     "copyStatus": "Copy status",
     "statusCopied": "Status copied",
@@ -530,7 +534,9 @@
     "directionShort": {
       "uz_ru": "UZ → RU",
       "ru_uz": "RU → UZ"
-    }
+    },
+    "loaded": "Loaded",
+    "emptyRun": "Empty"
   },
   "tripDetail": {
     "title": "Trip documents",
@@ -549,7 +555,15 @@
     "noStage": "Not reported yet",
     "setStage": "Trip status",
     "pickStage": "Choose a status",
-    "saveStage": "Mark"
+    "saveStage": "Mark",
+    "reopen": {
+      "button": "Undo delivered",
+      "title": "Undo the “delivered” mark?",
+      "description": "The trip goes back to where it was before delivery and becomes the current trip in the driver's app again. The cargo owner is not messaged.",
+      "notePlaceholder": "Reason (optional) — e.g. the driver tapped it by mistake",
+      "confirm": "Undo delivery",
+      "done": "Trip reopened"
+    }
   },
   "tripReport": {
     "title": "Trip expense report",
@@ -669,7 +683,18 @@
     "confirmDeleteCancel": "Cancel",
     "confirmDeleteConfirm": "Delete",
     "mapCopySuccessTitle": "Map link copied",
-    "mapCopyAriaLabel": "Copy map link"
+    "mapCopyAriaLabel": "Copy map link",
+    "copyText": {
+      "trip": "Trip",
+      "from": "From",
+      "to": "To",
+      "unloading": "Unloading",
+      "map": "Map",
+      "telegram": "Telegram"
+    },
+    "allCopyButton": "Copy all",
+    "allCopyAriaLabel": "Copy the trip details together with the links",
+    "allCopySuccessTitle": "Trip details and links copied"
   },
   "leakage": {
     "title": "Leakage",
@@ -1144,8 +1169,8 @@
     "templateSaved": "Template saved"
   },
   "insurance": {
-    "title": "Insurance",
-    "subtitle": "Each truck’s UZ, KZ and RU policies and when they run out",
+    "title": "Insurance & documents",
+    "subtitle": "Expiry dates of truck and driver documents — insurance, inspection, passport, licence and more",
     "country": {
       "uz": "UZ insurance",
       "kz": "KZ insurance",
@@ -1172,5 +1197,28 @@
       "urgent": "Soonest first"
     },
     "empty": "No matching trucks"
+  },
+  "documents": {
+    "tabTrucks": "Truck",
+    "tabDrivers": "Driver",
+    "searchDrivers": "Search by driver name or passport…",
+    "filterAllDrivers": "All drivers",
+    "emptyDrivers": "No matching drivers",
+    "editAria": "{{name}} — {{document}} expiry",
+    "summary": {
+      "expired": "Expired documents"
+    },
+    "doc": {
+      "inspection": "Inspection",
+      "permit": "Permit",
+      "transportLicense": "Licence",
+      "truckCertificate": "Certificate",
+      "tachograph": "Tachograph",
+      "foreignPassport": "Foreign passport",
+      "driverCertificate": "Certificate",
+      "chipCard": "Chip card",
+      "license": "Driving licence",
+      "passport": "Passport"
+    }
   }
 }

@@ -155,6 +155,11 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
           insuranceExpiry: data.insuranceExpiry,
           insuranceExpiryKz: data.insuranceExpiryKz,
           insuranceExpiryRf: data.insuranceExpiryRf,
+          inspectionExpiry: data.inspectionExpiry,
+          permitExpiry: data.permitExpiry,
+          transportLicenseExpiry: data.transportLicenseExpiry,
+          certificateExpiry: data.certificateExpiry,
+          tachographExpiry: data.tachographExpiry,
         },
       });
       toast({

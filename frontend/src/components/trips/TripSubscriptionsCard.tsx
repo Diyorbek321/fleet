@@ -11,7 +11,18 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Send, Trash2, MessageSquare, Check, Map as MapIcon, ExternalLink } from 'lucide-react';
+import {
+  ArrowRight,
+  CalendarCheck,
+  Check,
+  ClipboardCopy,
+  Copy,
+  ExternalLink,
+  Map as MapIcon,
+  MessageSquare,
+  Send,
+  Trash2,
+} from 'lucide-react';
 import { formatDistanceToNow } from '@/lib/datetime';
 
 import { Badge } from '@/components/ui/badge';
@@ -33,13 +44,17 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from '@/hooks/use-toast';
 import { tripSubscriptionsApi, type TripSubscription } from '@/lib/trips';
+import { buildTripLinkText, tripLinkFacts, type TripLinkFacts } from '@/lib/tripLinkText';
 import { ApiError } from '@/lib/api';
 
 interface Props {
   tripId: string;
+  /** The trip the links are for, printed beside each link and copied with
+   *  it. Null while it loads; the links still work without it. */
+  trip: TripLinkFacts | null;
 }
 
-export function TripSubscriptionsCard({ tripId }: Props) {
+export function TripSubscriptionsCard({ tripId, trip }: Props) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [contactName, setContactName] = useState('');
@@ -118,7 +133,19 @@ export function TripSubscriptionsCard({ tripId }: Props) {
 
   const subscriptions = listQuery.data ?? [];
 
-  const handleCopy = (sub: TripSubscription, kind: 'telegram' | 'map' = 'telegram') => {
+  const facts = trip ? tripLinkFacts(trip) : null;
+
+  const handleCopy = (sub: TripSubscription, kind: 'telegram' | 'map' | 'all' = 'telegram') => {
+    if (kind === 'all') {
+      if (!trip) return;
+      const key = `${sub.id}:all`;
+      copyToClipboard(buildTripLinkText(trip, sub, t), () => {
+        setCopiedId(key);
+        window.setTimeout(() => setCopiedId((prev) => (prev === key ? null : prev)), 1500);
+        toast({ title: t('tripSubscriptions.allCopySuccessTitle') });
+      });
+      return;
+    }
     const link = kind === 'map' ? sub.trackUrl : sub.deepLink;
     if (!link) return;
     const key = `${sub.id}:${kind}`;
@@ -223,6 +250,26 @@ export function TripSubscriptionsCard({ tripId }: Props) {
                   {sub.contactPhone && (
                     <p className="text-xs text-muted-foreground">{sub.contactPhone}</p>
                   )}
+                  {/* What this link is for, so the dispatcher copying it to a
+                      customer sees the load it belongs to. */}
+                  {facts && (facts.from || facts.to || facts.unloading) && (
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-background/60 px-2 py-1 text-xs">
+                      {(facts.from || facts.to) && (
+                        <span className="flex items-center gap-1 font-medium">
+                          {facts.from ?? '—'}
+                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          {facts.to ?? '—'}
+                        </span>
+                      )}
+                      {facts.unloading && (
+                        <span className="flex items-center gap-1 text-muted-foreground">
+                          <CalendarCheck className="h-3 w-3" />
+                          {t('tripSubscriptions.copyText.unloading')}:{' '}
+                          <span className="font-medium text-foreground">{facts.unloading}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {sub.activatedAt && (
                     <p className="text-xs text-muted-foreground">
                       {t('tripSubscriptions.connectedAt')}{' '}
@@ -260,6 +307,21 @@ export function TripSubscriptionsCard({ tripId }: Props) {
                     />
                     {t('tripSubscriptions.dailyLabel')}
                   </label>
+                  {trip && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => handleCopy(sub, 'all')}
+                      title={t('tripSubscriptions.allCopyAriaLabel')}
+                    >
+                      {copiedId === `${sub.id}:all` ? (
+                        <Check className="mr-1.5 h-4 w-4" />
+                      ) : (
+                        <ClipboardCopy className="mr-1.5 h-4 w-4" />
+                      )}
+                      {t('tripSubscriptions.allCopyButton')}
+                    </Button>
+                  )}
                   {sub.trackUrl && (
                     <Button
                       variant="outline"

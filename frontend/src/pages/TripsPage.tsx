@@ -187,6 +187,11 @@ export default function TripsPage() {
                         {t(`trips.directionShort.${trip.direction}`)}
                       </Badge>
                     )}
+                    {!trip.isLoaded && (
+                      <Badge variant="outline" className="ml-2 border-status-stopped/40 text-status-stopped">
+                        {t('trips.emptyRun')}
+                      </Badge>
+                    )}
                     {trip.isReefer && (
                       <Badge variant="outline" className="ml-2">
                         {t('trips.reefer')}

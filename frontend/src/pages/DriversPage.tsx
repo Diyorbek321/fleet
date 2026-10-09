@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table';
 import { driversApi, type Driver, type DriverInput, type DriverStatus } from '@/lib/drivers';
 import { DriverFormDialog } from '@/components/drivers/DriverFormDialog';
+import { DriverPhones } from '@/components/drivers/DriverPhones';
 import { ApiError } from '@/lib/api';
 import { useTrucks } from '@/contexts/TruckContext';
 import { toast } from '@/hooks/use-toast';
@@ -196,9 +197,11 @@ export default function DriversPage() {
                   {d.passportNumber ?? d.licenseNumber ?? '—'}
                 </TableCell>
                 {/* All the numbers, not just the first: the point of holding
-                    three is that the dispatcher can see the next one to try. */}
-                <TableCell className="whitespace-pre-line text-sm">
-                  {d.phones.length > 0 ? d.phones.join('\n') : '—'}
+                    three is that the dispatcher can see the next one to try.
+                    Each copies on its own — they are pasted into a dialler or
+                    a chat one at a time. */}
+                <TableCell className="text-sm" onClick={(e) => e.stopPropagation()}>
+                  <DriverPhones driver={d} />
                 </TableCell>
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Select

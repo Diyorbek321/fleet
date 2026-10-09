@@ -18,7 +18,7 @@
     "leakage": "Yo‘qotishlar",
     "organizations": "Kompaniyalar",
     "users": "Foydalanuvchilar",
-    "insurance": "Sug‘urta"
+    "insurance": "Sug‘urta va hujjatlar"
   },
   "dashboard": {
     "title": "Boshqaruv paneli",
@@ -131,7 +131,8 @@
     "tryAgain": "Qayta urinib ko‘ring.",
     "unknown": "Nimadir noto‘g‘ri ketdi",
     "yes": "Ha",
-    "no": "Yo‘q"
+    "no": "Yo‘q",
+    "copyManually": "Matnni nusxalang:"
   },
   "trucks": {
     "status": {
@@ -336,7 +337,8 @@
     "passport": "Pasport seriyasi va raqami",
     "phoneUz": "Telefon (O‘zbekiston)",
     "phoneKz": "Telefon (Qozog‘iston)",
-    "phoneRu": "Telefon (Rossiya)"
+    "phoneRu": "Telefon (Rossiya)",
+    "copyPhone": "{{phone}} raqamini nusxalash"
   },
   "reports": {
     "title": "Hisobotlar",
@@ -517,7 +519,9 @@
       "customsPlaceholder": {
         "uz_ru": "masalan, Tyumen bojxona posti",
         "ru_uz": "masalan, Toshkent, Chuqursoy"
-      }
+      },
+      "load": "Yuk holati",
+      "unloadingDate": "Vygruzka sanasi"
     },
     "copyStatus": "Statusni nusxalash",
     "statusCopied": "Status nusxalandi",
@@ -530,7 +534,9 @@
     "directionShort": {
       "uz_ru": "UZ → RU",
       "ru_uz": "RU → UZ"
-    }
+    },
+    "loaded": "Yukli",
+    "emptyRun": "Yuksiz"
   },
   "tripDetail": {
     "title": "Reys hujjatlari",
@@ -549,7 +555,15 @@
     "noStage": "Bosqich belgilanmagan",
     "setStage": "Reys statusi",
     "pickStage": "Statusni tanlang",
-    "saveStage": "Belgilash"
+    "saveStage": "Belgilash",
+    "reopen": {
+      "button": "Yetkazildini bekor qilish",
+      "title": "“Yetkazildi” belgisini bekor qilasizmi?",
+      "description": "Reys yetkazilishdan oldingi holatiga qaytadi va haydovchi ilovasida yana joriy reys bo‘lib chiqadi. Yuk egasiga xabar yuborilmaydi.",
+      "notePlaceholder": "Sabab (ixtiyoriy) — masalan, haydovchi adashib bosgan",
+      "confirm": "Bekor qilish",
+      "done": "Reys qayta ochildi"
+    }
   },
   "tripReport": {
     "title": "Yo‘l varaqasi",
@@ -669,7 +683,18 @@
     "confirmDeleteCancel": "Bekor qilish",
     "confirmDeleteConfirm": "O'chirish",
     "mapCopySuccessTitle": "Xarita havolasi nusxa olindi",
-    "mapCopyAriaLabel": "Xarita havolasini nusxa olish"
+    "mapCopyAriaLabel": "Xarita havolasini nusxa olish",
+    "copyText": {
+      "trip": "Reys",
+      "from": "Qayerdan",
+      "to": "Qayerga",
+      "unloading": "Vygruzka",
+      "map": "Xarita",
+      "telegram": "Telegram"
+    },
+    "allCopyButton": "Hammasini nusxalash",
+    "allCopyAriaLabel": "Reys ma’lumoti va havolalarni birga nusxalash",
+    "allCopySuccessTitle": "Reys ma’lumoti va havolalar nusxalandi"
   },
   "leakage": {
     "title": "Yo‘qotishlar",
@@ -1144,8 +1169,8 @@
     "templateSaved": "Shablon saqlandi"
   },
   "insurance": {
-    "title": "Sug‘urta",
-    "subtitle": "Har bir mashinaning UZ, KZ va RU sug‘urtasi va ularning tugash muddati",
+    "title": "Sug‘urta va hujjatlar",
+    "subtitle": "Mashina va haydovchi hujjatlarining tugash muddatlari — sug‘urta, texosmotr, pasport, prava va boshqalar",
     "country": {
       "uz": "UZ sug‘urta",
       "kz": "KZ sug‘urta",
@@ -1172,5 +1197,28 @@
       "urgent": "Avval muddati yaqinlari"
     },
     "empty": "Mos mashina topilmadi"
+  },
+  "documents": {
+    "tabTrucks": "Mashina",
+    "tabDrivers": "Haydovchi",
+    "searchDrivers": "Haydovchi ismi yoki pasporti bo‘yicha qidirish…",
+    "filterAllDrivers": "Barcha haydovchilar",
+    "emptyDrivers": "Mos haydovchi topilmadi",
+    "editAria": "{{name}} — {{document}} muddati",
+    "summary": {
+      "expired": "Muddati o‘tgan hujjatlar"
+    },
+    "doc": {
+      "inspection": "Texosmotr",
+      "permit": "Dopusk",
+      "transportLicense": "Litsenziya",
+      "truckCertificate": "Sertifikat",
+      "tachograph": "Taxograf",
+      "foreignPassport": "Zagran pasport",
+      "driverCertificate": "Sertifikat",
+      "chipCard": "Chip karta",
+      "license": "Prava",
+      "passport": "Pasport"
+    }
   }
 }
