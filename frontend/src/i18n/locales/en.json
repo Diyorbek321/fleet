@@ -1233,5 +1233,44 @@
       "license": "Driving licence",
       "passport": "Passport"
     }
+  },
+  "fleetBoard": {
+    "tab": "Fleet board",
+    "asOf": "as of {{day}}",
+    "truck": "Truck",
+    "truckData": "Truck",
+    "location": "Location",
+    "export": "Export",
+    "import": "Import",
+    "route": "Route",
+    "loadingDate": "Loading date",
+    "unloadingDate": "Expected unloading",
+    "empty": "Empty",
+    "search": "Search by plate, town or route",
+    "filterAll": "All",
+    "filterExport": "On export",
+    "filterImport": "On import",
+    "filterFree": "Free",
+    "noTrucks": "No trucks",
+    "noMatch": "Nothing matches",
+    "download": "Download Excel",
+    "downloadFailed": "Could not download the file",
+    "gpsAgo": "GPS {{ago}}",
+    "group": {
+      "button": "Dispatchers' group",
+      "title": "Dispatchers' group",
+      "linked": "Linked",
+      "lost": "Bot removed from the group",
+      "noneHint": "Once a group is linked, this board is posted there as an Excel file every morning at 08:00.",
+      "pendingHint": "Telegram will open — pick the dispatchers' group and add the bot. If the link did not open, open it by hand:",
+      "lostHint": "The bot was removed or the group deleted. The board is not being sent — link again.",
+      "sentOn": "Last sent: {{day}}",
+      "link": "Link a group",
+      "relink": "Link another group",
+      "unlink": "Unlink",
+      "sendNow": "Send now",
+      "sent": "Board sent to the group",
+      "failed": "Something went wrong"
+    }
   }
 }

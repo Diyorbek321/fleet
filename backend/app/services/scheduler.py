@@ -35,6 +35,7 @@ from app.services.owner_alerts import prune_notification_log
 from app.services.owner_alerts import briefing as owner_briefing
 from app.services.owner_alerts import gps as owner_gps
 from app.services import driver_notices
+from app.services import fleet_board_digest
 from app.services.owner_alerts import cash as owner_cash
 from app.services.owner_alerts import expiry as owner_expiry
 from app.services.owner_alerts import leakage as owner_leakage
@@ -355,6 +356,8 @@ _OWNER_ALERT_WATCHES: tuple[tuple[str, Any, int], ...] = (
     # target hour, since a restart spanning it is the one way a day is missed.
     ("owner_alert_briefing", owner_briefing.run, 15),
     ("owner_alert_reports", owner_reports.run, 15),
+    # The morning fleet board for the dispatchers' group; self-gates the same way.
+    ("fleet_board", fleet_board_digest.run, 15),
 )
 
 

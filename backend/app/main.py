@@ -25,6 +25,7 @@ from app.routers.drivers import router as drivers_router
 from app.routers.driver_messages import router as driver_messages_router
 from app.routers.notifications import router as notifications_router
 from app.routers.truck_groups import router as truck_groups_router
+from app.routers.fleet_board import router as fleet_board_router
 from app.routers.maintenance import router as maintenance_router
 from app.routers.devices import router as devices_router
 from app.routers.gps import router as gps_router
@@ -189,6 +190,7 @@ app.include_router(drivers_router)
 app.include_router(driver_messages_router)
 app.include_router(notifications_router)
 app.include_router(truck_groups_router)
+app.include_router(fleet_board_router)
 app.include_router(maintenance_router)
 app.include_router(devices_router)
 app.include_router(gps_router)

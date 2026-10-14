@@ -1233,5 +1233,44 @@
       "license": "Prava",
       "passport": "Pasport"
     }
+  },
+  "fleetBoard": {
+    "tab": "Holat jadvali",
+    "asOf": "{{day}} holatiga",
+    "truck": "Mashina",
+    "truckData": "Mashina ma’lumotlari",
+    "location": "Joylashuv",
+    "export": "Eksport",
+    "import": "Import",
+    "route": "Yo‘nalish",
+    "loadingDate": "Yuklash sanasi",
+    "unloadingDate": "Kutilayotgan tushirish",
+    "empty": "Yuksiz",
+    "search": "Raqam, shahar yoki yo‘nalish bo‘yicha qidirish",
+    "filterAll": "Hammasi",
+    "filterExport": "Eksportda",
+    "filterImport": "Importda",
+    "filterFree": "Bo‘sh",
+    "noTrucks": "Mashinalar yo‘q",
+    "noMatch": "Hech narsa topilmadi",
+    "download": "Excel yuklab olish",
+    "downloadFailed": "Faylni yuklab bo‘lmadi",
+    "gpsAgo": "GPS {{ago}}",
+    "group": {
+      "button": "Dispetcherlar guruhi",
+      "title": "Dispetcherlar guruhi",
+      "linked": "Ulangan",
+      "lost": "Bot guruhdan chiqarilgan",
+      "noneHint": "Guruh ulansa, har kuni ertalab 08:00 da bu jadval Excel fayl bo‘lib guruhga yuboriladi.",
+      "pendingHint": "Telegram ochiladi — dispetcherlar guruhini tanlang va botni qo‘shing. Havola ochilmasa, uni qo‘lda oching:",
+      "lostHint": "Bot guruhdan chiqarilgan yoki guruh o‘chirilgan. Jadval yuborilmayapti — qayta ulang.",
+      "sentOn": "Oxirgi marta yuborildi: {{day}}",
+      "link": "Guruhga ulash",
+      "relink": "Boshqa guruhga ulash",
+      "unlink": "Uzish",
+      "sendNow": "Hozir yuborish",
+      "sent": "Jadval guruhga yuborildi",
+      "failed": "Amal bajarilmadi"
+    }
   }
 }

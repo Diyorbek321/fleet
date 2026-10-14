@@ -50,6 +50,7 @@ __all__ = [
     "format_trip_order",
     "mint_group_token",
     "parse_group_start",
+    "parse_start_payload",
     "send_trip_order",
     "send_trip_order_background",
 ]
@@ -95,7 +96,12 @@ def build_group_deep_link(token: str) -> str:
 
 
 def parse_group_start(text: str) -> str | None:
-    """The token from ``/start truck_<token>`` or ``/start@bot truck_<token>``.
+    """The token from ``/start truck_<token>`` or ``/start@bot truck_<token>``."""
+    return parse_start_payload(text, GROUP_TOKEN_PREFIX)
+
+
+def parse_start_payload(text: str, prefix: str) -> str | None:
+    """The token from ``/start <prefix><token>``, with or without ``@bot``.
 
     In a group Telegram addresses the command to the bot by name, so the
     ``@bot`` suffix is the normal case here, not the exception.
@@ -106,9 +112,9 @@ def parse_group_start(text: str) -> str | None:
     if len(parts) != 2 or parts[0].split("@", 1)[0] != "/start":
         return None
     payload = parts[1].strip()
-    if not payload.startswith(GROUP_TOKEN_PREFIX):
+    if not payload.startswith(prefix):
         return None
-    token = payload[len(GROUP_TOKEN_PREFIX):]
+    token = payload[len(prefix):]
     if not token or len(token) > 48 or not all(c.isalnum() or c in "-_" for c in token):
         return None
     return token

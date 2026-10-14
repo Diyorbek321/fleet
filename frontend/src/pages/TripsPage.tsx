@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, ArrowRight, Flag, Archive, Truck as TruckIcon } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRight, Flag, Archive, Truck as TruckIcon, Table2 } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { TripFormDialog } from '@/components/trips/TripFormDialog';
 import { TripStagePicker } from '@/components/trips/TripStagePicker';
 import { CopyTripStatusButton } from '@/components/trips/CopyTripStatusButton';
 import { TripsArchive } from '@/components/trips/TripsArchive';
+import { FleetBoard } from '@/components/trips/FleetBoard';
 import { formatTripRate } from '@/lib/format';
 import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
@@ -31,7 +32,7 @@ const TRIPS_KEY = ['trips'] as const;
 // Delivered trips live in the archive tab; the board is the work still moving.
 const ACTIVE_TRIPS_KEY = ['trips', 'active'] as const;
 
-type Tab = 'active' | 'archive';
+type Tab = 'active' | 'board' | 'archive';
 
 const STATUS_FLOW: Record<TripStatus, TripStatus | null> = {
   draft: 'planned',
@@ -152,6 +153,10 @@ export default function TripsPage() {
             <TruckIcon className="h-4 w-4" />
             {t('trips.tabActive')}
           </TabsTrigger>
+          <TabsTrigger value="board" className="gap-2">
+            <Table2 className="h-4 w-4" />
+            {t('fleetBoard.tab')}
+          </TabsTrigger>
           <TabsTrigger value="archive" className="gap-2">
             <Archive className="h-4 w-4" />
             {t('trips.tabArchive')}
@@ -159,9 +164,9 @@ export default function TripsPage() {
         </TabsList>
       </Tabs>
 
-      {tab === 'archive' ? (
-        <TripsArchive truckLabel={truckLabel} />
-      ) : (
+      {tab === 'board' && <FleetBoard />}
+      {tab === 'archive' && <TripsArchive truckLabel={truckLabel} />}
+      {tab === 'active' && (
         <div className="rounded-lg border border-border bg-card">
           <Table>
             <TableHeader>

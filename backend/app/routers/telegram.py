@@ -41,6 +41,7 @@ from app.services.owner_alerts.commands import (
     handle_owner_message,
     parse_owner_start,
 )
+from app.services import fleet_board_digest
 from app.services.trip_orders import (
     activate_truck_group,
     handle_group_membership,
@@ -107,6 +108,7 @@ async def telegram_webhook(
 async def _handle_update(db: AsyncSession, update: dict[str, Any]) -> None:
     # The bot being removed from a truck's group, or the group being upgraded
     # to a supergroup (which changes its id), carry no text to dispatch on.
+    await fleet_board_digest.follow_membership(db, update)
     if await handle_group_membership(db, update):
         return
 
@@ -119,6 +121,13 @@ async def _handle_update(db: AsyncSession, update: dict[str, Any]) -> None:
     group_token = parse_group_start(text)
     if group_token:
         reply = await activate_truck_group(db, group_token, chat)
+        if reply:
+            await send_message(chat_id, reply)
+        return
+
+    dispatch_token = fleet_board_digest.parse_start(text)
+    if dispatch_token:
+        reply = await fleet_board_digest.activate(db, dispatch_token, chat)
         if reply:
             await send_message(chat_id, reply)
         return
