@@ -26,6 +26,7 @@ from app.schemas.trips import (
     TripCardOut,
     TripCreate,
     TripDetailsOut,
+    TripDirection,
     TripDocumentOut,
     TripOut,
     TripPnL,
@@ -136,6 +137,10 @@ async def list_trips(
     status: Optional[TripStatus] = None,
     truck_id: Optional[uuid.UUID] = None,
     driver_id: Optional[uuid.UUID] = None,
+    # The archive is every delivered trip; `archived=false` is the working
+    # board without them. Left out, both come back, as before.
+    archived: Optional[bool] = None,
+    direction: Optional[TripDirection] = None,
     limit: int = Query(default=200, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -144,11 +149,23 @@ async def list_trips(
     stmt = select(Trip).where(Trip.org_id == org)
     if status:
         stmt = stmt.where(Trip.status == status)
+    if archived is True:
+        stmt = stmt.where(Trip.status == TripStatus.delivered)
+    elif archived is False:
+        stmt = stmt.where(Trip.status != TripStatus.delivered)
+    if direction:
+        stmt = stmt.where(Trip.direction == direction)
     if truck_id:
         stmt = stmt.where(Trip.truck_id == truck_id)
     if driver_id:
         stmt = stmt.where(Trip.driver_id == driver_id)
-    res = await db.execute(stmt.order_by(Trip.created_at.desc()).limit(limit).offset(offset))
+    # The archive reads newest delivery first; the board, newest order first.
+    order = (
+        (Trip.delivered_at.desc().nulls_last(), Trip.created_at.desc())
+        if archived
+        else (Trip.created_at.desc(),)
+    )
+    res = await db.execute(stmt.order_by(*order).limit(limit).offset(offset))
     return res.scalars().all()
 
 

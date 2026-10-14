@@ -359,10 +359,23 @@ export function toBody(input: TripCreateInput, mode: 'create' | 'update'): Recor
   return body;
 }
 
+/** `archived: true` is every delivered trip; `false` is the working board. */
+export interface TripListFilter {
+  status?: TripStatus;
+  archived?: boolean;
+  direction?: TripDirection;
+  limit?: number;
+  offset?: number;
+}
+
 export const tripsApi = {
-  list: async (status?: TripStatus): Promise<Trip[]> => {
-    const q = status ? `?status=${status}` : '';
-    const data = await api<BackendTrip[]>(`/api/trips${q}`);
+  list: async (filter: TripListFilter = {}): Promise<Trip[]> => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(filter)) {
+      if (value !== undefined) params.set(key, String(value));
+    }
+    const q = params.toString();
+    const data = await api<BackendTrip[]>(`/api/trips${q ? `?${q}` : ''}`);
     return data.map(adapt);
   },
   get: async (id: string): Promise<TripDetails> => {

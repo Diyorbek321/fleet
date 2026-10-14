@@ -536,7 +536,20 @@
       "ru_uz": "RU → UZ"
     },
     "loaded": "Yukli",
-    "emptyRun": "Yuksiz"
+    "emptyRun": "Yuksiz",
+    "tabActive": "Faol reyslar",
+    "tabArchive": "Arxiv",
+    "archive": {
+      "all": "Hammasi",
+      "export": "Eksport",
+      "import": "Import",
+      "deliveredAt": "Yetkazildi",
+      "empty": "Arxivda hozircha reys yo‘q",
+      "emptyExport": "Yetkazilgan eksport reyslari yo‘q",
+      "emptyImport": "Yetkazilgan import reyslari yo‘q",
+      "loadMore": "Yana ko‘rsatish",
+      "hint": "Yetkazilgan barcha reyslar shu yerda saqlanadi"
+    }
   },
   "tripDetail": {
     "title": "Reys hujjatlari",

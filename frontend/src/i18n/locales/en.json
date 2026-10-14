@@ -536,7 +536,20 @@
       "ru_uz": "RU → UZ"
     },
     "loaded": "Loaded",
-    "emptyRun": "Empty"
+    "emptyRun": "Empty",
+    "tabActive": "Active trips",
+    "tabArchive": "Archive",
+    "archive": {
+      "all": "All",
+      "export": "Export",
+      "import": "Import",
+      "deliveredAt": "Delivered",
+      "empty": "No trips in the archive yet",
+      "emptyExport": "No delivered export trips",
+      "emptyImport": "No delivered import trips",
+      "loadMore": "Show more",
+      "hint": "Every delivered trip is kept here"
+    }
   },
   "tripDetail": {
     "title": "Trip documents",

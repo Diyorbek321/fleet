@@ -2,11 +2,12 @@ import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Pencil, Trash2, ArrowRight, Flag } from 'lucide-react';
+import { Plus, Pencil, Trash2, ArrowRight, Flag, Archive, Truck as TruckIcon } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -19,12 +20,18 @@ import { tripsApi, type Trip, type TripCreateInput, type TripStatus } from '@/li
 import { TripFormDialog } from '@/components/trips/TripFormDialog';
 import { TripStagePicker } from '@/components/trips/TripStagePicker';
 import { CopyTripStatusButton } from '@/components/trips/CopyTripStatusButton';
+import { TripsArchive } from '@/components/trips/TripsArchive';
+import { formatTripRate } from '@/lib/format';
 import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
 import { useTrucks } from '@/contexts/TruckContext';
 import { toast } from '@/hooks/use-toast';
 
 const TRIPS_KEY = ['trips'] as const;
+// Delivered trips live in the archive tab; the board is the work still moving.
+const ACTIVE_TRIPS_KEY = ['trips', 'active'] as const;
+
+type Tab = 'active' | 'archive';
 
 const STATUS_FLOW: Record<TripStatus, TripStatus | null> = {
   draft: 'planned',
@@ -52,13 +59,6 @@ function describeError(err: unknown, fallback: string): string {
   return fallback;
 }
 
-function fmtMoney(amount: number, currency: string): string {
-  // A trip with no rate on file prints as a dash, not as "0 UZS": zero is a
-  // number an owner would read as a fact about the load.
-  if (!amount) return '—';
-  return `${new Intl.NumberFormat('en-US').format(amount)} ${currency}`;
-}
-
 export default function TripsPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -70,11 +70,13 @@ export default function TripsPage() {
   const [editing, setEditing] = useState<Trip | null>(null);
   // The one row whose checkpoint picker is open; saving closes it.
   const [stageTripId, setStageTripId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('active');
 
   const { data: trips = [], isLoading } = useQuery({
-    queryKey: TRIPS_KEY,
-    queryFn: () => tripsApi.list(),
+    queryKey: ACTIVE_TRIPS_KEY,
+    queryFn: () => tripsApi.list({ archived: false }),
     refetchInterval: 30_000,
+    enabled: tab === 'active',
   });
 
   const { data: drivers = [] } = useQuery({
@@ -144,135 +146,152 @@ export default function TripsPage() {
         </Button>
       </div>
 
-      <div className="rounded-lg border border-border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('trips.reference')}</TableHead>
-              <TableHead>{t('trips.route')}</TableHead>
-              <TableHead>{t('trips.truck')}</TableHead>
-              <TableHead>{t('trips.rate')}</TableHead>
-              <TableHead>{t('trips.statusLabel')}</TableHead>
-              <TableHead className="w-[1%]" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && (
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+        <TabsList>
+          <TabsTrigger value="active" className="gap-2">
+            <TruckIcon className="h-4 w-4" />
+            {t('trips.tabActive')}
+          </TabsTrigger>
+          <TabsTrigger value="archive" className="gap-2">
+            <Archive className="h-4 w-4" />
+            {t('trips.tabArchive')}
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {tab === 'archive' ? (
+        <TripsArchive truckLabel={truckLabel} />
+      ) : (
+        <div className="rounded-lg border border-border bg-card">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  {t('common.loading')}
-                </TableCell>
+                <TableHead>{t('trips.reference')}</TableHead>
+                <TableHead>{t('trips.route')}</TableHead>
+                <TableHead>{t('trips.truck')}</TableHead>
+                <TableHead>{t('trips.rate')}</TableHead>
+                <TableHead>{t('trips.statusLabel')}</TableHead>
+                <TableHead className="w-[1%]" />
               </TableRow>
-            )}
-            {!isLoading && trips.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                  {t('trips.empty')}
-                </TableCell>
-              </TableRow>
-            )}
-            {trips.map((trip) => {
-              const next = STATUS_FLOW[trip.status];
-              return (
-                <TableRow
-                  key={trip.id}
-                  className="cursor-pointer"
-                  onClick={() => navigate(`/trips/${trip.id}`)}
-                >
-                  <TableCell className="font-mono text-xs font-medium">{trip.reference}</TableCell>
-                  <TableCell className="text-sm">
-                    {(trip.originName ?? '—')} → {(trip.destinationName ?? '—')}
-                    {trip.direction && (
-                      <Badge variant="secondary" className="ml-2">
-                        {t(`trips.directionShort.${trip.direction}`)}
-                      </Badge>
-                    )}
-                    {!trip.isLoaded && (
-                      <Badge variant="outline" className="ml-2 border-status-stopped/40 text-status-stopped">
-                        {t('trips.emptyRun')}
-                      </Badge>
-                    )}
-                    {trip.isReefer && (
-                      <Badge variant="outline" className="ml-2">
-                        {t('trips.reefer')}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-sm">{truckLabel(trip)}</TableCell>
-                  <TableCell className="text-sm">{fmtMoney(trip.rate, trip.currency)}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
-                    {trip.currentStage && (
-                      <div className="mt-1 text-xs text-muted-foreground">
-                        {t(`trips.stage.${trip.currentStage}`)}
-                        {trip.currentStagePlace ? ` · ${t(`trips.place.${trip.currentStagePlace}`)}` : ''}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                    {next && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="gap-1"
-                        disabled={advanceMutation.isPending}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          advanceMutation.mutate({ id: trip.id, to: next });
-                        }}
-                        title={`${statusLabel(trip.status)} → ${statusLabel(next)}`}
-                      >
-                        <ArrowRight className="h-4 w-4" />
-                        {statusLabel(next)}
-                      </Button>
-                    )}
-                    <Popover
-                      open={stageTripId === trip.id}
-                      onOpenChange={(open) => setStageTripId(open ? trip.id : null)}
-                    >
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="icon" title={t('tripDetail.setStage')}>
-                          <Flag className="h-4 w-4" />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align="end" className="w-72" onClick={(e) => e.stopPropagation()}>
-                        <p className="mb-3 text-sm font-medium">
-                          {t('tripDetail.setStage')} · <span className="font-mono">{trip.reference}</span>
-                        </p>
-                        <TripStagePicker tripId={trip.id} onSaved={() => setStageTripId(null)} />
-                      </PopoverContent>
-                    </Popover>
-                    <CopyTripStatusButton tripId={trip.id} variant="ghost" iconOnly />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title={t('common.edit')}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditing(trip);
-                        setFormOpen(true);
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm(t('trips.confirmDelete'))) removeMutation.mutate(trip.id);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {isLoading && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    {t('common.loading')}
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
+              )}
+              {!isLoading && trips.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                    {t('trips.empty')}
+                  </TableCell>
+                </TableRow>
+              )}
+              {trips.map((trip) => {
+                const next = STATUS_FLOW[trip.status];
+                return (
+                  <TableRow
+                    key={trip.id}
+                    className="cursor-pointer"
+                    onClick={() => navigate(`/trips/${trip.id}`)}
+                  >
+                    <TableCell className="font-mono text-xs font-medium">{trip.reference}</TableCell>
+                    <TableCell className="text-sm">
+                      {(trip.originName ?? '—')} → {(trip.destinationName ?? '—')}
+                      {trip.direction && (
+                        <Badge variant="secondary" className="ml-2">
+                          {t(`trips.directionShort.${trip.direction}`)}
+                        </Badge>
+                      )}
+                      {!trip.isLoaded && (
+                        <Badge variant="outline" className="ml-2 border-status-stopped/40 text-status-stopped">
+                          {t('trips.emptyRun')}
+                        </Badge>
+                      )}
+                      {trip.isReefer && (
+                        <Badge variant="outline" className="ml-2">
+                          {t('trips.reefer')}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">{truckLabel(trip)}</TableCell>
+                    <TableCell className="text-sm">{formatTripRate(trip.rate, trip.currency)}</TableCell>
+                    <TableCell>
+                      <Badge variant={STATUS_VARIANT[trip.status]}>{statusLabel(trip.status)}</Badge>
+                      {trip.currentStage && (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                          {t(`trips.stage.${trip.currentStage}`)}
+                          {trip.currentStagePlace ? ` · ${t(`trips.place.${trip.currentStagePlace}`)}` : ''}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                      {next && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1"
+                          disabled={advanceMutation.isPending}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            advanceMutation.mutate({ id: trip.id, to: next });
+                          }}
+                          title={`${statusLabel(trip.status)} → ${statusLabel(next)}`}
+                        >
+                          <ArrowRight className="h-4 w-4" />
+                          {statusLabel(next)}
+                        </Button>
+                      )}
+                      <Popover
+                        open={stageTripId === trip.id}
+                        onOpenChange={(open) => setStageTripId(open ? trip.id : null)}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="icon" title={t('tripDetail.setStage')}>
+                            <Flag className="h-4 w-4" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-72" onClick={(e) => e.stopPropagation()}>
+                          <p className="mb-3 text-sm font-medium">
+                            {t('tripDetail.setStage')} · <span className="font-mono">{trip.reference}</span>
+                          </p>
+                          <TripStagePicker tripId={trip.id} onSaved={() => setStageTripId(null)} />
+                        </PopoverContent>
+                      </Popover>
+                      <CopyTripStatusButton tripId={trip.id} variant="ghost" iconOnly />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title={t('common.edit')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditing(trip);
+                          setFormOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:text-destructive"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(t('trips.confirmDelete'))) removeMutation.mutate(trip.id);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <TripFormDialog
         open={formOpen}

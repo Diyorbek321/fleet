@@ -476,3 +476,44 @@ async def test_moving_a_trip_back_off_delivered_clears_the_delivery_date(
     ).json()
     assert back["status"] != "delivered"
     assert back["delivered_at"] is None
+
+
+async def _delivered_trip(client: AsyncClient, headers: dict, direction: str | None) -> str:
+    body = {"rate": 1000000}
+    if direction:
+        body["direction"] = direction
+    tid = (await client.post("/api/trips", headers=headers, json=body)).json()["id"]
+    res = await client.post(f"/api/trips/{tid}/advance", headers=headers, json={"to_status": "delivered"})
+    assert res.status_code == 200, res.text
+    return tid
+
+
+async def test_archive_holds_delivered_trips_only(client: AsyncClient, admin_headers):
+    delivered = await _delivered_trip(client, admin_headers, "uz_ru")
+    active = (await client.post("/api/trips", headers=admin_headers, json={"rate": 1})).json()["id"]
+
+    archive = (await client.get("/api/trips?archived=true", headers=admin_headers)).json()
+    current = (await client.get("/api/trips?archived=false", headers=admin_headers)).json()
+
+    assert [t["id"] for t in archive] == [delivered]
+    assert active in {t["id"] for t in current}
+    assert delivered not in {t["id"] for t in current}
+
+
+async def test_archive_filters_export_and_import_apart(client: AsyncClient, admin_headers):
+    export_id = await _delivered_trip(client, admin_headers, "uz_ru")
+    import_id = await _delivered_trip(client, admin_headers, "ru_uz")
+    await _delivered_trip(client, admin_headers, None)
+
+    exports = (await client.get("/api/trips?archived=true&direction=uz_ru", headers=admin_headers)).json()
+    imports = (await client.get("/api/trips?archived=true&direction=ru_uz", headers=admin_headers)).json()
+    everything = (await client.get("/api/trips?archived=true", headers=admin_headers)).json()
+
+    assert [t["id"] for t in exports] == [export_id]
+    assert [t["id"] for t in imports] == [import_id]
+    assert len(everything) == 3
+
+
+async def test_archive_rejects_unknown_direction(client: AsyncClient, admin_headers):
+    res = await client.get("/api/trips?direction=sideways", headers=admin_headers)
+    assert res.status_code == 422

@@ -23,6 +23,14 @@ export function formatAmount(value: number, fractionDigits = 0): string {
   return fractionDigits > 0 ? withDecimals(fractionDigits).format(value) : GROUPED.format(value);
 }
 
+/** A trip's rate in its own currency. A trip with no rate on file prints as a
+ *  dash, not as "0 UZS": zero is a number an owner would read as a fact about
+ *  the load. */
+export function formatTripRate(amount: number, currency: string): string {
+  if (!amount) return '—';
+  return `${GROUPED.format(amount)} ${currency}`;
+}
+
 /** Fuel volume in litres. */
 export function formatLiters(value: number, fractionDigits = 0): string {
   if (!Number.isFinite(value)) return '—';
