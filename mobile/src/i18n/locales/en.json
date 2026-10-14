@@ -83,7 +83,16 @@
       "invoice": "Invoice",
       "customs": "Customs",
       "other": "Other"
-    }
+    },
+    "document": "Document",
+    "note": "Note",
+    "notePlaceholder": "e.g. page 2",
+    "retake": "Retake",
+    "delete": "Delete",
+    "deleteTitle": "Delete this document?",
+    "deleteBody": "The photo will be removed for good.",
+    "locked": "The trip is closed — only the dispatcher can change this document.",
+    "tapHint": "Tap a photo to change or delete it"
   },
   "tripReport": {
     "title": "Trip expense report",
@@ -355,5 +364,16 @@
     "offTitle": "GPS is off",
     "offBody": "Location (GPS) is switched off on your phone. The dispatcher cannot see your truck — please turn GPS on.",
     "turnOn": "Turn on GPS"
+  },
+  "russiaStay": {
+    "title": "Stay in Russia",
+    "day": "Day {{day}}",
+    "leaveBy": "Leave by",
+    "daysLeft": "{{n}} days left",
+    "leaveToday": "You must leave today!",
+    "overstay": "Over by {{n}} days — call the dispatcher",
+    "rule": "Rule: at most 90 days in any 180",
+    "outside": "In Russia in the last 180 days: {{n}} days",
+    "available": "On your next entry: {{n}} days"
   }
 }

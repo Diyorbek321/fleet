@@ -83,7 +83,16 @@
       "invoice": "Hisob-faktura",
       "customs": "Bojxona",
       "other": "Boshqa"
-    }
+    },
+    "document": "Hujjat",
+    "note": "Izoh",
+    "notePlaceholder": "Masalan: 2-bet",
+    "retake": "Qayta olish",
+    "delete": "O‘chirish",
+    "deleteTitle": "Hujjatni o‘chirasizmi?",
+    "deleteBody": "Rasm butunlay o‘chiriladi.",
+    "locked": "Reys yopilgan — hujjatni faqat dispetcher o‘zgartira oladi.",
+    "tapHint": "O‘zgartirish yoki o‘chirish uchun rasmga bosing"
   },
   "tripReport": {
     "title": "Yo‘l varaqasi",
@@ -355,5 +364,16 @@
     "offTitle": "GPS o‘chiq",
     "offBody": "Telefoningizda joylashuv (GPS) o‘chirilgan. Dispetcher mashinangizni ko‘ra olmayapti — iltimos, GPS'ni yoqing.",
     "turnOn": "GPS'ni yoqish"
+  },
+  "russiaStay": {
+    "title": "Rossiyada bo‘lish",
+    "day": "{{day}}-kun",
+    "leaveBy": "Chiqish muddati",
+    "daysLeft": "{{n}} kun qoldi",
+    "leaveToday": "Bugun chiqishingiz kerak!",
+    "overstay": "Muddat {{n}} kunga oshgan — dispetcherga qo‘ng‘iroq qiling",
+    "rule": "Qoida: 180 kun ichida ko‘pi bilan 90 kun",
+    "outside": "Oxirgi 180 kunda Rossiyada: {{n}} kun",
+    "available": "Keyingi kirishda: {{n}} kun"
   }
 }

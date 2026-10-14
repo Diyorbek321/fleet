@@ -15,6 +15,7 @@ import {
 import { formatDateTime } from '../lib/format';
 import { sendIfDue } from '../lib/ping-throttle';
 import { palette, spacing, typography } from '../theme/theme';
+import { RussiaStayCard } from '../components/RussiaStayCard';
 import { Screen } from '../components/Screen';
 import { MessagesCard } from '../components/MessagesCard';
 import {
@@ -41,6 +42,8 @@ export function HomeScreen() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // Bumped on pull-to-refresh so the cards that load themselves reload too.
+  const [refreshKey, setRefreshKey] = useState(0);
   const [truck, setTruck] = useState<AssignedTruck | null>(null);
   const [shift, setShift] = useState<Shift | null>(null);
   const [odometer, setOdometer] = useState('');
@@ -212,6 +215,7 @@ export function HomeScreen() {
       refreshing={refreshing}
       onRefresh={() => {
         setRefreshing(true);
+        setRefreshKey((k) => k + 1);
         load();
         loadMessages();
       }}
@@ -235,6 +239,8 @@ export function HomeScreen() {
       )}
 
       <MessagesCard messages={messages} onRead={markRead} />
+
+      <RussiaStayCard refreshKey={refreshKey} />
 
       {truck ? (
         <>

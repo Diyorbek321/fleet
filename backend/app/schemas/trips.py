@@ -206,6 +206,12 @@ class TripSegmentOut(BaseModel):
         from_attributes = True
 
 
+class TripDocumentUpdate(BaseModel):
+    """Relabel a document photo. Only the fields sent are changed."""
+    category: Optional[str] = Field(default=None, max_length=40)
+    caption: Optional[str] = Field(default=None, max_length=2000)
+
+
 class TripDocumentOut(BaseModel):
     """A driver-uploaded document for a trip.
 

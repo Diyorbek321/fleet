@@ -2,27 +2,29 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 
 import { meApi, type TripDocument, type TripDocumentCategory } from '../lib/me';
+import { pickPhoto } from '../lib/pickPhoto';
 import { palette, radius, spacing, typography } from '../theme/theme';
 import { haptics } from '../lib/haptics';
 import { Button, EmptyState, Loading } from './ui';
-
-const CATEGORIES: TripDocumentCategory[] = ['cmr', 'invoice', 'customs', 'other'];
+import { DOC_CATEGORIES as CATEGORIES, TripDocumentSheet } from './TripDocumentSheet';
 
 /**
  * Per-trip document panel: pick a category, capture/select a photo, upload it,
  * and show the trip's existing documents as a thumbnail grid. Scoped to a single
- * `tripId` so trips never share state.
+ * `tripId` so trips never share state. Tapping a photo opens it to relabel,
+ * retake or delete — until the trip is closed (`locked`). Uploading stays open
+ * after delivery: the signed CMR comes back after unloading.
  */
-export function TripDocuments({ tripId }: { tripId: string }) {
+export function TripDocuments({ tripId, locked = false }: { tripId: string; locked?: boolean }) {
   const { t } = useTranslation();
 
   const [docs, setDocs] = useState<TripDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [category, setCategory] = useState<TripDocumentCategory>('cmr');
+  const [opened, setOpened] = useState<TripDocument | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -40,35 +42,12 @@ export function TripDocuments({ tripId }: { tripId: string }) {
 
   const pickFrom = useCallback(
     async (source: 'camera' | 'library') => {
-      const perm =
-        source === 'camera'
-          ? await ImagePicker.requestCameraPermissionsAsync()
-          : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!perm.granted) {
-        void haptics.warning();
-        Alert.alert(t('tripDocs.permTitle'), t('tripDocs.permBody'));
-        return;
-      }
-
-      const options: ImagePicker.ImagePickerOptions = {
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.6,
-      };
-      const result =
-        source === 'camera'
-          ? await ImagePicker.launchCameraAsync(options)
-          : await ImagePicker.launchImageLibraryAsync(options);
-
-      if (result.canceled || result.assets.length === 0) return;
-      const asset = result.assets[0];
+      const asset = await pickPhoto(source, t);
+      if (!asset) return;
 
       setBusy(true);
       try {
-        await meApi.uploadTripDocument(
-          tripId,
-          { uri: asset.uri, mimeType: asset.mimeType, fileName: asset.fileName ?? undefined },
-          { category },
-        );
+        await meApi.uploadTripDocument(tripId, asset, { category });
         void haptics.success();
         Alert.alert(t('tripDocs.uploaded'));
         await load();
@@ -126,8 +105,9 @@ export function TripDocuments({ tripId }: { tripId: string }) {
         <EmptyState icon="document-outline" title={t('tripDocs.empty')} />
       ) : (
         <View style={styles.grid}>
+          {!locked && <Text style={styles.hint}>{t('tripDocs.tapHint')}</Text>}
           {docs.map((doc) => (
-            <View key={doc.id} style={styles.thumbWrap}>
+            <Pressable key={doc.id} style={styles.thumbWrap} onPress={() => setOpened(doc)}>
               <Image source={{ uri: doc.url }} style={styles.thumb} resizeMode="cover" />
               {doc.category ? (
                 <View style={styles.thumbTag}>
@@ -137,10 +117,18 @@ export function TripDocuments({ tripId }: { tripId: string }) {
                   </Text>
                 </View>
               ) : null}
-            </View>
+            </Pressable>
           ))}
         </View>
       )}
+
+      <TripDocumentSheet
+        tripId={tripId}
+        doc={opened}
+        locked={locked}
+        onClose={() => setOpened(null)}
+        onChanged={load}
+      />
     </View>
   );
 }
@@ -171,6 +159,7 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', gap: spacing.sm },
   actionBtn: { flex: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  hint: { ...typography.caption, width: '100%' },
   thumbWrap: {
     width: THUMB,
     height: THUMB,

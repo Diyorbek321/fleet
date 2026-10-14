@@ -576,6 +576,14 @@
       "notePlaceholder": "Sabab (ixtiyoriy) — masalan, haydovchi adashib bosgan",
       "confirm": "Bekor qilish",
       "done": "Reys qayta ochildi"
+    },
+    "docSaved": "Hujjat yangilandi",
+    "docNote": "Izoh",
+    "docCategory": {
+      "cmr": "CMR",
+      "invoice": "Hisob-faktura",
+      "customs": "Bojxona",
+      "other": "Boshqa"
     }
   },
   "tripReport": {
@@ -1272,5 +1280,36 @@
       "sent": "Jadval guruhga yuborildi",
       "failed": "Amal bajarilmadi"
     }
+  },
+  "russiaStay": {
+    "title": "Rossiyada bo‘lish (90/180)",
+    "inRussia": "Rossiyada",
+    "dayOfStay": "{{day}}-kun",
+    "leaveBy": "Chiqish muddati",
+    "daysLeft": "{{n}} kun qoldi",
+    "leaveToday": "Bugun chiqishi kerak",
+    "overstay": "Muddat oshgan: {{n}} kun",
+    "notInRussia": "Hozir Rossiyada emas",
+    "used": "Oxirgi 180 kunda: {{n}} kun",
+    "available": "Keyingi kirishda: {{n}} kun",
+    "entered": "Kirgan sana",
+    "left": "Chiqqan sana",
+    "stillInside": "hali ichkarida",
+    "source": {
+      "auto": "avtomatik",
+      "manual": "qo‘lda"
+    },
+    "note": "Izoh",
+    "add": "Kirishni qo‘shish",
+    "edit": "Tahrirlash",
+    "delete": "O‘chirish",
+    "confirmDelete": "Bu yozuvni o‘chirasizmi?",
+    "save": "Saqlash",
+    "saved": "Saqlandi",
+    "failed": "Saqlab bo‘lmadi",
+    "empty": "Yozuvlar yo‘q. Haydovchi ilovada “KZ–RU chegarasidan o‘tdi” ni bosganda avtomatik yoziladi.",
+    "hint": "Sana migratsiya kartasidagidan farq qilsa, shu yerda tuzating.",
+    "column": "RF",
+    "columnDays": "{{day}}-kun · {{n}} qoldi"
   }
 }

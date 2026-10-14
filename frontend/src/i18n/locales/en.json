@@ -576,6 +576,14 @@
       "notePlaceholder": "Reason (optional) — e.g. the driver tapped it by mistake",
       "confirm": "Undo delivery",
       "done": "Trip reopened"
+    },
+    "docSaved": "Document updated",
+    "docNote": "Note",
+    "docCategory": {
+      "cmr": "CMR",
+      "invoice": "Invoice",
+      "customs": "Customs",
+      "other": "Other"
     }
   },
   "tripReport": {
@@ -1272,5 +1280,36 @@
       "sent": "Board sent to the group",
       "failed": "Something went wrong"
     }
+  },
+  "russiaStay": {
+    "title": "Stay in Russia (90/180)",
+    "inRussia": "In Russia",
+    "dayOfStay": "day {{day}}",
+    "leaveBy": "Leave by",
+    "daysLeft": "{{n}} days left",
+    "leaveToday": "Must leave today",
+    "overstay": "Overstay: {{n}} days",
+    "notInRussia": "Not in Russia now",
+    "used": "Last 180 days: {{n}} days",
+    "available": "On next entry: {{n}} days",
+    "entered": "Entered",
+    "left": "Left",
+    "stillInside": "still inside",
+    "source": {
+      "auto": "automatic",
+      "manual": "manual"
+    },
+    "note": "Note",
+    "add": "Add entry",
+    "edit": "Edit",
+    "delete": "Delete",
+    "confirmDelete": "Delete this record?",
+    "save": "Save",
+    "saved": "Saved",
+    "failed": "Could not save",
+    "empty": "No records. An entry is written automatically when the driver marks “crossed the KZ–RU border”.",
+    "hint": "If a date differs from the migration card, correct it here.",
+    "column": "RU",
+    "columnDays": "day {{day}} · {{n}} left"
   }
 }

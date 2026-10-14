@@ -38,6 +38,7 @@ import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 import { TripSubscriptionsCard } from '@/components/trips/TripSubscriptionsCard';
+import { DocumentLabelForm } from '@/components/trips/DocumentLabelForm';
 import { TripExpenseReportCard } from '@/components/trips/TripExpenseReportCard';
 import { TripStagePicker } from '@/components/trips/TripStagePicker';
 import { CopyTripStatusButton } from '@/components/trips/CopyTripStatusButton';
@@ -410,8 +411,15 @@ export default function TripDetailPage() {
                 alt={selected.caption ?? selected.category}
                 className="max-h-[60vh] w-full rounded-lg object-contain"
               />
+              <DocumentLabelForm
+                key={selected.id}
+                doc={selected}
+                onSaved={(saved) => {
+                  setSelected(saved);
+                  queryClient.invalidateQueries({ queryKey: ['trip', id, 'documents'] });
+                }}
+              />
               <div className="space-y-2 text-sm">
-                {selected.caption && <p className="font-medium">{selected.caption}</p>}
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <User className="h-4 w-4" />
                   <span>

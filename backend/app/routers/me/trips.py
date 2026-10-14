@@ -24,6 +24,8 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.logging import logger
+from app.services.russia_stay_records import record_crossing
 from app.deps.auth import get_current_driver
 from app.models.drivers import Driver
 from app.models.enums import (
@@ -36,8 +38,8 @@ from app.models.enums import (
 from app.models.trips import Trip, TripDocument, TripEvent
 from app.routers.me._common import PREFIX, TAGS, own_trip_or_404
 from app.schemas.trip_reports import TripExpenseReportIn, TripExpenseReportOut
-from app.schemas.trips import TripAdvance, TripDocumentOut, TripOut
-from app.services.storage import is_configured, presigned_get_url, put_object
+from app.schemas.trips import TripAdvance, TripDocumentOut, TripDocumentUpdate, TripOut
+from app.services.storage import delete_object, is_configured, presigned_get_url, put_object
 from app.services.trip_notifications import notify_trip_status_change_background
 from app.services.trip_reports import build_report_out, get_report, upsert_report
 
@@ -165,6 +167,7 @@ async def advance_my_trip(
             recorded_at=now,
         )
     )
+    await record_crossing(db, trip, data.stage, data.stage_place, now)
     await db.commit()
 
     # Notify cargo-owner subscribers over Telegram in the background — the
@@ -187,6 +190,80 @@ async def advance_my_trip(
 
 
 # ── Trip documents (driver uploads photos, strictly per-trip) ──────────
+
+async def _read_image(file: UploadFile) -> tuple[str, bytes]:
+    """The upload's content type and bytes, or the 415/413 that refuses it."""
+    # Strip any ";charset=..." the client tacked on before matching.
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type not in ALLOWED_DOC_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=(
+                "Неподдерживаемый тип изображения. Разрешены: "
+                + ", ".join(sorted(ALLOWED_DOC_CONTENT_TYPES))
+            ),
+        )
+    data = await file.read()
+    if len(data) > _MAX_DOC_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Файл слишком большой (максимум 10 МБ)",
+        )
+    return content_type, data
+
+
+def _store_image(trip: Trip, content_type: str, data: bytes) -> str:
+    ext = _DOC_EXT_BY_TYPE[content_type]  # guaranteed by the allowlist in _read_image
+    key = f"orgs/{trip.org_id}/trips/{trip.id}/{uuid.uuid4()}.{ext}"
+    put_object(key, data, content_type)
+    return key
+
+
+def _discard_file(key: str) -> None:
+    """Best effort: the row is already right, and a file left on disk is a
+    smaller fault than answering 500 for a change that was saved."""
+    try:
+        delete_object(key)
+    except Exception:  # noqa: BLE001
+        logger.exception("trip_document_file_delete_failed", key=key)
+
+
+def _require_storage() -> None:
+    if not is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Хранилище документов не настроено",
+        )
+
+
+async def _my_editable_document(
+    db: AsyncSession, trip_id: uuid.UUID, doc_id: uuid.UUID, driver: Driver
+) -> tuple[Trip, TripDocument]:
+    """A document this driver uploaded, on their own trip that is still running.
+
+    Someone else's upload — the driver who had the trip before — is a 404, as
+    is a document on someone else's trip. After delivery (or cancellation) the
+    paperwork is what the trip was settled on: 409, and the desk changes it.
+    """
+    trip = await own_trip_or_404(db, trip_id, driver)
+    doc = (
+        await db.execute(
+            select(TripDocument).where(
+                TripDocument.id == doc_id,
+                TripDocument.trip_id == trip.id,
+                TripDocument.driver_id == driver.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Документ не найден")
+    if trip.status in (TripStatus.delivered, TripStatus.cancelled):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Рейс закрыт — изменить документ может только диспетчер",
+        )
+    return trip, doc
+
 
 @router.post(
     "/trips/{trip_id}/documents",
@@ -213,28 +290,8 @@ async def upload_my_trip_document(
         )
 
     trip = await own_trip_or_404(db, trip_id, driver)
-
-    # Strip any ";charset=..." the client tacked on before matching.
-    content_type = (file.content_type or "").split(";")[0].strip().lower()
-    if content_type not in ALLOWED_DOC_CONTENT_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=(
-                "Неподдерживаемый тип изображения. Разрешены: "
-                + ", ".join(sorted(ALLOWED_DOC_CONTENT_TYPES))
-            ),
-        )
-
-    data = await file.read()
-    if len(data) > _MAX_DOC_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="Файл слишком большой (максимум 10 МБ)",
-        )
-
-    ext = _DOC_EXT_BY_TYPE[content_type]  # guaranteed by the allowlist above
-    key = f"orgs/{trip.org_id}/trips/{trip.id}/{uuid.uuid4()}.{ext}"
-    put_object(key, data, content_type)
+    content_type, data = await _read_image(file)
+    key = _store_image(trip, content_type, data)
 
     doc = TripDocument(
         org_id=trip.org_id,
@@ -272,6 +329,68 @@ async def list_my_trip_documents(
     )
     docs = res.scalars().all()
     return [_doc_out(d, driver_name=driver.name) for d in docs]
+
+
+@router.patch("/trips/{trip_id}/documents/{doc_id}", response_model=TripDocumentOut)
+async def update_my_trip_document(
+    trip_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    data: TripDocumentUpdate,
+    driver: Driver = Depends(get_current_driver),
+    db: AsyncSession = Depends(get_db),
+):
+    """Relabel one of my document photos (its category or note)."""
+    _require_storage()
+    _, doc = await _my_editable_document(db, trip_id, doc_id, driver)
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(doc, field, value)
+    await db.commit()
+    return _doc_out(doc, driver_name=driver.name)
+
+
+@router.put("/trips/{trip_id}/documents/{doc_id}/file", response_model=TripDocumentOut)
+async def replace_my_trip_document_file(
+    trip_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    file: UploadFile = File(...),
+    driver: Driver = Depends(get_current_driver),
+    db: AsyncSession = Depends(get_db),
+):
+    """Retake a photo: the same document, a new picture, the old file removed."""
+    _require_storage()
+    trip, doc = await _my_editable_document(db, trip_id, doc_id, driver)
+    content_type, data = await _read_image(file)
+    old_key = doc.storage_key
+    new_key = _store_image(trip, content_type, data)
+    doc.storage_key = new_key
+    doc.content_type = content_type
+    doc.size_bytes = len(data)
+    doc.uploaded_at = datetime.now(timezone.utc)
+    try:
+        await db.commit()
+    except Exception:
+        _discard_file(new_key)  # the row still points at the old photo
+        raise
+    # Only once the row points at the new file: a failed commit must not leave
+    # the document pointing at nothing.
+    _discard_file(old_key)
+    return _doc_out(doc, driver_name=driver.name)
+
+
+@router.delete("/trips/{trip_id}/documents/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_trip_document(
+    trip_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    driver: Driver = Depends(get_current_driver),
+    db: AsyncSession = Depends(get_db),
+):
+    """Delete one of my document photos — the file as well as the row."""
+    _require_storage()
+    _, doc = await _my_editable_document(db, trip_id, doc_id, driver)
+    key = doc.storage_key
+    await db.delete(doc)
+    await db.commit()
+    _discard_file(key)
 
 
 # ── Trip expense report ("yo'l varaqasi") — driver-filled, self-scoped ──

@@ -28,6 +28,8 @@ class DriverMessageKind(str, enum.Enum):
     cmr_reminder = "cmr_reminder"
     maintenance_due = "maintenance_due"
     document_expiry = "document_expiry"
+    # Written by app/services/russia_stay_reminders.py.
+    russia_stay = "russia_stay"
 
 
 class DriverMessage(Base):

@@ -546,3 +546,16 @@ export const listTripDocuments = async (tripId: string): Promise<TripDocument[]>
 export const deleteTripDocument = async (tripId: string, docId: string): Promise<void> => {
   await api<void>(`/api/trips/${tripId}/documents/${docId}`, { method: 'DELETE' });
 };
+
+/** Relabel a document. The desk may after delivery too; the driver may not. */
+export const updateTripDocument = async (
+  tripId: string,
+  docId: string,
+  patch: { category?: string | null; caption?: string | null },
+): Promise<TripDocument> => {
+  const data = await api<BackendTripDocument>(`/api/trips/${tripId}/documents/${docId}`, {
+    method: 'PATCH',
+    body: patch,
+  });
+  return adaptDocument(data);
+};

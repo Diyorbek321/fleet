@@ -39,6 +39,7 @@ import { driversApi, type DriverInput, type DriverStatus } from '@/lib/drivers';
 import { DriverFormDialog } from '@/components/drivers/DriverFormDialog';
 import { CopyButton } from '@/components/CopyButton';
 import { DriverMessagesCard } from '@/components/drivers/DriverMessagesCard';
+import { RussiaStayCard } from '@/components/drivers/RussiaStayCard';
 import { driverDataApi } from '@/lib/driverData';
 import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
@@ -384,6 +385,9 @@ export default function DriverDetailPage() {
 
         {/* Messages to the phone: the dispatcher's, and the GPS watcher's. */}
         <DriverMessagesCard driverId={driver.id} />
+
+        {/* Days in Russia against the 90-in-180 limit. */}
+        <RussiaStayCard driverId={driver.id} />
 
         {/* Expenses logged from the app */}
         <Card className="border-border/50 bg-card">

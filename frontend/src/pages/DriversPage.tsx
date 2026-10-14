@@ -32,6 +32,8 @@ import {
 import { driversApi, type Driver, type DriverInput, type DriverStatus } from '@/lib/drivers';
 import { DriverFormDialog } from '@/components/drivers/DriverFormDialog';
 import { DriverPhones } from '@/components/drivers/DriverPhones';
+import { RussiaStayBadge } from '@/components/drivers/RussiaStayBadge';
+import { russiaStaysApi } from '@/lib/russiaStays';
 import { ApiError } from '@/lib/api';
 import { useTrucks } from '@/contexts/TruckContext';
 import { toast } from '@/hooks/use-toast';
@@ -55,6 +57,15 @@ export default function DriversPage() {
   const [editing, setEditing] = useState<Driver | null>(null);
   const [assignTarget, setAssignTarget] = useState<Driver | null>(null);
   const [assignTruckId, setAssignTruckId] = useState<string>('');
+
+  const { data: fleetStays = [] } = useQuery({
+    queryKey: ['russia-stays', 'fleet'],
+    queryFn: russiaStaysApi.fleet,
+  });
+  const staysByDriver = useMemo(
+    () => new Map(fleetStays.map((row) => [row.driver_id, row.summary])),
+    [fleetStays],
+  );
 
   const { data: drivers = [], isLoading } = useQuery({
     queryKey: DRIVERS_KEY,
@@ -163,20 +174,21 @@ export default function DriversPage() {
               <TableHead>{t('drivers.passport')}</TableHead>
               <TableHead>{t('drivers.phone')}</TableHead>
               <TableHead>{t('drivers.status')}</TableHead>
+              <TableHead>{t('russiaStay.column')}</TableHead>
               <TableHead className="w-[1%]" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   {t('common.loading')}
                 </TableCell>
               </TableRow>
             )}
             {!isLoading && drivers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   {t('drivers.noDrivers')}
                 </TableCell>
               </TableRow>
@@ -223,6 +235,9 @@ export default function DriversPage() {
                       <SelectItem value="on_leave">{t('drivers.statusOnLeave')}</SelectItem>
                     </SelectContent>
                   </Select>
+                </TableCell>
+                <TableCell>
+                  <RussiaStayBadge summary={staysByDriver.get(d.id)} />
                 </TableCell>
                 <TableCell className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                   <Button

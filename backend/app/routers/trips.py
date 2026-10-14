@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.services.russia_stay_records import record_crossing
 from app.core.logging import logger
 from app.deps.auth import get_current_user, get_org_id, require_role
 from app.services import audit
@@ -28,6 +29,7 @@ from app.schemas.trips import (
     TripDetailsOut,
     TripDirection,
     TripDocumentOut,
+    TripDocumentUpdate,
     TripOut,
     TripPnL,
     TripSegmentOut,
@@ -412,6 +414,7 @@ async def advance_trip(
             recorded_at=now,
         )
     )
+    await record_crossing(db, trip, data.stage, data.stage_place, now)
     await db.commit()
 
     # Fan out to cargo-owner subscribers (Telegram) in the background — the
@@ -631,6 +634,43 @@ async def list_trip_documents(
         )
         for d in docs
     ]
+
+
+@router.patch("/{trip_id}/documents/{doc_id}", response_model=TripDocumentOut)
+async def update_trip_document(
+    trip_id: uuid.UUID,
+    doc_id: uuid.UUID,
+    data: TripDocumentUpdate,
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+    _user=Depends(_MANAGE),
+):
+    """Relabel a document. The desk may, after delivery too — the driver may not."""
+    trip = await _get_owned_trip(db, trip_id, org)
+    if not is_configured():
+        raise HTTPException(status_code=503, detail="Хранилище документов не настроено")
+    doc = (
+        await db.execute(
+            select(TripDocument).where(TripDocument.id == doc_id, TripDocument.trip_id == trip.id)
+        )
+    ).scalar_one_or_none()
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Документ не найден")
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(doc, field, value)
+    await db.commit()
+    driver = await db.get(Driver, doc.driver_id) if doc.driver_id else None
+    return TripDocumentOut(
+        id=doc.id,
+        trip_id=doc.trip_id,
+        category=doc.category,
+        caption=doc.caption,
+        content_type=doc.content_type,
+        size_bytes=doc.size_bytes,
+        url=presigned_get_url(doc.storage_key),
+        uploaded_at=doc.uploaded_at,
+        driver_name=driver.name if driver else None,
+    )
 
 
 @router.delete("/{trip_id}/documents/{doc_id}")

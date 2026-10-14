@@ -15,6 +15,7 @@ import { haptics } from '../lib/haptics';
 import { Screen } from '../components/Screen';
 import { Button, Card, EmptyState, ErrorBox, Pill } from '../components/ui';
 import { StagePicker } from '../components/StagePicker';
+import { documentsLocked } from '../lib/tripDocuments';
 import { TripDocuments } from '../components/TripDocuments';
 import { TripReportForm } from '../components/TripReportForm';
 
@@ -181,7 +182,9 @@ export function TripsScreen() {
                 variant="ghost"
                 icon={docsTripId === trip.id ? 'chevron-up' : 'document-attach-outline'}
               />
-              {docsTripId === trip.id ? <TripDocuments tripId={trip.id} /> : null}
+              {docsTripId === trip.id ? (
+                <TripDocuments tripId={trip.id} locked={documentsLocked(trip.status)} />
+              ) : null}
               <Button
                 label={t('tripReport.toggle')}
                 onPress={() => setReportTripId((id) => (id === trip.id ? null : trip.id))}

@@ -1,4 +1,5 @@
 import { apiFetch } from './api';
+import type { StaySummary } from './russiaStay';
 
 export interface DriverProfile {
   id: string;
@@ -230,4 +231,33 @@ export const meApi = {
       body: form,
     });
   },
+
+  /** Relabel one of my document photos. Refused (409) once the trip is closed. */
+  updateTripDocument: (
+    tripId: string,
+    docId: string,
+    patch: { category?: string | null; caption?: string | null },
+  ) =>
+    apiFetch<TripDocument>(`/api/me/trips/${tripId}/documents/${docId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    }),
+
+  /** Retake a photo: the same document gets a new picture. */
+  replaceTripDocumentFile: (tripId: string, docId: string, asset: TripDocumentAsset) => {
+    const form = new FormData();
+    const name = asset.fileName ?? 'photo.jpg';
+    const type = inferImageType(asset.uri, asset.mimeType);
+    form.append('file', { uri: asset.uri, name, type } as unknown as Blob);
+    return apiFetch<TripDocument>(`/api/me/trips/${tripId}/documents/${docId}/file`, {
+      method: 'PUT',
+      body: form,
+    });
+  },
+
+  /** My days in Russia against the 90-in-180 limit. */
+  russiaStay: () => apiFetch<StaySummary>('/api/me/russia-stay'),
+
+  deleteTripDocument: (tripId: string, docId: string) =>
+    apiFetch<void>(`/api/me/trips/${tripId}/documents/${docId}`, { method: 'DELETE' }),
 };
