@@ -247,26 +247,26 @@ export function TruckFormModal({ open, onClose, truck }: TruckFormModalProps) {
               )}
             />
 
+            {/* One row per country: three date inputs side by side did not fit
+                the dialog — the dates were clipped and a label went missing. */}
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">{t('trucks.form.insuranceExpiry')}</legend>
-              <div className="grid grid-cols-3 gap-2">
-                {INSURANCE_FIELDS.map(({ name, labelKey }) => (
-                  <FormField
-                    key={name}
-                    control={form.control}
-                    name={name}
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs text-muted-foreground">{t(labelKey)}</FormLabel>
-                        <FormControl>
-                          <Input type="date" className="bg-secondary/50 border-0 px-2" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ))}
-              </div>
+              <legend className="mb-2 text-sm font-medium">{t('trucks.form.insuranceExpiry')}</legend>
+              {INSURANCE_FIELDS.map(({ name, labelKey }) => (
+                <FormField
+                  key={name}
+                  control={form.control}
+                  name={name}
+                  render={({ field }) => (
+                    <FormItem className="grid grid-cols-[8rem_1fr] items-center gap-x-3 gap-y-1 space-y-0">
+                      <FormLabel className="text-sm font-normal text-muted-foreground">{t(labelKey)}</FormLabel>
+                      <FormControl>
+                        <Input type="date" className="bg-secondary/50 border-0" {...field} />
+                      </FormControl>
+                      <FormMessage className="col-start-2" />
+                    </FormItem>
+                  )}
+                />
+              ))}
             </fieldset>
 
             <div className="flex justify-end gap-3 pt-4">
