@@ -6,6 +6,7 @@ import { palette, radius, spacing, typography } from '../theme/theme';
 import { haptics } from '../lib/haptics';
 import { Button } from './ui';
 import {
+  placeKey,
   placesFor,
   suggestedStages,
   type StagePlace,
@@ -14,6 +15,8 @@ import {
 
 interface StagePickerProps {
   current: TripStage | null;
+  /** Labels the border chips in the order this run meets them. */
+  direction?: string | null;
   busy?: boolean;
   onPick: (stage: TripStage, place: StagePlace) => void;
 }
@@ -26,7 +29,7 @@ interface StagePickerProps {
  * the crossing is the only thing that tells them apart afterwards. Asking in
  * one combined list would mean 9 x 3 buttons on a phone held at a weighbridge.
  */
-export function StagePicker({ current, busy, onPick }: StagePickerProps) {
+export function StagePicker({ current, direction, busy, onPick }: StagePickerProps) {
   const { t } = useTranslation();
   const [stage, setStage] = useState<TripStage | null>(null);
 
@@ -41,7 +44,7 @@ export function StagePicker({ current, busy, onPick }: StagePickerProps) {
           {placesFor(stage).map((place) => (
             <Chip
               key={place}
-              label={t(`trips.place.${place}`)}
+              label={t(placeKey(place, direction))}
               disabled={busy}
               onPress={() => {
                 onPick(stage, place);

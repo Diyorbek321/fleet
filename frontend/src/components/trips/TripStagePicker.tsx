@@ -10,12 +10,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { tripsApi, placesForStage, TRIP_STAGES, type StagePlace, type TripStage } from '@/lib/trips';
+import {
+  tripsApi,
+  placeKey,
+  placesForStage,
+  TRIP_STAGES,
+  type StagePlace,
+  type TripDirection,
+  type TripStage,
+} from '@/lib/trips';
 import { ApiError } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 
 interface Props {
   tripId: string;
+  /** Labels the border buttons in the order this run meets them. */
+  direction?: TripDirection | null;
   /** Called once the checkpoint is saved — the list closes its popover. */
   onSaved?: () => void;
 }
@@ -26,7 +36,7 @@ interface Props {
  * One component for the trip page and the trips list, so a dispatcher who
  * changes a status from either place writes the same timeline entry.
  */
-export function TripStagePicker({ tripId, onSaved }: Props) {
+export function TripStagePicker({ tripId, direction, onSaved }: Props) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [stage, setStage] = useState<TripStage | ''>('');
@@ -81,7 +91,7 @@ export function TripStagePicker({ tripId, onSaved }: Props) {
               variant={place === p ? 'default' : 'outline'}
               onClick={() => setPlace(p)}
             >
-              {t(`trips.place.${p}`)}
+              {t(placeKey(p, direction))}
             </Button>
           ))}
         </div>

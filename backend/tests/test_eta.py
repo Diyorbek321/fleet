@@ -169,7 +169,7 @@ def _trip(**kw) -> Trip:
 
 @pytest.mark.parametrize(
     "stage",
-    [TripStage.arrived_customs, TripStage.left_customs, TripStage.unloaded],
+    [TripStage.arrived_customs, TripStage.left_customs, TripStage.unloaded, TripStage.trip_completed],
 )
 async def test_a_load_already_at_customs_is_not_estimated(db, stage):
     """The question has been answered by an event. Printing a prediction beside
@@ -246,6 +246,12 @@ def test_the_border_stage_names_the_crossing_not_a_country():
     entering Russia, and those are four days apart on the same trip."""
     assert stage_label(TripStage.arrived_border, StagePlace.uz_kz) == "На границе УЗБ–КЗ"
     assert stage_label(TripStage.crossed_border, StagePlace.kz_ru) == "Прошёл границу КЗ–РФ"
+
+
+def test_a_southbound_run_reads_the_crossing_in_the_order_it_meets_it():
+    assert stage_label(TripStage.crossed_border, StagePlace.kz_ru, "ru_uz") == "Прошёл границу РФ–КЗ"
+    assert stage_label(TripStage.arrived_border, StagePlace.uz_kz, "ru_uz") == "На границе КЗ–УЗБ"
+    assert stage_label(TripStage.arrived_border, StagePlace.uz_kz, "uz_ru") == "На границе УЗБ–КЗ"
 
 
 def test_the_card_carries_the_lines_the_customer_asked_for():

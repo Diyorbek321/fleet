@@ -17,7 +17,7 @@ from app.services.russia_stay_records import record_crossing
 from app.core.logging import logger
 from app.deps.auth import get_current_user, get_org_id, require_role
 from app.services import audit
-from app.models.drivers import Driver
+from app.models.drivers import Driver, DriverAssignment
 from app.models.enums import STAGE_TO_STATUS, TripEventType, TripStage, TripStatus, UserRole
 from app.models.trips import Trip, TripDocument, TripEvent, TripSegment
 from app.models.trucks import Truck, TruckLocation
@@ -67,6 +67,23 @@ _START_STATUSES = {TripStatus.en_route, TripStatus.loading}
 # in by hand racing an auto-generated one, or a lock skipped on a non-Postgres
 # engine. The unique constraint is the guarantee; this is the graceful recovery.
 _REFERENCE_ATTEMPTS = 3
+
+
+async def _truck_driver(db: AsyncSession, truck_id: uuid.UUID | None) -> uuid.UUID | None:
+    """The driver currently put on ``truck_id``, or None.
+
+    A driver is bound to a truck once, on the driver's page; a trip takes
+    whoever drives the truck instead of asking the dispatcher a second time.
+    """
+    if truck_id is None:
+        return None
+    return (
+        await db.execute(
+            select(DriverAssignment.driver_id).where(
+                DriverAssignment.truck_id == truck_id, DriverAssignment.unassigned_at.is_(None)
+            )
+        )
+    ).scalar_one_or_none()
 
 
 async def _get_owned_trip(db: AsyncSession, trip_id: uuid.UUID, org: uuid.UUID, *, with_events: bool = False) -> Trip:
@@ -191,6 +208,8 @@ async def create_trip(
         owned = (await db.execute(select(Driver.id).where(Driver.id == payload["driver_id"], Driver.org_id == org))).scalar_one_or_none()
         if not owned:
             raise HTTPException(status_code=404, detail="Водитель не найден")
+    if "driver_id" not in payload:
+        payload["driver_id"] = await _truck_driver(db, payload.get("truck_id"))
 
     for attempt in range(_REFERENCE_ATTEMPTS):
         reference = explicit_reference or await generate_reference(db, org)
@@ -281,6 +300,10 @@ async def update_trip(
         owned = (await db.execute(select(Driver.id).where(Driver.id == payload["driver_id"], Driver.org_id == org))).scalar_one_or_none()
         if not owned:
             raise HTTPException(status_code=404, detail="Водитель не найден")
+    # Only when the truck actually changes: re-saving a trip must not move it
+    # to whoever drives the truck today.
+    if "driver_id" not in payload and "truck_id" in payload and payload["truck_id"] != trip.truck_id:
+        payload["driver_id"] = await _truck_driver(db, payload["truck_id"])
 
     for k, v in payload.items():
         setattr(trip, k, v)
@@ -523,7 +546,7 @@ async def trip_card(
     position_at = (
         loc.recorded_at.astimezone(report_tz()).strftime("%d.%m %H:%M") if loc is not None else None
     )
-    stage = stage_label(trip.current_stage, trip.current_stage_place) if trip.current_stage else None
+    stage = stage_label(trip.current_stage, trip.current_stage_place, trip.direction) if trip.current_stage else None
 
     card = await build_customer_card(
         db, trip, lat=lat, lng=lng, place=place, stage=stage, position_at=position_at

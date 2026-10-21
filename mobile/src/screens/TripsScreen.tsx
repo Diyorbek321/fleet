@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import * as Location from 'expo-location';
 
 import {
+  placeKey,
   tripsApi,
   type StagePlace,
   type Trip,
@@ -141,7 +142,7 @@ export function TripsScreen() {
           const stageLabel = trip.current_stage
             ? [
                 t(`trips.stage.${trip.current_stage}`),
-                trip.current_stage_place ? t(`trips.place.${trip.current_stage_place}`) : null,
+                trip.current_stage_place ? t(placeKey(trip.current_stage_place, trip.direction)) : null,
               ]
                 .filter(Boolean)
                 .join(' · ')
@@ -172,6 +173,7 @@ export function TripsScreen() {
               {stageTripId === trip.id ? (
                 <StagePicker
                   current={trip.current_stage}
+                  direction={trip.direction}
                   busy={busyId === trip.id}
                   onPick={(stage, place) => markStage(trip, stage, place)}
                 />

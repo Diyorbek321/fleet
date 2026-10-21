@@ -69,7 +69,8 @@ async def test_every_stage_drives_the_coarse_status_the_reports_read(
         ("arrived_customs", "ru", TripStatus.at_border),
         ("left_customs", "ru", TripStatus.en_route),
         ("arrived_unloading", "ru", TripStatus.en_route),
-        ("unloaded", "ru", TripStatus.delivered),
+        ("unloaded", "ru", TripStatus.en_route),
+        ("trip_completed", "ru", TripStatus.delivered),
     ]
     for stage, place, status in expected:
         trip_id = await _driver_trip(client, admin_headers, driver_login["driver_id"])
@@ -78,16 +79,19 @@ async def test_every_stage_drives_the_coarse_status_the_reports_read(
         assert res.json()["status"] == status.value, stage
 
 
-async def test_unloading_still_stamps_the_delivery_the_margin_is_built_on(
+async def test_completing_the_trip_stamps_the_delivery_the_margin_is_built_on(
     client: AsyncClient, admin_headers, driver_login
 ):
-    """`delivered_at` is what the period report counts revenue by. A driver who
-    reports "выгрузился" must move it exactly as the old button did."""
+    """`delivered_at` is what the period report counts revenue by. Unloading
+    leaves the trip open; "рейс завершён" closes it."""
     h = driver_login["headers"]
     trip_id = await _driver_trip(client, admin_headers, driver_login["driver_id"])
 
     await _mark(client, h, trip_id, "unloaded", "ru")
+    after_unloading = (await client.get(f"/api/trips/{trip_id}", headers=admin_headers)).json()
+    assert after_unloading["delivered_at"] is None
 
+    await _mark(client, h, trip_id, "trip_completed", "ru")
     assert (await client.get(f"/api/trips/{trip_id}", headers=admin_headers)).json()[
         "delivered_at"
     ] is not None

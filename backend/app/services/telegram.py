@@ -345,6 +345,7 @@ _STAGE_LABEL_RU: dict[TripStage, str] = {
     TripStage.left_customs: "Выехал с растаможки",
     TripStage.arrived_unloading: "Прибыл на выгрузку",
     TripStage.unloaded: "Выгрузился",
+    TripStage.trip_completed: "Рейс завершён",
 }
 
 _PLACE_LABEL_RU: dict[StagePlace, str] = {
@@ -355,8 +356,25 @@ _PLACE_LABEL_RU: dict[StagePlace, str] = {
     StagePlace.kz_ru: "КЗ–РФ",
 }
 
+#: A crossing read in the order the truck meets it: on the way home from
+#: Russia the same KZ–RU post is "РФ–КЗ". The stored value stays one per
+#: post, so the ETA and the Russia-stay count need no second spelling.
+_PLACE_LABEL_RU_SOUTHBOUND: dict[StagePlace, str] = {
+    StagePlace.uz_kz: "КЗ–УЗБ",
+    StagePlace.kz_ru: "РФ–КЗ",
+}
 
-def stage_label(stage: TripStage | None, place: StagePlace | None) -> str:
+
+def place_label(place: StagePlace, direction: str | None = None) -> str:
+    """"КЗ–РФ" northbound, "РФ–КЗ" on a ``ru_uz`` run."""
+    if direction == "ru_uz" and place in _PLACE_LABEL_RU_SOUTHBOUND:
+        return _PLACE_LABEL_RU_SOUTHBOUND[place]
+    return _PLACE_LABEL_RU[place]
+
+
+def stage_label(
+    stage: TripStage | None, place: StagePlace | None, direction: str | None = None
+) -> str:
     """"На границе УЗБ–КЗ" — the checkpoint and where, in one line.
 
     Falls back to the coarse status wording when no checkpoint has been
@@ -366,7 +384,7 @@ def stage_label(stage: TripStage | None, place: StagePlace | None) -> str:
     if stage is None:
         return "—"
     label = _STAGE_LABEL_RU.get(stage, stage.value)
-    return f"{label} {_PLACE_LABEL_RU[place]}" if place else label
+    return f"{label} {place_label(place, direction)}" if place else label
 
 
 def format_customer_card(

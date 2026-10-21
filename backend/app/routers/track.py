@@ -172,7 +172,7 @@ async def track(
         reference=trip.reference,
         cargo=trip.cargo_description,
         plate=plate,
-        stage=stage_label(trip.current_stage, trip.current_stage_place)
+        stage=stage_label(trip.current_stage, trip.current_stage_place, trip.direction)
         if trip.current_stage
         else None,
         loaded_at=trip.loaded_at,

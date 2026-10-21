@@ -17,6 +17,8 @@ export interface Trip {
   status: TripStatus;
   current_stage: TripStage | null;
   current_stage_place: StagePlace | null;
+  /** `uz_ru` or `ru_uz`; null on trips created before it was recorded. */
+  direction: string | null;
   loaded_at: string | null;
   eta_customs: string | null;
   shipper: string | null;
@@ -64,7 +66,8 @@ export type TripStage =
   | 'arrived_customs'
   | 'left_customs'
   | 'arrived_unloading'
-  | 'unloaded';
+  | 'unloaded'
+  | 'trip_completed';
 
 /** Where the stage happened: a country, or — at a border — the crossing itself. */
 export type StagePlace = 'uz' | 'kz' | 'ru' | 'uz_kz' | 'kz_ru';
@@ -80,6 +83,7 @@ export const TRIP_STAGES: TripStage[] = [
   'left_customs',
   'arrived_unloading',
   'unloaded',
+  'trip_completed',
 ];
 
 const COUNTRIES: StagePlace[] = ['uz', 'kz', 'ru'];
@@ -94,6 +98,20 @@ const CROSSINGS: StagePlace[] = ['uz_kz', 'kz_ru'];
  */
 export function placesFor(stage: TripStage): StagePlace[] {
   return stage === 'arrived_border' || stage === 'crossed_border' ? CROSSINGS : COUNTRIES;
+}
+
+/**
+ * The i18n key for a place, read in the order the truck meets it: on the way
+ * home from Russia the KZ–RU post is "RF–KZ". One stored value per post, so
+ * the server's ETA and Russia-stay count need no second spelling.
+ */
+export function placeKey(
+  place: StagePlace,
+  direction: string | null | undefined,
+): `trips.place.${StagePlace}` | `trips.placeSouthbound.${'uz_kz' | 'kz_ru'}` {
+  return direction === 'ru_uz' && (place === 'uz_kz' || place === 'kz_ru')
+    ? `trips.placeSouthbound.${place}`
+    : `trips.place.${place}`;
 }
 
 /**

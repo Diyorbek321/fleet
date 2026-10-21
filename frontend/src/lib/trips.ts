@@ -31,7 +31,8 @@ export type TripStage =
   | 'arrived_customs'
   | 'left_customs'
   | 'arrived_unloading'
-  | 'unloaded';
+  | 'unloaded'
+  | 'trip_completed';
 
 /** Where a stage happened: a country, or — at a border — the crossing itself. */
 export type StagePlace = 'uz' | 'kz' | 'ru' | 'uz_kz' | 'kz_ru';
@@ -47,6 +48,7 @@ export const TRIP_STAGES: TripStage[] = [
   'left_customs',
   'arrived_unloading',
   'unloaded',
+  'trip_completed',
 ];
 
 /** Mirrors the server's `places_for_stage`: a border stage names the
@@ -55,6 +57,15 @@ export function placesForStage(stage: TripStage): StagePlace[] {
   return stage === 'arrived_border' || stage === 'crossed_border'
     ? ['uz_kz', 'kz_ru']
     : ['uz', 'kz', 'ru'];
+}
+
+/** The i18n key for a place, read in the order the truck meets it: the
+ *  KZ–RU post is "RF–KZ" on the way home. One stored value per post, so the
+ *  server's ETA and Russia-stay count need no second spelling. */
+export function placeKey(place: StagePlace, direction: TripDirection | null | undefined): string {
+  return direction === 'ru_uz' && (place === 'uz_kz' || place === 'kz_ru')
+    ? `trips.placeSouthbound.${place}`
+    : `trips.place.${place}`;
 }
 
 export type TripEventType =

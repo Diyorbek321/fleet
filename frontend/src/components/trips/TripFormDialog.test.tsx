@@ -9,18 +9,18 @@ import { fireEvent, screen } from '@testing-library/react';
 
 import { renderWithProviders } from '@/test/render';
 import type { Trip } from '@/lib/trips';
+import type { Truck } from '@/types';
 
 import { TripFormDialog } from './TripFormDialog';
 
-function renderForm(trip: Trip | null = null) {
+function renderForm(trip: Trip | null = null, trucks: Truck[] = []) {
   const onSubmit = vi.fn();
   renderWithProviders(
     <TripFormDialog
       open
       onOpenChange={() => {}}
       trip={trip}
-      trucks={[]}
-      drivers={[]}
+      trucks={trucks}
       isPending={false}
       onSubmit={onSubmit}
     />,
@@ -60,5 +60,27 @@ describe('TripFormDialog direction', () => {
     const onSubmit = renderForm({ id: 't-1', reference: 'TR-1', direction: null } as Trip);
     submit();
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ direction: null }));
+  });
+});
+
+describe('TripFormDialog assignment', () => {
+  it('asks for no driver and sends none: the server takes the truck\'s', () => {
+    const truck = { id: 'tr-1', plateNumber: '01A111AA', driverName: 'Ali' } as Truck;
+    const onSubmit = renderForm(
+      { id: 't-1', reference: 'TR-1', direction: 'uz_ru', truckId: 'tr-1', driverId: 'd-old' } as Trip,
+      [truck],
+    );
+
+    expect(screen.getByText('Ali')).toBeInTheDocument();
+    submit();
+    const input = onSubmit.mock.calls[0][0];
+    expect(input).not.toHaveProperty('driverId');
+    expect(input).not.toHaveProperty('isLoaded');
+  });
+
+  it('puts customs with the unloading, after the unloading address', () => {
+    renderForm();
+    const address = document.getElementById('trip-unloadingAddress')!;
+    expect(address.compareDocumentPosition(customsInput()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

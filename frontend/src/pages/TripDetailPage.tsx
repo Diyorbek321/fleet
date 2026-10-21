@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  placeKey,
   tripsApi,
   listTripDocuments,
   deleteTripDocument,
@@ -244,7 +245,7 @@ export default function TripDetailPage() {
                   {trip.currentStage
                     ? [
                         t(`trips.stage.${trip.currentStage}`),
-                        trip.currentStagePlace ? t(`trips.place.${trip.currentStagePlace}`) : null,
+                        trip.currentStagePlace ? t(placeKey(trip.currentStagePlace, trip.direction)) : null,
                       ]
                         .filter(Boolean)
                         .join(' · ')
@@ -281,7 +282,6 @@ export default function TripDetailPage() {
           onOpenChange={setEditOpen}
           trip={trip}
           trucks={trucks}
-          drivers={driversQuery.data ?? []}
           isPending={editMutation.isPending}
           onSubmit={(input) => editMutation.mutate(input)}
         />
@@ -338,7 +338,7 @@ export default function TripDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <TripStagePicker tripId={trip.id} />
+              <TripStagePicker tripId={trip.id} direction={trip.direction} />
             </CardContent>
           </Card>
         </div>

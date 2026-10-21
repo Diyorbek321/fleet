@@ -55,7 +55,8 @@
       "arrived_customs": "Прибыл на растаможку",
       "left_customs": "Выехал с растаможки",
       "arrived_unloading": "Прибыл на выгрузку",
-      "unloaded": "Выгрузился"
+      "unloaded": "Выгрузился",
+      "trip_completed": "Рейс завершён"
     },
     "place": {
       "uz": "УЗБ",
@@ -63,6 +64,10 @@
       "ru": "РФ",
       "uz_kz": "УЗБ–КЗ",
       "kz_ru": "КЗ–РФ"
+    },
+    "placeSouthbound": {
+      "uz_kz": "КЗ–УЗБ",
+      "kz_ru": "РФ–КЗ"
     },
     "stagePrompt": "Что произошло?",
     "placePrompt": "Где?",

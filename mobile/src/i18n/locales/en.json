@@ -55,7 +55,8 @@
       "arrived_customs": "Arrived at customs",
       "left_customs": "Left customs",
       "arrived_unloading": "Arrived at unloading",
-      "unloaded": "Unloaded"
+      "unloaded": "Unloaded",
+      "trip_completed": "Trip completed"
     },
     "place": {
       "uz": "UZ",
@@ -63,6 +64,10 @@
       "ru": "RU",
       "uz_kz": "UZ–KZ",
       "kz_ru": "KZ–RU"
+    },
+    "placeSouthbound": {
+      "uz_kz": "KZ–UZ",
+      "kz_ru": "RU–KZ"
     },
     "stagePrompt": "What happened?",
     "placePrompt": "Where?",

@@ -110,6 +110,10 @@ class TripStage(str, enum.Enum):
     left_customs = "left_customs"
     arrived_unloading = "arrived_unloading"
     unloaded = "unloaded"
+    #: The run is over — documents handed in, truck free. Separate from
+    #: ``unloaded`` because the dispatcher closes a trip, not the weighbridge:
+    #: the truck often waits a day after unloading for papers or a return load.
+    trip_completed = "trip_completed"
 
 
 class StagePlace(str, enum.Enum):
@@ -139,7 +143,8 @@ STAGE_TO_STATUS: dict[TripStage, "TripStatus"] = {
     TripStage.arrived_customs: TripStatus.at_border,
     TripStage.left_customs: TripStatus.en_route,
     TripStage.arrived_unloading: TripStatus.en_route,
-    TripStage.unloaded: TripStatus.delivered,
+    TripStage.unloaded: TripStatus.en_route,
+    TripStage.trip_completed: TripStatus.delivered,
 }
 
 #: The places each stage may carry. A border stage names the crossing; every

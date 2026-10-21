@@ -472,7 +472,8 @@
       "arrived_customs": "Rastamojkaga yetib keldi",
       "left_customs": "Rastamojkadan chiqdi",
       "arrived_unloading": "Tushirishga yetib keldi",
-      "unloaded": "Yuk tushirildi"
+      "unloaded": "Yuk tushirildi",
+      "trip_completed": "Reys yakunlandi"
     },
     "place": {
       "uz": "UZB",
@@ -480,6 +481,10 @@
       "ru": "RF",
       "uz_kz": "UZB–QOZ",
       "kz_ru": "QOZ–RF"
+    },
+    "placeSouthbound": {
+      "uz_kz": "QOZ–UZB",
+      "kz_ru": "RF–QOZ"
     },
     "stagePrompt": "Nima bo‘ldi?",
     "placePrompt": "Qayerda?",
@@ -521,7 +526,8 @@
         "ru_uz": "masalan, Toshkent, Chuqursoy"
       },
       "load": "Yuk holati",
-      "unloadingDate": "Vygruzka sanasi"
+      "unloadingDate": "Vygruzka sanasi",
+      "truckHasNoDriver": "Bu mashinaga haydovchi biriktirilmagan"
     },
     "copyStatus": "Statusni nusxalash",
     "statusCopied": "Status nusxalandi",

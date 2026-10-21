@@ -16,14 +16,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { tripsApi, type Trip, type TripCreateInput, type TripStatus } from '@/lib/trips';
+import { placeKey, tripsApi, type Trip, type TripCreateInput, type TripStatus } from '@/lib/trips';
 import { TripFormDialog } from '@/components/trips/TripFormDialog';
 import { TripStagePicker } from '@/components/trips/TripStagePicker';
 import { CopyTripStatusButton } from '@/components/trips/CopyTripStatusButton';
 import { TripsArchive } from '@/components/trips/TripsArchive';
 import { FleetBoard } from '@/components/trips/FleetBoard';
 import { formatTripRate } from '@/lib/format';
-import { driversApi } from '@/lib/drivers';
 import { ApiError } from '@/lib/api';
 import { useTrucks } from '@/contexts/TruckContext';
 import { toast } from '@/hooks/use-toast';
@@ -78,11 +77,6 @@ export default function TripsPage() {
     queryFn: () => tripsApi.list({ archived: false }),
     refetchInterval: 30_000,
     enabled: tab === 'active',
-  });
-
-  const { data: drivers = [] } = useQuery({
-    queryKey: ['drivers'],
-    queryFn: () => driversApi.list(),
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: TRIPS_KEY });
@@ -228,7 +222,7 @@ export default function TripsPage() {
                       {trip.currentStage && (
                         <div className="mt-1 text-xs text-muted-foreground">
                           {t(`trips.stage.${trip.currentStage}`)}
-                          {trip.currentStagePlace ? ` · ${t(`trips.place.${trip.currentStagePlace}`)}` : ''}
+                          {trip.currentStagePlace ? ` · ${t(placeKey(trip.currentStagePlace, trip.direction))}` : ''}
                         </div>
                       )}
                     </TableCell>
@@ -262,7 +256,7 @@ export default function TripsPage() {
                           <p className="mb-3 text-sm font-medium">
                             {t('tripDetail.setStage')} · <span className="font-mono">{trip.reference}</span>
                           </p>
-                          <TripStagePicker tripId={trip.id} onSaved={() => setStageTripId(null)} />
+                          <TripStagePicker tripId={trip.id} direction={trip.direction} onSaved={() => setStageTripId(null)} />
                         </PopoverContent>
                       </Popover>
                       <CopyTripStatusButton tripId={trip.id} variant="ghost" iconOnly />
@@ -303,7 +297,6 @@ export default function TripsPage() {
         onOpenChange={setFormOpen}
         trip={editing}
         trucks={trucks}
-        drivers={drivers}
         isPending={saveMutation.isPending}
         onSubmit={(input) => saveMutation.mutate(input)}
       />

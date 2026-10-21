@@ -1,4 +1,5 @@
 import {
+  placeKey,
   placesFor,
   suggestedStages,
   TRIP_STAGES,
@@ -44,5 +45,14 @@ describe('what to suggest next', () => {
 
   it('offers the whole list in order when nothing has been reported yet', () => {
     expect(suggestedStages(null)).toEqual(TRIP_STAGES);
+  });
+});
+
+describe('placeKey', () => {
+  it('reads a crossing in the order a southbound run meets it', () => {
+    expect(placeKey('kz_ru', 'ru_uz')).toBe('trips.placeSouthbound.kz_ru');
+    expect(placeKey('uz_kz', 'ru_uz')).toBe('trips.placeSouthbound.uz_kz');
+    expect(placeKey('kz_ru', 'uz_ru')).toBe('trips.place.kz_ru');
+    expect(placeKey('ru', 'ru_uz')).toBe('trips.place.ru');
   });
 });

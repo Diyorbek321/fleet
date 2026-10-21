@@ -148,7 +148,8 @@ def borders_ahead(
     if stage is None:
         return len(crossings)
     if stage in (TripStage.arrived_customs, TripStage.left_customs,
-                 TripStage.arrived_unloading, TripStage.unloaded):
+                 TripStage.arrived_unloading, TripStage.unloaded,
+                 TripStage.trip_completed):
         return 0
     if place in crossings:
         remaining = len(crossings) - crossings.index(place)
@@ -248,7 +249,8 @@ async def estimate_customs_arrival(
     now = now or datetime.now(timezone.utc)
 
     if trip.current_stage in (TripStage.arrived_customs, TripStage.left_customs,
-                              TripStage.arrived_unloading, TripStage.unloaded):
+                              TripStage.arrived_unloading, TripStage.unloaded,
+                              TripStage.trip_completed):
         return None  # already there; the question has been answered by events
 
     if trip.current_stage is not None:

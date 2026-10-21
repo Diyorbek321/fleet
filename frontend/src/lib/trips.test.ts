@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { placesForStage, toBody } from './trips';
+import { placeKey, placesForStage, toBody } from './trips';
 
 describe('toBody', () => {
   it('drops blanks on create', () => {
@@ -23,6 +23,13 @@ describe('placesForStage', () => {
   it('names a crossing for border stages', () => {
     expect(placesForStage('arrived_border')).toEqual(['uz_kz', 'kz_ru']);
     expect(placesForStage('crossed_border')).toEqual(['uz_kz', 'kz_ru']);
+  });
+
+  it('reads a crossing in the order a southbound run meets it', () => {
+    expect(placeKey('kz_ru', 'ru_uz')).toBe('trips.placeSouthbound.kz_ru');
+    expect(placeKey('kz_ru', 'uz_ru')).toBe('trips.place.kz_ru');
+    expect(placeKey('ru', 'ru_uz')).toBe('trips.place.ru');
+    expect(placeKey('uz_kz', null)).toBe('trips.place.uz_kz');
   });
 
   it('names a country for everything else', () => {

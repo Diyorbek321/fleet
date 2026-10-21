@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { TRIP_DIRECTIONS, type Trip, type TripCreateInput, type TripDirection } from '@/lib/trips';
-import type { Driver } from '@/lib/drivers';
 import type { Truck } from '@/types';
 
 const UNASSIGNED = '__none__';
@@ -43,21 +42,17 @@ type FormState = Record<TextField, string> & {
   /** Empty until the dispatcher picks one; a new trip cannot be saved without. */
   direction: TripDirection | '';
   truckId: string;
-  driverId: string;
   cargoTons: string;
   /** YYYY-MM-DD from <input type="date">. */
   loadingDate: string;
   /** Unloading date (выгрузка), YYYY-MM-DD. */
   unloadingDate: string;
-  /** False marks an empty leg (порожний). */
-  isLoaded: boolean;
 };
 
 function stateFor(trip: Trip | null): FormState {
   return {
     direction: trip?.direction ?? '',
     truckId: trip?.truckId ?? '',
-    driverId: trip?.driverId ?? '',
     originName: trip?.originName ?? '',
     destinationName: trip?.destinationName ?? '',
     borderCrossing: trip?.borderCrossing ?? '',
@@ -70,7 +65,6 @@ function stateFor(trip: Trip | null): FormState {
     cargoTons: trip?.cargoWeightKg ? String(trip.cargoWeightKg / 1000) : '',
     loadingDate: trip?.scheduledStart ? trip.scheduledStart.slice(0, 10) : '',
     unloadingDate: trip?.scheduledEnd ? trip.scheduledEnd.slice(0, 10) : '',
-    isLoaded: trip?.isLoaded ?? true,
     consignee: trip?.consignee ?? '',
     customsPoint: trip?.customsPoint ?? '',
     unloadingAddress: trip?.unloadingAddress ?? '',
@@ -99,7 +93,6 @@ function toInput(form: FormState, trip: Trip | null): TripCreateInput {
   return {
     direction: form.direction || null,
     truckId: form.truckId || null,
-    driverId: form.driverId || null,
     originName: text(form.originName),
     destinationName: text(form.destinationName),
     borderCrossing: text(form.borderCrossing),
@@ -111,7 +104,6 @@ function toInput(form: FormState, trip: Trip | null): TripCreateInput {
     // Midnight UTC is the same calendar day in Tashkent (UTC+5).
     scheduledStart: form.loadingDate ? `${form.loadingDate}T00:00:00Z` : null,
     scheduledEnd: unloadingMoment(form.unloadingDate, trip?.scheduledEnd),
-    isLoaded: form.isLoaded,
     consignee: text(form.consignee),
     customsPoint: text(form.customsPoint),
     unloadingAddress: text(form.unloadingAddress),
@@ -126,19 +118,18 @@ interface TripFormDialogProps {
   /** The trip being edited, or null to create one. */
   trip: Trip | null;
   trucks: Truck[];
-  drivers: Driver[];
   isPending: boolean;
   onSubmit: (input: TripCreateInput) => void;
 }
 
 /** The order sheet ("заявка") as a form, in the order it is read to a driver:
- *  route, loading, unloading, then who carries it. */
+ *  route, loading, unloading, then the truck. The driver is not asked: the
+ *  server takes whoever is bound to the truck. */
 export function TripFormDialog({
   open,
   onOpenChange,
   trip,
   trucks,
-  drivers,
   isPending,
   onSubmit,
 }: TripFormDialogProps) {
@@ -153,6 +144,8 @@ export function TripFormDialog({
       setDirectionMissing(false);
     }
   }, [open, trip]);
+
+  const selectedTruck = trucks.find((tr) => tr.id === form.truckId);
 
   // The customs post is in the country the load is going to, so its label
   // names that country once the direction is known.
@@ -238,35 +231,10 @@ export function TripFormDialog({
               <p className="text-sm text-destructive">{t('trips.form.directionRequired')}</p>
             )}
           </div>
-          {/* Whether the truck runs with cargo or empty. The dispatcher's call:
-              nothing on the trip can tell an empty leg from a load not yet
-              described. */}
-          <div className="space-y-2">
-            <Label>{t('trips.form.load')}</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {([true, false] as const).map((loaded) => (
-                <Button
-                  key={String(loaded)}
-                  type="button"
-                  variant={form.isLoaded === loaded ? 'default' : 'outline'}
-                  aria-pressed={form.isLoaded === loaded}
-                  onClick={() => setForm((f) => ({ ...f, isLoaded: loaded }))}
-                >
-                  {loaded ? t('trips.loaded') : t('trips.emptyRun')}
-                </Button>
-              ))}
-            </div>
-          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {field('originName', { placeholder: 'Елабуга' })}
             {field('destinationName', { placeholder: 'Ташкент' })}
             {field('borderCrossing', { placeholder: 'Майский' })}
-            {field('customsPoint', {
-              label: customsLabel,
-              placeholder: form.direction
-                ? t(`trips.form.customsPlaceholder.${form.direction}`)
-                : undefined,
-            })}
           </div>
 
           {section(t('trips.form.sectionLoading'))}
@@ -310,7 +278,17 @@ export function TripFormDialog({
             </div>
           </div>
           {field('unloadingAddress', { multiline: true })}
-          {field('declarantContact')}
+          {/* Customs is cleared where the load is unloaded, so it is read
+              with the unloading, next to the declarant who handles it. */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            {field('customsPoint', {
+              label: customsLabel,
+              placeholder: form.direction
+                ? t(`trips.form.customsPlaceholder.${form.direction}`)
+                : undefined,
+            })}
+            {field('declarantContact')}
+          </div>
 
           {section(t('trips.form.sectionAssignment'))}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -336,22 +314,10 @@ export function TripFormDialog({
             </div>
             <div className="space-y-2">
               <Label>{t('trips.driver')}</Label>
-              <Select
-                value={form.driverId || UNASSIGNED}
-                onValueChange={(v) => setForm((f) => ({ ...f, driverId: v === UNASSIGNED ? '' : v }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="—" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={UNASSIGNED}>{t('trips.driverUnassigned')}</SelectItem>
-                  {drivers.map((d) => (
-                    <SelectItem key={d.id} value={d.id}>
-                      {d.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="flex h-10 items-center text-sm text-muted-foreground">
+                {selectedTruck?.driverName ??
+                  (selectedTruck ? t('trips.form.truckHasNoDriver') : '—')}
+              </p>
             </div>
           </div>
 
