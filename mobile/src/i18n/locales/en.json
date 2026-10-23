@@ -240,7 +240,11 @@
     "lastSent": "Last sent {{time}}",
     "stoppedTitle": "Location sharing stopped",
     "stoppedBody": "Fleet Watch stopped sharing your location — please reopen the app and sign in again.",
-    "foregroundBody": "Sharing your location with your dispatcher"
+    "foregroundBody": "Sharing your location with your dispatcher",
+    "disclosureTitle": "Location use",
+    "disclosureBody": "Fleet Watch collects your location and sends it to your company's dispatcher while \"Live tracking\" is on during your shift — even when the app is closed or not in use. This lets the dispatcher see where the truck is, give customers arrival times and learn about unexpected stops. You can turn tracking off at any time.",
+    "disclosureDecline": "Decline",
+    "disclosureAccept": "Agree"
   },
   "fuel": {
     "title": "Fuel logs",
@@ -318,6 +322,7 @@
     "cancel": "Cancel",
     "save": "Save",
     "error": "Something went wrong",
+    "networkError": "Could not reach the server. Check your internet connection and try again.",
     "km": "km",
     "litersShort": "L",
     "delete": "Delete"

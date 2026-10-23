@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Alert, StyleSheet, Switch, Text, View } from 'react-native';
+import { AppState, Alert, Platform, StyleSheet, Switch, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -12,7 +12,9 @@ import {
   startBackgroundTracking,
   stopBackgroundTracking,
 } from '../lib/location-task';
+import { confirmLocationDisclosure, needsDisclosure } from '../lib/location-disclosure';
 import { formatDateTime } from '../lib/format';
+import { loadErrorMessage } from '../lib/load-error';
 import { sendIfDue } from '../lib/ping-throttle';
 import { palette, spacing, typography } from '../theme/theme';
 import { RussiaStayCard } from '../components/RussiaStayCard';
@@ -22,6 +24,7 @@ import {
   Button,
   Card,
   EmptyState,
+  ErrorBox,
   Field,
   IconCircle,
   Loading,
@@ -46,6 +49,12 @@ export function HomeScreen() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [truck, setTruck] = useState<AssignedTruck | null>(null);
   const [shift, setShift] = useState<Shift | null>(null);
+  // Null truck/shift are only meaningful after a load succeeded: before that
+  // they mean "unknown", and rendering "No truck assigned" and a "Start shift"
+  // form on a failed load told drivers their truck had been taken away (and
+  // invited a duplicate shift).
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [odometer, setOdometer] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -61,8 +70,12 @@ export function HomeScreen() {
       const [a, s] = await Promise.all([meApi.assignment(), meApi.currentShift()]);
       setTruck(a);
       setShift(s);
+      setLoaded(true);
+      setLoadError(null);
     } catch (e) {
-      Alert.alert(t('common.error'), e instanceof Error ? e.message : '');
+      // Inline with a retry button rather than an alert: a dropped connection
+      // is routine on the road, and the alert blocked the screen behind it.
+      setLoadError(loadErrorMessage(e, t));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -117,6 +130,10 @@ export function HomeScreen() {
       if (state === 'active') {
         syncSharingState();
         loadMessages();
+        // The truck and shift too: the dispatcher may have changed them while
+        // the app was in the background, and a load that failed offline
+        // recovers on its own once the driver comes back to the app.
+        load();
       }
     });
     const interval = setInterval(syncSharingState, SHARING_RESYNC_INTERVAL_MS);
@@ -124,7 +141,7 @@ export function HomeScreen() {
       subscription.remove();
       clearInterval(interval);
     };
-  }, [syncSharingState, loadMessages]);
+  }, [syncSharingState, loadMessages, load]);
 
   const toShift = useCallback(
     async (fn: () => Promise<Shift>) => {
@@ -170,6 +187,13 @@ export function HomeScreen() {
     async (value: boolean) => {
       if (value) {
         try {
+          const background = await Location.getBackgroundPermissionsAsync();
+          if (
+            needsDisclosure(Platform.OS, background.status) &&
+            !(await confirmLocationDisclosure(t))
+          ) {
+            return;
+          }
           const permission = await requestTrackingPermissions();
           if (permission === 'denied') {
             Alert.alert(t('tracking.permissionNeeded'));
@@ -203,9 +227,11 @@ export function HomeScreen() {
 
   if (loading) return <Loading />;
 
-  const subtitle = shift
-    ? t('home.shiftSince', { time: formatDateTime(shift.started_at) })
-    : t('home.startShift');
+  const subtitle = !loaded
+    ? undefined
+    : shift
+      ? t('home.shiftSince', { time: formatDateTime(shift.started_at) })
+      : t('home.startShift');
 
   return (
     <Screen
@@ -238,11 +264,23 @@ export function HomeScreen() {
         </Card>
       )}
 
+      {loadError ? (
+        <ErrorBox
+          message={loadError}
+          onRetry={() => {
+            setRefreshing(true);
+            load();
+            loadMessages();
+          }}
+          retryLabel={t('common.retry')}
+        />
+      ) : null}
+
       <MessagesCard messages={messages} onRead={markRead} />
 
       <RussiaStayCard refreshKey={refreshKey} />
 
-      {truck ? (
+      {!loaded ? null : truck ? (
         <>
           <View style={styles.statRow}>
             <StatTile
@@ -277,52 +315,54 @@ export function HomeScreen() {
         </Card>
       )}
 
-      <Card>
-        <SectionHeader
-          icon={shift ? 'pulse' : 'play'}
-          title={shift ? t('home.shiftActive') : t('home.startShift')}
-          color={shift ? palette.success : palette.brand}
-          bg={shift ? palette.successBg : palette.brandLight}
-          right={shift ? <Pill label={t('home.shiftActive')} color={palette.success} bg={palette.successBg} /> : undefined}
-        />
-        {shift ? (
-          <>
-            <Row label={t('home.shiftActive')} value={formatDateTime(shift.started_at)} />
-            <Field
-              label={t('home.endMileage')}
-              icon="navigate-outline"
-              value={odometer}
-              onChangeText={setOdometer}
-              keyboardType="numeric"
-              placeholder="0"
-            />
-            <Button
-              label={t('home.endShift')}
-              icon="stop-circle-outline"
-              variant="danger"
-              loading={busy}
-              onPress={() => toShift(() => meApi.endShift(odo()))}
-            />
-          </>
-        ) : (
-          <>
-            <Field
-              label={t('home.startMileage')}
-              icon="navigate-outline"
-              value={odometer}
-              onChangeText={setOdometer}
-              keyboardType="numeric"
-              placeholder="0"
-            />
-            <Button
-              label={t('home.startShift')}
-              icon="play-circle-outline"
-              loading={busy}
-              onPress={() => toShift(() => meApi.startShift(odo()))}
-            />
-          </>
-        )}
-      </Card>
+      {loaded && (
+        <Card>
+          <SectionHeader
+            icon={shift ? 'pulse' : 'play'}
+            title={shift ? t('home.shiftActive') : t('home.startShift')}
+            color={shift ? palette.success : palette.brand}
+            bg={shift ? palette.successBg : palette.brandLight}
+            right={shift ? <Pill label={t('home.shiftActive')} color={palette.success} bg={palette.successBg} /> : undefined}
+          />
+          {shift ? (
+            <>
+              <Row label={t('home.shiftActive')} value={formatDateTime(shift.started_at)} />
+              <Field
+                label={t('home.endMileage')}
+                icon="navigate-outline"
+                value={odometer}
+                onChangeText={setOdometer}
+                keyboardType="numeric"
+                placeholder="0"
+              />
+              <Button
+                label={t('home.endShift')}
+                icon="stop-circle-outline"
+                variant="danger"
+                loading={busy}
+                onPress={() => toShift(() => meApi.endShift(odo()))}
+              />
+            </>
+          ) : (
+            <>
+              <Field
+                label={t('home.startMileage')}
+                icon="navigate-outline"
+                value={odometer}
+                onChangeText={setOdometer}
+                keyboardType="numeric"
+                placeholder="0"
+              />
+              <Button
+                label={t('home.startShift')}
+                icon="play-circle-outline"
+                loading={busy}
+                onPress={() => toShift(() => meApi.startShift(odo()))}
+              />
+            </>
+          )}
+        </Card>
+      )}
 
       <Card>
         <SectionHeader

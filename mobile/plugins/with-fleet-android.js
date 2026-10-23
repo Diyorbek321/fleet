@@ -8,11 +8,14 @@
  * and its passwords are gitignored and live only on the release machine —
  * see BUILD.md.
  *
+ * Also widens MainActivity's configChanges so tablets do not restart the app
+ * on every window resize (see withTabletConfigChanges).
+ *
  * (Firebase's default notification channel is set through expo-notifications'
  * own `defaultChannel` option in app.json: that plugin removes the meta-data
  * when the option is absent, so adding it here would be undone.)
  */
-const { withAppBuildGradle } = require('expo/config-plugins');
+const { withAndroidManifest, withAppBuildGradle } = require('expo/config-plugins');
 
 const SIGNING_MARKER = '// fleet-watch: release signing';
 
@@ -53,6 +56,27 @@ function withReleaseSigning(config) {
   });
 }
 
+// Config changes MainActivity handles itself instead of being torn down and
+// recreated. Android 16 ignores the portrait lock on tablets (targetSdk 36,
+// smallest width >= 600dp) and resizes the window itself; without
+// smallestScreenSize/density in this list every such resize restarted the
+// activity, and the whole app reloaded to a spinner every few seconds.
+const TABLET_CONFIG_CHANGES = ['smallestScreenSize', 'density'];
+
+function withTabletConfigChanges(config) {
+  return withAndroidManifest(config, (cfg) => {
+    const app = cfg.modResults.manifest.application?.[0];
+    const main = app?.activity?.find((a) => a.$['android:name'] === '.MainActivity');
+    if (!main) {
+      throw new Error('with-fleet-android: MainActivity not found in AndroidManifest.xml');
+    }
+    const current = (main.$['android:configChanges'] ?? '').split('|').filter(Boolean);
+    const missing = TABLET_CONFIG_CHANGES.filter((c) => !current.includes(c));
+    main.$['android:configChanges'] = [...current, ...missing].join('|');
+    return cfg;
+  });
+}
+
 module.exports = function withFleetAndroid(config) {
-  return withReleaseSigning(config);
+  return withTabletConfigChanges(withReleaseSigning(config));
 };

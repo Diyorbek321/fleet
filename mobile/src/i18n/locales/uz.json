@@ -240,7 +240,11 @@
     "lastSent": "Oxirgi yuborilgan: {{time}}",
     "stoppedTitle": "Joylashuv uzatish to‘xtadi",
     "stoppedBody": "Fleet Watch joylashuvingizni uzatishni to‘xtatdi — ilovani ochib, qaytadan kiring.",
-    "foregroundBody": "Joylashuv dispetcherga uzatilmoqda"
+    "foregroundBody": "Joylashuv dispetcherga uzatilmoqda",
+    "disclosureTitle": "Joylashuvdan foydalanish",
+    "disclosureBody": "Fleet Watch smenada «Jonli kuzatuv» yoniq bo‘lganda joylashuvingizni yig‘adi va kompaniyangiz dispetcheriga yuboradi — ilova yopiq yoki ishlatilmayotgan paytda ham. Bu dispetcherga mashina qayerdaligini ko‘rish, mijozga yetib borish vaqtini aytish va kutilmagan to‘xtashlardan xabar topish uchun kerak. Kuzatuvni istalgan vaqtda o‘chirishingiz mumkin.",
+    "disclosureDecline": "Rad etish",
+    "disclosureAccept": "Roziman"
   },
   "fuel": {
     "title": "Yoqilg‘i yozuvlari",
@@ -318,6 +322,7 @@
     "cancel": "Bekor qilish",
     "save": "Saqlash",
     "error": "Xatolik yuz berdi",
+    "networkError": "Serverga ulanib bo‘lmadi. Internetni tekshirib, qayta urinib ko‘ring.",
     "km": "km",
     "litersShort": "L",
     "delete": "O‘chirish"
