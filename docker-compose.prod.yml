@@ -112,8 +112,16 @@ services:
       # A truck on a trip silent this long gets its driver and the owner chats
       # a warning. 0 switches it off — needed while drivers still run an APK
       # without the standing-still heartbeat, where a parked truck looks silent.
-      GPS_SILENT_ALERT_HOURS: ${GPS_SILENT_ALERT_HOURS:-24}
+      GPS_SILENT_ALERT_HOURS: ${GPS_SILENT_ALERT_HOURS:-3}
       GPS_DISABLED_GRACE_MINUTES: ${GPS_DISABLED_GRACE_MINUTES:-15}
+      # A driver whose truck is not reporting is reminded this often, until it
+      # does; the dispatcher gets a daily list. 0 switches both off.
+      GPS_REMINDER_HOURS: ${GPS_REMINDER_HOURS:-3}
+      # The driver app's update gate: below the minimum it shows only an
+      # "update" screen linking to the APK. Empty minimum switches it off.
+      DRIVER_APP_MIN_VERSION: ${DRIVER_APP_MIN_VERSION:-}
+      DRIVER_APP_LATEST_VERSION: ${DRIVER_APP_LATEST_VERSION:-}
+      DRIVER_APP_DOWNLOAD_URL: ${DRIVER_APP_DOWNLOAD_URL:-}
       # Firebase service-account key for pushes to drivers' phones. Lives in
       # /root/fleet/secrets on the server, never in git or .env.prod. A missing
       # file just means no pushes; everything else runs.

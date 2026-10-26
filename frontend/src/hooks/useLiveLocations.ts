@@ -25,6 +25,7 @@ export function useLiveLocations() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const backoffRef = useRef(1000);
+  const connectedOnceRef = useRef(false);
   const pendingRef = useRef<Record<string, LiveLocation> | null>(null);
 
   const { data: locations = {} } = useQuery({
@@ -54,6 +55,12 @@ export function useLiveLocations() {
       ws.onopen = () => {
         setIsConnected(true);
         backoffRef.current = 1000;
+        // Back after a drop: whatever moved meanwhile was broadcast to no one,
+        // so re-read the positions instead of waiting out each truck's next ping.
+        if (connectedOnceRef.current) {
+          void queryClient.invalidateQueries({ queryKey: LOCATIONS_KEY });
+        }
+        connectedOnceRef.current = true;
       };
 
       ws.onmessage = (evt: MessageEvent<string>) => {

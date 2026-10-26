@@ -1,25 +1,25 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Alert, Platform, StyleSheet, Switch, Text, View } from 'react-native';
+import { AppState, Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 
 import { meApi, type AssignedTruck, type DriverMessage, type Shift } from '../lib/me';
 import { askToEnableGps, checkGpsServices } from '../lib/gps-watch';
-import {
-  isTrackingActive,
-  requestTrackingPermissions,
-  startBackgroundTracking,
-  stopBackgroundTracking,
-} from '../lib/location-task';
+import { requestTrackingPermissions } from '../lib/location-task';
+import { keepTrackingAlive, type TrackingState } from '../lib/tracking-keeper';
+import { TRACKING_DEPS } from '../lib/tracking-os';
+import { useAuth } from '../contexts/AuthContext';
 import { confirmLocationDisclosure, needsDisclosure } from '../lib/location-disclosure';
 import { formatDateTime } from '../lib/format';
 import { loadErrorMessage } from '../lib/load-error';
-import { sendIfDue } from '../lib/ping-throttle';
+import { deliverFix, fixFrom } from '../lib/ping-queue';
+import { phoneState } from '../lib/phone-state';
 import { palette, spacing, typography } from '../theme/theme';
 import { RussiaStayCard } from '../components/RussiaStayCard';
 import { Screen } from '../components/Screen';
 import { MessagesCard } from '../components/MessagesCard';
+import { PhoneSetupCard } from '../components/PhoneSetupCard';
 import {
   Button,
   Card,
@@ -36,12 +36,27 @@ import {
 
 // How often we re-check the OS tracking state while the app is open. The
 // background task can silently stop itself (e.g. a dead session — see
-// location-task.ts) without the app ever being notified, so the toggle must
-// be re-synced rather than trusted from a single mount-time read.
+// location-task.ts) without the app ever being notified, so it is re-checked
+// and restarted rather than trusted from a single mount-time read.
 const SHARING_RESYNC_INTERVAL_MS = 60_000;
+
+/** What the warning card says and offers, per reason sharing is not live. */
+const TRACKING_COPY = {
+  'needs-permission': {
+    body: 'tracking.mustEnableBody',
+    action: 'tracking.enable',
+  },
+  'needs-always': {
+    body: 'tracking.needsAlways',
+    action: 'tracking.openSettings',
+  },
+  'signed-out': { body: 'tracking.signedOut', action: 'tracking.signInAgain' },
+} as const;
+
 
 export function HomeScreen() {
   const { t } = useTranslation();
+  const { signOut } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,12 +73,17 @@ export function HomeScreen() {
   const [odometer, setOdometer] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const [sharing, setSharing] = useState(false);
+  // Optimistic: the warning card must not flash on every open before the
+  // first check confirms tracking is running.
+  const [tracking, setTracking] = useState<TrackingState>('live');
   const [gpsOn, setGpsOn] = useState(true);
   const [messages, setMessages] = useState<DriverMessage[]>([]);
   // Foreground-only subscription, used as a fallback when the OS denies
   // background location permission.
   const subRef = useRef<Location.LocationSubscription | null>(null);
+  // Set once `startForegroundWatch` exists; the sync below runs before it.
+  const startForegroundWatchRef = useRef<() => Promise<void>>(async () => {});
+  const watchStartingRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -98,8 +118,25 @@ export function HomeScreen() {
     [],
   );
 
+  // Not just a read: tracking stopped by the OS, a reboot or a dead session
+  // is restarted here whenever "always" is still granted. There is no off
+  // switch — sharing is switched on once and stays on.
   const syncSharingState = useCallback(() => {
-    isTrackingActive().then(setSharing).catch(() => {});
+    keepTrackingAlive(TRACKING_DEPS)
+      .then((state) => {
+        setTracking(state);
+        // While-in-use only: still report while the app is open. Any other
+        // state drops that watch — once "always" is granted the background
+        // task reports, and two reporters would double every ping.
+        if (state === 'needs-always') {
+          startForegroundWatchRef.current().catch(() => {});
+        } else {
+          subRef.current?.remove();
+          subRef.current = null;
+        }
+      })
+      // A check that cannot finish must not leave the green card up.
+      .catch(() => setTracking('needs-permission'));
     checkGpsServices().then(setGpsOn);
   }, []);
 
@@ -163,67 +200,59 @@ export function HomeScreen() {
   // Foreground-only fallback: pings while the app is open, used when the OS
   // grants foreground but denies background location permission.
   const startForegroundWatch = useCallback(async () => {
-    subRef.current = await Location.watchPositionAsync(
-      // Same sampling as the background task, for the same heartbeat reason.
-      { accuracy: Location.Accuracy.Balanced, timeInterval: 15000, distanceInterval: 0 },
-      (loc) => {
-        const ping = {
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-          speed: loc.coords.speed ?? 0,
-          heading: loc.coords.heading ?? null,
-        };
-        sendIfDue(ping, () => meApi.pingLocation(ping)).catch(() => {});
-      },
-    );
+    // The mount, foreground and interval checks can all land before the first
+    // watch resolves; the flag keeps them from starting a second one.
+    if (subRef.current || watchStartingRef.current) return;
+    watchStartingRef.current = true;
+    try {
+      subRef.current = await Location.watchPositionAsync(
+        // Same sampling as the background task, for the same heartbeat reason.
+        { accuracy: Location.Accuracy.Balanced, timeInterval: 15000, distanceInterval: 0 },
+        (loc) => {
+          const fix = fixFrom(loc);
+          phoneState('foreground')
+            .then((state) => deliverFix(fix, (points) => meApi.pingLocations(points, state)))
+            .catch(() => {});
+        },
+      );
+    } finally {
+      watchStartingRef.current = false;
+    }
   }, []);
 
-  const stopForegroundWatch = useCallback(() => {
-    subRef.current?.remove();
-    subRef.current = null;
-  }, []);
+  startForegroundWatchRef.current = startForegroundWatch;
 
-  const toggleSharing = useCallback(
-    async (value: boolean) => {
-      if (value) {
-        try {
-          const background = await Location.getBackgroundPermissionsAsync();
-          if (
-            needsDisclosure(Platform.OS, background.status) &&
-            !(await confirmLocationDisclosure(t))
-          ) {
-            return;
-          }
-          const permission = await requestTrackingPermissions();
-          if (permission === 'denied') {
-            Alert.alert(t('tracking.permissionNeeded'));
-            return;
-          }
-          if (permission === 'granted-background') {
-            // True always-on tracking via the OS background task.
-            await startBackgroundTracking();
-          } else {
-            // Foreground granted only: keep working while the app is open and
-            // tell the driver background tracking is unavailable.
-            await startForegroundWatch();
-            Alert.alert(t('tracking.title'), t('tracking.foregroundOnly'));
-          }
-          setSharing(true);
-        } catch (e) {
-          Alert.alert(t('common.error'), e instanceof Error ? e.message : '');
-        }
-      } else {
-        try {
-          await stopBackgroundTracking();
-        } catch {
-          // Ignore: nothing to stop if it was never started.
-        }
-        stopForegroundWatch();
-        setSharing(false);
+  // The one-time "switch it on". After this, `syncSharingState` keeps it on.
+  const enableTracking = useCallback(async () => {
+    try {
+      if (tracking === 'signed-out') {
+        // Back to the login screen; signing in clears the flag.
+        await signOut();
+        return;
       }
-    },
-    [startForegroundWatch, stopForegroundWatch, t],
-  );
+      if (tracking === 'needs-always') {
+        // The OS will not show the prompt a second time; only Settings can.
+        await Linking.openSettings();
+        return;
+      }
+      const background = await Location.getBackgroundPermissionsAsync();
+      if (
+        needsDisclosure(Platform.OS, background.status) &&
+        !(await confirmLocationDisclosure(t))
+      ) {
+        return;
+      }
+      const permission = await requestTrackingPermissions();
+      if (permission === 'denied') {
+        Alert.alert(t('tracking.permissionNeeded'));
+      } else if (permission === 'granted-foreground-only') {
+        Alert.alert(t('tracking.title'), t('tracking.foregroundOnly'));
+      }
+      syncSharingState();
+    } catch (e) {
+      Alert.alert(t('common.error'), e instanceof Error ? e.message : '');
+    }
+  }, [tracking, syncSharingState, signOut, t]);
 
   if (loading) return <Loading />;
 
@@ -263,6 +292,27 @@ export function HomeScreen() {
           />
         </Card>
       )}
+
+      {tracking !== 'live' && (
+        <Card style={styles.gpsCard}>
+          <SectionHeader
+            icon="location"
+            title={t('tracking.mustEnableTitle')}
+            color={palette.danger}
+            bg={palette.dangerBg}
+          />
+          <Text style={typography.body}>{t(TRACKING_COPY[tracking].body)}</Text>
+          <Button
+            label={t(TRACKING_COPY[tracking].action)}
+            icon="locate-outline"
+            variant="danger"
+            onPress={enableTracking}
+          />
+        </Card>
+      )}
+
+      {/* Once sharing is on: the phone settings that keep it on with the app closed. */}
+      {tracking === 'live' && <PhoneSetupCard />}
 
       {loadError ? (
         <ErrorBox
@@ -364,25 +414,18 @@ export function HomeScreen() {
         </Card>
       )}
 
-      <Card>
-        <SectionHeader
-          icon="location"
-          title={t('tracking.title')}
-          color={sharing ? palette.success : palette.muted}
-          bg={sharing ? palette.successBg : palette.surfaceAlt}
-        />
-        <View style={styles.shareRow}>
-          <Text style={[typography.body, sharing && styles.liveText]}>
-            {sharing ? t('tracking.on') : t('tracking.off')}
-          </Text>
-          <Switch
-            value={sharing}
-            onValueChange={toggleSharing}
-            trackColor={{ false: palette.line, true: palette.brand }}
-            thumbColor={palette.white}
+      {/* Status only: sharing has no off switch. */}
+      {tracking === 'live' && (
+        <Card>
+          <SectionHeader
+            icon="location"
+            title={t('tracking.title')}
+            color={palette.success}
+            bg={palette.successBg}
           />
-        </View>
-      </Card>
+          <Text style={[typography.body, styles.liveText]}>{t('tracking.on')}</Text>
+        </Card>
+      )}
     </Screen>
   );
 }
@@ -393,7 +436,6 @@ const styles = StyleSheet.create({
   truckText: { flex: 1, gap: 2 },
   truckName: typography.heading,
   truckPlate: { ...typography.label, color: palette.muted, letterSpacing: 1 },
-  shareRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   liveText: { color: palette.success, fontWeight: '700' },
   gpsCard: { borderWidth: 1, borderColor: palette.dangerLine, gap: spacing.md },
 });

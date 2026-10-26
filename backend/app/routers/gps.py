@@ -140,7 +140,7 @@ async def ingest(
             points = sorted(by_truck[truck.id], key=_sort_key)
             org_id = str(truck.org_id)
 
-            updated += await record_positions(
+            updated += (await record_positions(
                 db,
                 truck.id,
                 [
@@ -155,7 +155,7 @@ async def ingest(
                     for p in points
                 ],
                 truck=truck,
-            )
+            )).written
 
             # One frame per truck. The map draws a position, not a history —
             # the intermediate points are already durable in the history table

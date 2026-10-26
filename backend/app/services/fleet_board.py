@@ -8,6 +8,12 @@ that is still under way.
 "Still under way" is every status but delivered and cancelled: a delivered
 trip belongs to the archive, and a truck whose import was delivered yesterday
 has an empty import column today — that is the sheet's meaning of a blank.
+
+**Empty ("порожний").** The sheet's first question is which trucks are
+standing empty, and where. A truck is empty from the moment its last load is
+unloaded until another load is booked. Where it was unloaded says what it is
+waiting for: an export unloaded in Russia waits there for an import load
+("импорт порожний — Москва"); an import unloaded at home waits for an export.
 """
 from __future__ import annotations
 
@@ -18,8 +24,8 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import TripStatus
-from app.models.trips import Trip
+from app.models.enums import TripStage, TripStatus
+from app.models.trips import Trip, TripEvent
 from app.models.trucks import Truck, TruckLocation
 from app.services.period_reports import report_tz
 
@@ -37,6 +43,13 @@ _STATUS_RANK: dict[TripStatus, int] = {
 }
 _CLOSED = (TripStatus.delivered, TripStatus.cancelled)
 
+# Stages after which the load is off the truck, though the trip may stay open
+# a day longer for papers.
+_UNLOADED_STAGES = (TripStage.unloaded, TripStage.trip_completed)
+
+# What a truck unloaded on a trip this way is now waiting for.
+_WAITS_FOR = {EXPORT: "import", IMPORT: "export"}
+
 
 @dataclass(frozen=True)
 class BoardTrip:
@@ -47,6 +60,16 @@ class BoardTrip:
     unloading_date: date | None
     is_loaded: bool
     status: TripStatus
+    customer: str | None = None
+
+
+@dataclass(frozen=True)
+class BoardEmpty:
+    """The truck stands empty: where, since when, and which way it needs a load."""
+
+    kind: str  # "export" or "import" — the load it is waiting for
+    place: str | None
+    since: datetime | None
 
 
 @dataclass(frozen=True)
@@ -58,6 +81,7 @@ class BoardRow:
     location_at: datetime | None
     export_trip: BoardTrip | None
     import_trip: BoardTrip | None
+    empty: BoardEmpty | None = None
 
 
 def short_place(address: str | None) -> str | None:
@@ -87,6 +111,7 @@ def _board_trip(trip: Trip) -> BoardTrip:
         unloading_date=_local_date(trip.scheduled_end),
         is_loaded=trip.is_loaded,
         status=trip.status,
+        customer=trip.customer,
     )
 
 
@@ -106,6 +131,66 @@ def _outranks(trip: Trip, held: Trip) -> bool:
     if rank != held_rank:
         return rank < held_rank
     return trip.created_at > held.created_at
+
+
+def _is_unloaded(trip: Trip) -> bool:
+    return trip.status == TripStatus.delivered or trip.current_stage in _UNLOADED_STAGES
+
+
+async def _unloaded_at(db: AsyncSession, trip_ids: list[uuid.UUID]) -> dict[uuid.UUID, datetime]:
+    """When each trip's driver reported "unloaded" — the moment the truck emptied."""
+    if not trip_ids:
+        return {}
+    rows = await db.execute(
+        select(TripEvent.trip_id, TripEvent.recorded_at)
+        .where(TripEvent.trip_id.in_(trip_ids), TripEvent.stage == TripStage.unloaded)
+        .order_by(TripEvent.recorded_at)
+    )
+    # Ascending, so a stage reported twice keeps the first time.
+    unloaded: dict[uuid.UUID, datetime] = {}
+    for trip_id, at in rows.all():
+        unloaded.setdefault(trip_id, at)
+    return unloaded
+
+
+async def _empty_by_truck(
+    db: AsyncSession, org_id: uuid.UUID, truck_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, BoardEmpty]:
+    """Trucks whose last load is off and no next load is booked.
+
+    Any open trip not yet unloaded — a load on board or one booked to load —
+    means the truck is spoken for, and the board already shows that trip.
+    """
+    trips = (
+        await db.execute(
+            select(Trip).where(
+                Trip.org_id == org_id,
+                Trip.truck_id.in_(truck_ids),
+                Trip.direction.in_((EXPORT, IMPORT)),
+                Trip.status != TripStatus.cancelled,
+            )
+        )
+    ).scalars().all()
+    busy = {t.truck_id for t in trips if t.status not in _CLOSED and not _is_unloaded(t)}
+    unloaded = [t for t in trips if t.truck_id not in busy and _is_unloaded(t)]
+    unloaded_at = await _unloaded_at(db, [t.id for t in unloaded])
+
+    def emptied(trip: Trip) -> datetime:
+        return unloaded_at.get(trip.id) or trip.delivered_at or trip.updated_at
+
+    latest: dict[uuid.UUID, Trip] = {}
+    for trip in unloaded:
+        held = latest.get(trip.truck_id)
+        if held is None or emptied(trip) > emptied(held):
+            latest[trip.truck_id] = trip
+    return {
+        truck_id: BoardEmpty(
+            kind=_WAITS_FOR[trip.direction],
+            place=short_place(trip.destination_name),
+            since=emptied(trip),
+        )
+        for truck_id, trip in latest.items()
+    }
 
 
 async def build_board(db: AsyncSession, org_id: uuid.UUID) -> list[BoardRow]:
@@ -138,6 +223,7 @@ async def build_board(db: AsyncSession, org_id: uuid.UUID) -> list[BoardRow]:
         )
     ).scalars().all()
     current = _current_by_truck(list(open_trips))
+    empty = await _empty_by_truck(db, org_id, truck_ids)
 
     rows: list[BoardRow] = []
     for position, truck in enumerate(trucks, start=1):
@@ -153,6 +239,7 @@ async def build_board(db: AsyncSession, org_id: uuid.UUID) -> list[BoardRow]:
                 location_at=loc.recorded_at if loc else None,
                 export_trip=_board_trip(export_trip) if export_trip else None,
                 import_trip=_board_trip(import_trip) if import_trip else None,
+                empty=empty.get(truck.id),
             )
         )
     return rows

@@ -3,10 +3,15 @@
 Two signals, both only for trucks on a running trip. A truck parked in the yard
 between loads is silent on purpose, and nobody needs to hear about it.
 
-**Silent for a day.** No fix has arrived for ``GPS_SILENT_ALERT_HOURS``. The
-server cannot tell a dead phone from a switched-off GPS or a driver who logged
-out. All it sees is silence, so the dispatcher hears about it, and the driver
-gets a push that will arrive whenever the phone comes back.
+**Silent.** No fix has arrived for ``GPS_SILENT_ALERT_HOURS``. The server
+cannot tell a dead phone from a switched-off GPS or a driver who logged out.
+All it sees is silence, so the dispatcher hears about it, and the driver gets a
+push that will arrive whenever the phone comes back.
+
+**Never reported.** The truck is on a trip that has been running that long and
+no fix has ever arrived: the app was not installed, not signed in, or sharing
+was never switched on. Both checks above compare against the last fix, so this
+truck slipped past every one of them.
 
 **Switched off on the phone.** The app reported location services off
 (``trucks.gps_disabled_at``). The phone has already shown the driver its own
@@ -22,7 +27,7 @@ from __future__ import annotations
 import html
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -67,6 +72,10 @@ def _silent_key(row) -> str:
     return f"gps_silent:{row.truck_id}:{int(row.last_fix_at.timestamp())}"
 
 
+def _never_key(row) -> str:
+    return f"gps_never:{row.truck_id}:{row.trip_id}"
+
+
 def _disabled_key(row) -> str:
     return f"gps_disabled:{row.truck_id}:{int(row.gps_disabled_at.timestamp())}"
 
@@ -88,6 +97,7 @@ def _base_query() -> Select:
             Truck.gps_disabled_at,
             Driver.name.label("driver_name"),
             TruckLocation.recorded_at.label("last_fix_at"),
+            func.coalesce(Trip.started_at, Trip.created_at).label("trip_started_at"),
         )
         .join(Truck, Truck.id == Trip.truck_id)
         .outerjoin(Driver, Driver.id == Trip.driver_id)
@@ -104,6 +114,21 @@ def silent_query(now: datetime, silent_after: timedelta) -> Select:
             TruckLocation.recorded_at >= now - timedelta(days=MAX_SILENT_DAYS),
         )
         .order_by(TruckLocation.recorded_at)
+    )
+
+
+def never_query(now: datetime, silent_after: timedelta) -> Select:
+    started = func.coalesce(Trip.started_at, Trip.created_at)
+    return (
+        _base_query()
+        .where(
+            TruckLocation.truck_id.is_(None),
+            # The phone said its GPS is off: that alert is the more useful one.
+            Truck.gps_disabled_at.is_(None),
+            started < now - silent_after,
+            started >= now - timedelta(days=MAX_SILENT_DAYS),
+        )
+        .order_by(started)
     )
 
 
@@ -125,11 +150,19 @@ def disabled_query(now: datetime, grace: timedelta) -> Select:
 # server does not know which language a driver picked in the app.
 
 
-def driver_silent_text(plate: str) -> tuple[str, str]:
+def driver_silent_text(plate: str, silent_for: timedelta) -> tuple[str, str]:
     return (
         "📡 Нет сигнала GPS",
-        f"{plate}: ваш телефон не передаёт геолокацию больше суток. "
+        f"{plate}: ваш телефон не передаёт геолокацию уже {_humanize_lateness(silent_for)}. "
         "Откройте Fleet Watch и проверьте, что GPS включён.",
+    )
+
+
+def driver_never_text(plate: str) -> tuple[str, str]:
+    return (
+        "📡 Включите передачу геолокации",
+        f"{plate}: диспетчер не видит вашу машину на карте. "
+        "Откройте Fleet Watch и включите передачу геолокации.",
     )
 
 
@@ -149,6 +182,27 @@ def _silent_alert(row, now: datetime, driver_told: bool) -> Alert:
         ),
         body="\n".join(body),
         dedupe_key=_silent_key(row),
+        dedupe_ttl_hours=DEDUPE_TTL_HOURS,
+        path=f"/trucks/{row.truck_id}",
+    )
+
+
+def _never_alert(row, driver_told: bool) -> Alert:
+    body = [f"Рейс идёт с <b>{_esc(_local(row.trip_started_at))}</b>."]
+    body.append(
+        "Водителю отправлено уведомление в приложение."
+        if driver_told
+        else "Водитель не указан в рейсе — уведомить некого."
+    )
+    return Alert(
+        kind=AlertKind.gps_signal,
+        severity=AlertSeverity.warning,
+        title=(
+            f"{_headline(row.plate_number, row.driver_name, row.reference)}"
+            " — телефон ни разу не передавал GPS"
+        ),
+        body="\n".join(body),
+        dedupe_key=_never_key(row),
         dedupe_ttl_hours=DEDUPE_TTL_HOURS,
         path=f"/trucks/{row.truck_id}",
     )
@@ -183,6 +237,25 @@ def _one_per_truck(rows) -> list:
     return unique
 
 
+async def _tell_driver(db: AsyncSession, row, text: tuple[str, str], dedupe_key: str) -> bool:
+    """Push the driver, if the trip names one. Returns whether there was one."""
+    if row.driver_id is None:
+        return False
+    title, body = text
+    # None when this silence was already announced — nothing new.
+    await send_driver_message(
+        db,
+        org_id=row.org_id,
+        driver_id=row.driver_id,
+        truck_id=row.truck_id,
+        kind=DriverMessageKind.gps_silent,
+        title=title,
+        body=body,
+        dedupe_key=dedupe_key,
+    )
+    return True
+
+
 async def _report_silent(db: AsyncSession, now: datetime) -> int:
     hours = settings.gps_silent_alert_hours
     if hours <= 0:
@@ -191,25 +264,27 @@ async def _report_silent(db: AsyncSession, now: datetime) -> int:
 
     alerted: dict = {}
     for row in rows:
-        driver_told = False
-        if row.driver_id is not None:
-            title, body = driver_silent_text(row.plate_number)
-            # None when this silence was already announced — nothing new.
-            await send_driver_message(
-                db,
-                org_id=row.org_id,
-                driver_id=row.driver_id,
-                truck_id=row.truck_id,
-                kind=DriverMessageKind.gps_silent,
-                title=title,
-                body=body,
-                dedupe_key=_silent_key(row),
-            )
-            driver_told = True
-
+        text = driver_silent_text(row.plate_number, now - row.last_fix_at)
+        driver_told = await _tell_driver(db, row, text, _silent_key(row))
         if alerted.get(row.org_id, 0) >= MAX_ALERTS_PER_ORG:
             continue
         if await notify_owner(db, row.org_id, _silent_alert(row, now, driver_told)):
+            alerted[row.org_id] = alerted.get(row.org_id, 0) + 1
+    return sum(alerted.values())
+
+
+async def _report_never(db: AsyncSession, now: datetime) -> int:
+    hours = settings.gps_silent_alert_hours
+    if hours <= 0:
+        return 0
+    rows = _one_per_truck((await db.execute(never_query(now, timedelta(hours=hours)))).all())
+
+    alerted: dict = {}
+    for row in rows:
+        driver_told = await _tell_driver(db, row, driver_never_text(row.plate_number), _never_key(row))
+        if alerted.get(row.org_id, 0) >= MAX_ALERTS_PER_ORG:
+            continue
+        if await notify_owner(db, row.org_id, _never_alert(row, driver_told)):
             alerted[row.org_id] = alerted.get(row.org_id, 0) + 1
     return sum(alerted.values())
 
@@ -231,7 +306,7 @@ async def run(db: AsyncSession) -> int:
     """Evaluate both GPS signals across every organization. Never raises."""
     now = datetime.now(timezone.utc)
     sent = 0
-    for signal in (_report_silent, _report_disabled):
+    for signal in (_report_silent, _report_never, _report_disabled):
         try:
             sent += await signal(db, now)
         except Exception:  # noqa: BLE001 — one broken signal must not hide the other.

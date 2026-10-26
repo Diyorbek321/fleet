@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, date
-from typing import Optional
+from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -97,12 +97,34 @@ class PushTokenIn(BaseModel):
     platform: Optional[str] = Field(default=None, max_length=20)
 
 
-class LocationPingIn(BaseModel):
+class PhoneStateIn(BaseModel):
+    """What the phone says about itself alongside its position. All optional:
+    APKs that predate it send none, and none must not wipe what was stored."""
+    battery: Optional[float] = Field(default=None, ge=0, le=1)
+    tracking: Optional[Literal["background", "foreground"]] = None
+    app_version: Optional[str] = Field(default=None, max_length=20)
+
+
+class LocationPointIn(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     speed: float = 0
     heading: Optional[float] = None
     recorded_at: Optional[datetime] = None
+
+
+class LocationPingIn(LocationPointIn, PhoneStateIn):
+    pass
+
+
+# A phone out of signal for a day at one fix every few minutes buffers a few
+# hundred points; the cap bounds one request, not the buffer.
+MAX_BATCH_POINTS = 1000
+
+
+class LocationBatchIn(PhoneStateIn):
+    """Fixes the phone kept while it had no network, sent in one go."""
+    points: List[LocationPointIn] = Field(min_length=1, max_length=MAX_BATCH_POINTS)
 
 
 # ── CarGoRuqsat border-queue ──────────────────────────────────────────

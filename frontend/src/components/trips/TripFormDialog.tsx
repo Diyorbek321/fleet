@@ -28,6 +28,7 @@ type TextField =
   | 'originName'
   | 'destinationName'
   | 'borderCrossing'
+  | 'customer'
   | 'shipper'
   | 'loadingAddress'
   | 'loadingContact'
@@ -56,6 +57,7 @@ function stateFor(trip: Trip | null): FormState {
     originName: trip?.originName ?? '',
     destinationName: trip?.destinationName ?? '',
     borderCrossing: trip?.borderCrossing ?? '',
+    customer: trip?.customer ?? '',
     shipper: trip?.shipper ?? '',
     loadingAddress: trip?.loadingAddress ?? '',
     loadingContact: trip?.loadingContact ?? '',
@@ -96,6 +98,7 @@ function toInput(form: FormState, trip: Trip | null): TripCreateInput {
     originName: text(form.originName),
     destinationName: text(form.destinationName),
     borderCrossing: text(form.borderCrossing),
+    customer: text(form.customer),
     shipper: text(form.shipper),
     loadingAddress: text(form.loadingAddress),
     loadingContact: text(form.loadingContact),
@@ -235,6 +238,7 @@ export function TripFormDialog({
             {field('originName', { placeholder: 'Елабуга' })}
             {field('destinationName', { placeholder: 'Ташкент' })}
             {field('borderCrossing', { placeholder: 'Майский' })}
+            {field('customer')}
           </div>
 
           {section(t('trips.form.sectionLoading'))}

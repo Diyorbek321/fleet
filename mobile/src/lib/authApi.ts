@@ -1,6 +1,8 @@
 import { apiFetch } from './api';
 import { clearTokens, getRefreshToken, setRefreshToken, setToken } from './auth';
 import { stopBackgroundTracking } from './location-task';
+import { clearSessionDead } from './tracking-session';
+import { clearPingQueue } from './ping-queue';
 import { refreshAccessToken } from './tokenRefresh';
 
 interface TokenOut {
@@ -23,6 +25,8 @@ export async function signIn(login: string, password: string): Promise<void> {
   });
   await setToken(res.access_token);
   await setRefreshToken(res.refresh_token);
+  // A fresh session: tracking may be restarted again.
+  await clearSessionDead();
 }
 
 export interface Account {
@@ -82,5 +86,7 @@ export async function signOut(): Promise<void> {
       // Ignore server errors on logout — we clear locally regardless.
     }
   }
+  // Kept fixes belong to this driver's truck; the next sign-in may be another's.
+  await clearPingQueue();
   await clearTokens();
 }

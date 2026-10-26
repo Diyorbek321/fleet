@@ -114,7 +114,19 @@ async def _get_access_token(client: httpx.AsyncClient, creds: _Credentials) -> s
     return _access_token[0]
 
 
-def _message(token: str, title: str, body: str, data: dict[str, Any] | None) -> dict:
+def _message(
+    token: str, title: str, body: str, data: dict[str, Any] | None, silent: bool = False
+) -> dict:
+    if silent:
+        # Data only, high priority: nothing is shown, the app's background
+        # task runs — the one way Android lets it restart location tracking.
+        return {
+            "message": {
+                "token": token,
+                "data": {k: str(v) for k, v in (data or {}).items()},
+                "android": {"priority": "HIGH"},
+            }
+        }
     return {
         "message": {
             "token": token,
@@ -157,6 +169,7 @@ async def send(
     body: str,
     data: dict[str, Any] | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
+    silent: bool = False,
 ) -> list[FcmResult]:
     """One result per token, in order. All failures when FCM is not configured."""
     creds = _load_credentials()
@@ -174,7 +187,7 @@ async def send(
         headers = {"Authorization": f"Bearer {access}"}
         for token in tokens:
             try:
-                resp = await client.post(url, json=_message(token, title, body, data), headers=headers)
+                resp = await client.post(url, json=_message(token, title, body, data, silent), headers=headers)
             except httpx.HTTPError as exc:
                 logger.warning("fcm_send_transport_error", error=str(exc))
                 results.append(FcmResult(ok=False))

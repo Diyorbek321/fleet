@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as apiModule from './api';
-import { fetchTruckLocationLabels, fetchTruckLocations, statusFromSpeed } from './locations';
+import {
+  LIVE_FOR_MS,
+  fetchTruckLocationLabels,
+  fetchTruckLocations,
+  liveStatus,
+  statusFromSpeed,
+} from './locations';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -64,5 +70,23 @@ describe('fetchTruckLocationLabels', () => {
 
     const labels = await fetchTruckLocationLabels();
     expect(labels).toEqual({ labelled: 'Qozogʻiston, Sariogʻash' });
+  });
+});
+
+// A position is a fact about a moment. Coloured by its speed alone, a truck
+// silent for three days stayed green "moving" on the map — the one lie a
+// dispatcher cannot catch by looking.
+describe('liveStatus', () => {
+  const NOW = new Date('2026-10-26T12:00:00Z');
+  const ago = (ms: number) => new Date(NOW.getTime() - ms);
+
+  it('follows the speed while the fix is fresh', () => {
+    expect(liveStatus(60, ago(60_000), NOW)).toBe('moving');
+    expect(liveStatus(0, ago(60_000), NOW)).toBe('stopped');
+  });
+
+  it('turns offline once the fix is older than the live window', () => {
+    expect(liveStatus(60, ago(LIVE_FOR_MS + 1), NOW)).toBe('offline');
+    expect(liveStatus(60, ago(3 * 24 * 3600_000), NOW)).toBe('offline');
   });
 });

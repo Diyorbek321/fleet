@@ -7,6 +7,9 @@ who have looked at that sheet every day. Russian, like the sheet.
 
 One deliberate difference: a blank date stays blank. The hand sheet prints
 "06.01.1900" wherever a formula met an empty cell.
+
+A truck standing empty says so in the block it is waiting on — "Порожний —
+Москва с 24.10" under ИМПОРТ — which is the sheet's "Пустые авто из РФ".
 """
 from __future__ import annotations
 
@@ -16,7 +19,8 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
-from app.services.fleet_board import BoardRow, BoardTrip
+from app.services.fleet_board import BoardEmpty, BoardRow, BoardTrip
+from app.services.period_reports import report_tz
 
 _HEAD_FILL = PatternFill("solid", fgColor="DDEBF7")
 _TRUCK_FILL = PatternFill("solid", fgColor="A9D08E")
@@ -37,14 +41,18 @@ _COLUMNS = (
     ("№", 5),
     ("Данные ТС", 26),
     ("Место положения авто", 22),
+    ("Заказчик", 20),
     ("Маршрут", 28),
     ("Дата погрузки", 12),
     ("Ожидаемая дата выгрузки", 14),
+    ("Заказчик", 20),
     ("Маршрут", 28),
     ("Дата погрузки", 12),
     ("Ожидаемая дата выгрузки", 14),
 )
-_GROUPS = (("Транспорт", 1, 3), ("ЭКСПОРТ", 4, 6), ("ИМПОРТ", 7, 9))
+_GROUPS = (("Транспорт", 1, 3), ("ЭКСПОРТ", 4, 7), ("ИМПОРТ", 8, 11))
+# The expected-unloading columns, picked out as on the hand sheet.
+_DUE_COLUMNS = (7, 11)
 _TITLE_ROW, _GROUP_ROW, _HEAD_ROW = 1, 2, 3
 _FORMULA_LEADS = ("=", "+", "-", "@")
 _FIRST_DATA_ROW = 4
@@ -54,11 +62,21 @@ def _day(value: date | None) -> str | None:
     return value.strftime("%d.%m.%Y") if value else None
 
 
-def _trip_cells(trip: BoardTrip | None) -> tuple[str | None, str | None, str | None]:
+def _empty_text(empty: BoardEmpty) -> str:
+    text = f"Порожний — {empty.place}" if empty.place else "Порожний"
+    if empty.since:
+        text += f" с {empty.since.astimezone(report_tz()).strftime('%d.%m')}"
+    return text
+
+
+def _trip_cells(
+    trip: BoardTrip | None, empty: BoardEmpty | None
+) -> tuple[str | None, str | None, str | None, str | None]:
     if trip is None:
-        return None, None, None
+        # Nothing booked this way; if the truck is waiting on this way, say so.
+        return None, _empty_text(empty) if empty else None, None, None
     route = trip.route if trip.is_loaded else f"{trip.route} (порожний)"
-    return route, _day(trip.loading_date), _day(trip.unloading_date)
+    return trip.customer, route, _day(trip.loading_date), _day(trip.unloading_date)
 
 
 def _header(ws, day: date) -> None:
@@ -76,18 +94,22 @@ def _header(ws, day: date) -> None:
     ws.row_dimensions[_HEAD_ROW].height = 45
 
 
+def _waiting(row: BoardRow, kind: str) -> BoardEmpty | None:
+    return row.empty if row.empty and row.empty.kind == kind else None
+
+
 def _write_row(ws, row_no: int, row: BoardRow) -> None:
     values = (
         row.position,
         row.plate,
         row.location,
-        *_trip_cells(row.export_trip),
-        *_trip_cells(row.import_trip),
+        *_trip_cells(row.export_trip, _waiting(row, "export")),
+        *_trip_cells(row.import_trip, _waiting(row, "import")),
     )
     fills = (
         _TRUCK_FILL, _TRUCK_FILL, _PLACE_FILL,
-        _EXPORT_FILL, _EXPORT_FILL, _EXPORT_FILL,
-        _IMPORT_FILL, _IMPORT_FILL, _IMPORT_FILL,
+        _EXPORT_FILL, _EXPORT_FILL, _EXPORT_FILL, _EXPORT_FILL,
+        _IMPORT_FILL, _IMPORT_FILL, _IMPORT_FILL, _IMPORT_FILL,
     )
     for col, (value, fill) in enumerate(zip(values, fills), start=1):
         cell = ws.cell(row_no, col, value)
@@ -99,7 +121,7 @@ def _write_row(ws, row_no: int, row: BoardRow) -> None:
         cell.alignment = _LEFT if col in (2, 3) else _CENTER
     # The expected unloading is the date the desk plans the truck's next load
     # around, so it is the one picked out — as on the hand sheet.
-    for col in (6, 9):
+    for col in _DUE_COLUMNS:
         cell = ws.cell(row_no, col)
         if cell.value:
             cell.fill, cell.font = _DUE_FILL, _DUE_FONT
@@ -113,7 +135,7 @@ def build_workbook(rows: list[BoardRow], day: date) -> bytes:
     for offset, row in enumerate(rows):
         _write_row(ws, _FIRST_DATA_ROW + offset, row)
     last = _FIRST_DATA_ROW + max(len(rows), 1) - 1
-    ws.auto_filter.ref = f"A{_HEAD_ROW}:I{last}"
+    ws.auto_filter.ref = f"A{_HEAD_ROW}:K{last}"
     ws.freeze_panes = f"A{_FIRST_DATA_ROW}"
     ws.page_setup.orientation = "landscape"
     ws.page_setup.fitToWidth = 1

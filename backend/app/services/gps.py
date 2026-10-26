@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional, Sequence
+from typing import NamedTuple, Optional, Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -60,12 +60,19 @@ class Position:
         return self.recorded_at or now or datetime.now(timezone.utc)
 
 
+class Recorded(NamedTuple):
+    written: int
+    #: Whether the batch's newest fix became the truck's current position. A
+    #: buffer older than the fix already stored fills in history only.
+    moved: bool
+
+
 async def record_positions(
     db: AsyncSession,
     truck_id,
     positions: Sequence[Position],
     truck: Optional[Truck] = None,
-) -> int:
+) -> Recorded:
     """Persist a batch of fixes for one truck, oldest first.
 
     The caller orders ``positions`` — only it knows whether a missing
@@ -77,10 +84,12 @@ async def record_positions(
     endpoint loaded it to check the assignment. Re-selecting it here was a
     second query per position on the hottest path in the application.
 
-    Returns the number of positions written.
+    The current position only ever moves forward in time: a phone that kept
+    its fixes through a dead zone sends them late, and they belong in the
+    history, not on the map in place of where the truck is now.
     """
     if not positions:
-        return 0
+        return Recorded(written=0, moved=False)
 
     # One clock reading for the whole batch.
     now = datetime.now(timezone.utc)
@@ -109,7 +118,7 @@ async def record_positions(
         address=latest.address,
         recorded_at=latest_at,
     )
-    await db.execute(
+    moved = await db.scalar(
         stmt.on_conflict_do_update(
             index_elements=["truck_id"],
             set_={
@@ -125,8 +134,11 @@ async def record_positions(
                 "address": func.coalesce(stmt.excluded.address, TruckLocation.address),
                 "recorded_at": latest_at,
             },
-        )
+            where=TruckLocation.recorded_at <= latest_at,
+        ).returning(TruckLocation.truck_id)
     )
+    if moved is None:
+        return Recorded(written=len(positions), moved=False)
 
     if truck is None:
         truck = (
@@ -138,7 +150,7 @@ async def record_positions(
         truck.gps_disabled_at = None
         truck.updated_at = datetime.now(timezone.utc)
 
-    return len(positions)
+    return Recorded(written=len(positions), moved=True)
 
 
 async def upsert_latest_location(

@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useMemo, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Truck, DashboardStats } from '@/types';
 import { trucksApi, calculateStats, type TruckInput } from '@/lib/trucks';
 import { ApiError } from '@/lib/api';
-import { statusFromSpeed } from '@/lib/locations';
+import { liveStatus } from '@/lib/locations';
 import { useLiveLocations } from '@/hooks/useLiveLocations';
 import { fetchTruckLocationLabels } from '@/lib/locations';
 import { toast } from '@/hooks/use-toast';
@@ -23,6 +23,8 @@ interface TruckContextType {
   /** Save a new list order — every truck id, top to bottom. */
   reorderTrucks: (truckIds: string[]) => Promise<void>;
   refreshTrucks: () => Promise<void>;
+  /** Whether the live position stream is connected right now. */
+  isLive: boolean;
 }
 
 const TruckContext = createContext<TruckContextType | undefined>(undefined);
@@ -47,7 +49,15 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
     staleTime: 30_000,
   });
 
-  const { locations } = useLiveLocations();
+  const { locations, isConnected } = useLiveLocations();
+
+  // Ticks so a position goes stale on screen as time passes, not only when
+  // another one arrives — a silent truck sends nothing that would re-render.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Place names ("Qozog'iston, Sariog'ash") are polled on their own rather than
   // taken from the live stream: the WebSocket is authoritative for position and
@@ -70,12 +80,12 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
           latitude: live.latitude,
           longitude: live.longitude,
           speed: live.speed,
-          status: statusFromSpeed(live.speed),
+          status: liveStatus(live.speed, live.recordedAt, now),
           address,
           lastUpdate: live.recordedAt,
         };
       }),
-    [baseTrucks, locations, placeLabels],
+    [baseTrucks, locations, placeLabels, now],
   );
 
   const invalidate = useCallback(
@@ -240,6 +250,7 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
       toggleTruckEnabled,
       reorderTrucks,
       refreshTrucks,
+      isLive: isConnected,
     }),
     [
       trucks,
@@ -252,6 +263,7 @@ export function TruckProvider({ children }: { children: React.ReactNode }) {
       toggleTruckEnabled,
       reorderTrucks,
       refreshTrucks,
+      isConnected,
     ],
   );
 

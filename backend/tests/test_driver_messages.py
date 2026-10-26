@@ -206,6 +206,7 @@ async def _fleet_on_trip(
     silent_for: timedelta | None = timedelta(hours=25),
     status: TripStatus = TripStatus.en_route,
     with_driver: bool = True,
+    started_ago: timedelta = timedelta(days=2),
 ) -> tuple[Organization, Truck, Driver | None]:
     org = Organization(name="GPS Co")
     db.add(org)
@@ -236,6 +237,7 @@ async def _fleet_on_trip(
             truck_id=truck.id,
             driver_id=driver.id if driver else None,
             status=status,
+            started_at=datetime.now(timezone.utc) - started_ago,
         )
     )
     db.add(
@@ -297,7 +299,7 @@ async def test_a_new_silence_after_the_truck_came_back_is_news_again(
 @pytest.mark.parametrize(
     "silent_for,status",
     [
-        (timedelta(hours=20), TripStatus.en_route),  # not a day yet
+        (timedelta(hours=2), TripStatus.en_route),  # not long enough yet
         (timedelta(hours=25), TripStatus.planned),  # not on the road
         (timedelta(hours=25), TripStatus.delivered),  # finished
         (timedelta(days=20), TripStatus.en_route),  # stale bookkeeping
@@ -337,3 +339,44 @@ async def test_gps_switched_off_reaches_the_dispatcher_after_the_grace_period(
     assert "GPS выключен на телефоне" in captured_sends[0][1]
     # The phone already showed the driver its own notification.
     assert captured_pushes == []
+
+
+async def test_the_driver_is_told_how_long_the_silence_is(db, captured_sends, captured_pushes):
+    """The threshold is hours now, so "more than a day" would be a lie."""
+    await _fleet_on_trip(db, silent_for=timedelta(hours=4))
+    assert await run(db) == 1
+    assert "4 ч" in captured_pushes[0]["body"]
+    assert "суток" not in captured_pushes[0]["body"]
+
+
+async def test_a_truck_on_a_trip_that_never_reported_is_news(
+    db, captured_sends, captured_pushes
+):
+    """A driver who never switched sharing on was invisible to every check."""
+    _org, _truck, driver = await _fleet_on_trip(db, silent_for=None)
+
+    assert await run(db) == 1
+    assert await run(db) == 0
+    assert "ни разу не передавал" in captured_sends[0][1]
+    assert len(captured_pushes) == 1
+    inbox = await _inbox(db, driver)
+    assert len(inbox) == 1 and inbox[0].kind == "gps_silent"
+
+
+async def test_a_trip_that_just_started_without_a_fix_is_given_time(
+    db, captured_sends, captured_pushes
+):
+    await _fleet_on_trip(db, silent_for=None, started_ago=timedelta(minutes=20))
+    assert await run(db) == 0
+    assert captured_sends == []
+
+
+async def test_a_switched_off_gps_is_not_also_reported_as_never_connected(
+    db, captured_sends, captured_pushes
+):
+    _org, truck, _driver = await _fleet_on_trip(db, silent_for=None)
+    truck.gps_disabled_at = datetime.now(timezone.utc) - timedelta(hours=1)
+    await db.commit()
+
+    assert await run(db) == 1
+    assert "GPS выключен на телефоне" in captured_sends[0][1]

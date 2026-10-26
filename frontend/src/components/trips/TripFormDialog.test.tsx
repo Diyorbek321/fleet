@@ -83,4 +83,12 @@ describe('TripFormDialog assignment', () => {
     const address = document.getElementById('trip-unloadingAddress')!;
     expect(address.compareDocumentPosition(customsInput()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
+
+  it('sends the customer who booked the truck', () => {
+    const onSubmit = renderForm();
+    fireEvent.click(screen.getAllByRole('button', { pressed: false })[0]);
+    fireEvent.change(document.getElementById('trip-customer')!, { target: { value: 'Artel' } });
+    submit();
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ customer: 'Artel' }));
+  });
 });

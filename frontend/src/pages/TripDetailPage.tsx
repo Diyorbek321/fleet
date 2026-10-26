@@ -304,6 +304,7 @@ export default function TripDetailPage() {
                     ['direction', trip.direction ? t(`trips.direction.${trip.direction}`) : null],
                     ['load', trip.isLoaded ? t('trips.loaded') : t('trips.emptyRun')],
                     ['borderCrossing', trip.borderCrossing],
+                    ['customer', trip.customer],
                     ['shipper', trip.shipper],
                     ['loadingAddress', trip.loadingAddress],
                     ['loadingDate', trip.scheduledStart ? format(trip.scheduledStart, 'dd.MM.yyyy') : null],

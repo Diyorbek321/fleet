@@ -230,7 +230,7 @@
   },
   "tracking": {
     "title": "Jonli kuzatuv",
-    "on": "Kuzatuv yoniq",
+    "on": "Joylashuv dispetcherga uzatilmoqda",
     "off": "Kuzatuv o‘chiq",
     "start": "Kuzatuvni boshlash",
     "stop": "Kuzatuvni to‘xtatish",
@@ -242,9 +242,16 @@
     "stoppedBody": "Fleet Watch joylashuvingizni uzatishni to‘xtatdi — ilovani ochib, qaytadan kiring.",
     "foregroundBody": "Joylashuv dispetcherga uzatilmoqda",
     "disclosureTitle": "Joylashuvdan foydalanish",
-    "disclosureBody": "Fleet Watch smenada «Jonli kuzatuv» yoniq bo‘lganda joylashuvingizni yig‘adi va kompaniyangiz dispetcheriga yuboradi — ilova yopiq yoki ishlatilmayotgan paytda ham. Bu dispetcherga mashina qayerdaligini ko‘rish, mijozga yetib borish vaqtini aytish va kutilmagan to‘xtashlardan xabar topish uchun kerak. Kuzatuvni istalgan vaqtda o‘chirishingiz mumkin.",
+    "disclosureBody": "Fleet Watch joylashuvingizni yig‘adi va kompaniyangiz dispetcheriga yuboradi — ilova yopiq yoki ishlatilmayotgan paytda ham. Bu dispetcherga mashina qayerdaligini ko‘rish, mijozga yetib borish vaqtini aytish va kutilmagan to‘xtashlardan xabar topish uchun kerak. Uzatish ilovaga kirgan paytingizda doim ishlaydi va hisobdan chiqqanda to‘xtaydi.",
     "disclosureDecline": "Rad etish",
-    "disclosureAccept": "Roziman"
+    "disclosureAccept": "Roziman",
+    "mustEnableTitle": "Joylashuv uzatish yoqilmagan",
+    "mustEnableBody": "Dispetcher mashinangizni xaritada ko‘rmayapti. Joylashuv uzatishni bir marta yoqing — keyin u o‘zi ishlab turadi.",
+    "needsAlways": "Joylashuv faqat ilova ochiqligida uzatilyapti. Sozlamalarda joylashuv uchun «Doim ruxsat berish»ni tanlang.",
+    "enable": "Joylashuv uzatishni yoqish",
+    "openSettings": "Sozlamalarni ochish",
+    "signedOut": "Sessiya tugagan, shuning uchun joylashuv uzatilmayapti. Chiqib, qaytadan kiring.",
+    "signInAgain": "Qaytadan kirish"
   },
   "fuel": {
     "title": "Yoqilg‘i yozuvlari",
@@ -385,5 +392,63 @@
     "rule": "Qoida: 180 kun ichida ko‘pi bilan 90 kun",
     "outside": "Oxirgi 180 kunda Rossiyada: {{n}} kun",
     "available": "Keyingi kirishda: {{n}} kun"
+  },
+  "tripDetails": {
+    "title": "Reys ma’lumotlari",
+    "open": "Reys ma’lumotlari",
+    "close": "Yopish",
+    "call": "Qo‘ng‘iroq qilish",
+    "emptyRun": "Yuksiz (pustoy)",
+    "yes": "Ha",
+    "section": {
+      "route": "Yo‘nalish",
+      "loading": "Yuklash",
+      "unloading": "Tushirish",
+      "cargo": "Yuk",
+      "notes": "Izoh"
+    },
+    "field": {
+      "route": "Yo‘nalish",
+      "direction": "Yo‘nalish turi",
+      "borderCrossing": "Chegara punkti",
+      "customer": "Zakazchik",
+      "shipper": "Jo‘natuvchi",
+      "loadingAddress": "Yuklash manzili",
+      "loadingContact": "Yuklashdagi kontakt",
+      "loadingDate": "Yuklash sanasi",
+      "loadedAt": "Yuklangan",
+      "consignee": "Qabul qiluvchi",
+      "unloadingAddress": "Tushirish manzili",
+      "customsPoint": "Bojxona",
+      "declarantContact": "Deklarant kontakti",
+      "unloadingDate": "Tushirish sanasi",
+      "etaCustoms": "Bojxonaga taxminiy yetish",
+      "cargo": "Yuk",
+      "cargoWeight": "Og‘irligi",
+      "load": "Holat",
+      "reefer": "Refrijerator",
+      "notes": "Izoh"
+    },
+    "directionValue": {
+      "uz_ru": "Eksport (O‘zbekiston → Rossiya)",
+      "ru_uz": "Import (Rossiya → O‘zbekiston)"
+    },
+    "navigate": "Navigatorda ochish"
+  },
+  "phoneSetup": {
+    "title": "Telefonni sozlang (bir marta)",
+    "body": "Ilova yopilganda ham joylashuv yuborilishi uchun telefonda ikkita sozlamani yoqing. Aks holda telefon ilovani fonda o‘chirib qo‘yadi.",
+    "batteryStep": "1. Batareya: Fleet Watch uchun «Cheklovsiz» / «Ruxsat berish»ni tanlang.",
+    "batteryButton": "Batareya sozlamasini ochish",
+    "autostartStep": "2. Avtozapusk: ro‘yxatdan Fleet Watch’ni toping va yoqing.",
+    "autostartButton": "Avtozapusk sozlamasini ochish",
+    "done": "Bajarildi"
+  },
+  "update": {
+    "title": "Ilovani yangilang",
+    "body": "Fleet Watch’ning bu versiyasi eskirgan va endi ishlamaydi. Yangi versiyani o‘rnating — ma’lumotlaringiz saqlanib qoladi.",
+    "versions": "Sizda: {{current}} · Kerak: {{required}}",
+    "download": "Yangi versiyani yuklab olish",
+    "askDispatcher": "Yangi versiyani dispetcheringizdan so‘rang."
   }
 }

@@ -21,10 +21,10 @@ from app.models.driver_messages import DriverMessage, DriverMessageKind
 from app.models.users import User
 from app.services import push
 
-__all__ = ["send_driver_message"]
+__all__ = ["driver_tokens", "send_driver_message"]
 
 
-async def _driver_tokens(db: AsyncSession, driver_id: uuid.UUID) -> list[PushToken]:
+async def driver_tokens(db: AsyncSession, driver_id: uuid.UUID) -> list[PushToken]:
     rows = await db.execute(
         select(PushToken).join(User, User.id == PushToken.user_id).where(User.driver_id == driver_id)
     )
@@ -74,7 +74,7 @@ async def send_driver_message(
 
     data: dict[str, Any] = {"kind": "message", "message_id": str(message_id)}
     outcome = await push.send_to_tokens(
-        db, await _driver_tokens(db, driver_id), title=title, body=body, data=data
+        db, await driver_tokens(db, driver_id), title=title, body=body, data=data
     )
 
     message = await db.get(DriverMessage, message_id)

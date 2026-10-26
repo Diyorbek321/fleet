@@ -100,6 +100,8 @@ export interface Trip {
   etaCustoms: string | null;
   /** How that date was reached: measured from past trips, or modelled. */
   etaBasis: 'history' | 'model' | null;
+  /** Who booked the truck ("заказчик") — often neither shipper nor consignee. */
+  customer: string | null;
   shipper: string | null;
   consignee: string | null;
   originName: string | null;
@@ -197,6 +199,7 @@ interface BackendTrip {
   loaded_at: string | null;
   eta_customs: string | null;
   eta_basis: 'history' | 'model' | null;
+  customer?: string | null;
   shipper: string | null;
   consignee: string | null;
   origin_name: string | null;
@@ -252,6 +255,7 @@ function adapt(t: BackendTrip): Trip {
     loadedAt: t.loaded_at ?? null,
     etaCustoms: t.eta_customs ?? null,
     etaBasis: t.eta_basis ?? null,
+    customer: t.customer ?? null,
     shipper: t.shipper,
     consignee: t.consignee,
     originName: t.origin_name,
@@ -307,6 +311,7 @@ export interface TripCreateInput {
   driverId?: string | null;
   direction?: TripDirection | null;
   borderCrossing?: string | null;
+  customer?: string | null;
   shipper?: string | null;
   loadingAddress?: string | null;
   loadingContact?: string | null;
@@ -335,6 +340,7 @@ const WIRE_NAMES: Record<keyof TripCreateInput, string> = {
   driverId: 'driver_id',
   direction: 'direction',
   borderCrossing: 'border_crossing',
+  customer: 'customer',
   shipper: 'shipper',
   loadingAddress: 'loading_address',
   loadingContact: 'loading_contact',

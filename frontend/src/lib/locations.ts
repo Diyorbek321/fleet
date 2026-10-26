@@ -59,6 +59,18 @@ export async function fetchTruckLocationLabels(): Promise<Record<string, string>
   return labels;
 }
 
+/**
+ * How long a position counts as live. Matches the backend's
+ * GPS_STALE_AFTER_MINUTES: the app heartbeats every 5 minutes even parked, so
+ * half an hour of nothing means the phone stopped, not the truck.
+ */
+export const LIVE_FOR_MS = 30 * 60_000;
+
+/** The marker's status: its speed while the fix is fresh, offline after. */
+export function liveStatus(speed: number, recordedAt: Date, now: Date = new Date()): TruckStatus {
+  return now.getTime() - recordedAt.getTime() > LIVE_FOR_MS ? 'offline' : statusFromSpeed(speed);
+}
+
 // Match the backend's app/services/gps.py::status_from_speed.
 export function statusFromSpeed(speed: number): TruckStatus {
   if (speed >= 5) return 'moving';

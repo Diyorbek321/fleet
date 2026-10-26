@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import { useTrucks } from '@/contexts/TruckContext';
 import { MapControls } from '@/components/map/MapControls';
 import { MapLegend } from '@/components/map/MapLegend';
+import { SignalPanel } from '@/components/map/SignalPanel';
 import { TruckPopup } from '@/components/map/TruckPopup';
 import { Truck } from '@/types';
 
@@ -78,7 +79,7 @@ function FitToTrucks({ trucks }: { trucks: Truck[] }) {
 }
 
 export default function MapViewPage() {
-  const { trucks, selectedTruck, setSelectedTruck, isLoading } = useTrucks();
+  const { trucks, selectedTruck, setSelectedTruck, isLoading, isLive } = useTrucks();
 
   const visibleTrucks = useMemo(
     () => trucks.filter((t) => t.isEnabled && t.latitude && t.longitude),
@@ -131,8 +132,18 @@ export default function MapViewPage() {
 
       {/* Overlays (unchanged) */}
       <MapControls trucks={trucks} />
-      <MapLegend />
+      <MapLegend live={isLive} />
 
+      {/* Shares the right edge with the popup, so it steps aside while one is
+          open — hidden rather than unmounted, so it stays expanded after. */}
+      <div className={selectedTruck ? 'hidden' : undefined}>
+        <SignalPanel
+          onSelect={(id) => {
+            const truck = trucks.find((t) => t.id === id);
+            if (truck) setSelectedTruck(truck);
+          }}
+        />
+      </div>
       {selectedTruck && (
         <TruckPopup truck={selectedTruck} onClose={() => setSelectedTruck(null)} />
       )}

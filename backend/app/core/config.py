@@ -69,9 +69,25 @@ class Settings(BaseSettings):
     # silent too, and calling that "offline" every lunch would train
     # dispatchers to ignore the badge. 0 disables the job.
     gps_offline_after_minutes: int = Field(default=120, alias="GPS_OFFLINE_AFTER_MINUTES")
+    # The map's "no signal" panel lists a truck silent longer than this. The
+    # app heartbeats every 5 minutes even while parked, so half an hour of
+    # nothing means the phone stopped, not the truck.
+    gps_stale_after_minutes: int = Field(default=30, alias="GPS_STALE_AFTER_MINUTES")
+    # A driver whose truck is not reporting is reminded this often until a
+    # position arrives; the dispatcher gets one list a day. 0 disables both.
+    gps_reminder_hours: int = Field(default=3, alias="GPS_REMINDER_HOURS")
+    # The driver app asks for these on start (GET /api/app/driver-version). An
+    # APK older than the minimum shows only an "update" screen with the link.
+    # Empty minimum = no app is ever told to update.
+    driver_app_min_version: str = Field(default="", alias="DRIVER_APP_MIN_VERSION")
+    driver_app_latest_version: str = Field(default="", alias="DRIVER_APP_LATEST_VERSION")
+    driver_app_download_url: str = Field(default="", alias="DRIVER_APP_DOWNLOAD_URL")
     # A truck on a running trip with no fix for this long gets its driver a
     # push and the owner chats an alert, once per silence. 0 disables it.
-    gps_silent_alert_hours: int = Field(default=24, alias="GPS_SILENT_ALERT_HOURS")
+    # Hours, not a day: the app heartbeats every 5 minutes while parked, so a
+    # long silence is a stopped phone. Three hours leaves room for the dead
+    # zones on the Kazakh steppe, where pings are lost, not queued.
+    gps_silent_alert_hours: int = Field(default=3, alias="GPS_SILENT_ALERT_HOURS")
     # How long the phone must report GPS switched off before the owner chats
     # hear of it, so a driver toggling it for a minute is not news.
     gps_disabled_grace_minutes: int = Field(default=15, alias="GPS_DISABLED_GRACE_MINUTES")

@@ -8,9 +8,12 @@ import { initI18n } from './src/i18n';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { Tabs } from './src/navigation/Tabs';
+import { UpdateGate } from './src/components/UpdateGate';
 // Side-effect import: registers the background location task with TaskManager
 // at module load so the OS can invoke it even when the UI isn't mounted.
 import './src/lib/location-task';
+// Likewise the task that restarts tracking on the server's wake-up push.
+import './src/lib/wake-task';
 
 export default function App() {
   const [i18nReady, setI18nReady] = useState(false);
@@ -23,9 +26,11 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <UpdateGate>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </UpdateGate>
     </SafeAreaProvider>
   );
 }

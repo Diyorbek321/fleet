@@ -35,6 +35,13 @@ class BoardTripOut(BaseModel):
     unloading_date: Optional[date] = None
     is_loaded: bool
     status: TripStatus
+    customer: Optional[str] = None
+
+
+class BoardEmptyOut(BaseModel):
+    kind: Literal["export", "import"]
+    place: Optional[str] = None
+    since: Optional[datetime] = None
 
 
 class BoardRowOut(BaseModel):
@@ -45,6 +52,7 @@ class BoardRowOut(BaseModel):
     location_at: Optional[datetime] = None
     export_trip: Optional[BoardTripOut] = None
     import_trip: Optional[BoardTripOut] = None
+    empty: Optional[BoardEmptyOut] = None
 
 
 class BoardOut(BaseModel):
@@ -76,6 +84,7 @@ def _row_out(row: BoardRow) -> BoardRowOut:
         location_at=row.location_at,
         export_trip=_trip_out(row.export_trip),
         import_trip=_trip_out(row.import_trip),
+        empty=BoardEmptyOut(**row.empty.__dict__) if row.empty else None,
     )
 
 

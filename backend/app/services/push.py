@@ -66,15 +66,21 @@ async def send_to_tokens(
     body: str,
     data: dict[str, Any] | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
+    silent: bool = False,
 ) -> PushOutcome:
     """Deliver one notification to every given device.
 
     ``transport`` exists so tests can assert on the outgoing request without
     reaching the network; production never passes it.
+
+    ``silent`` sends a data-only message that shows nothing and wakes the
+    app's background task. Only FCM can do that, so Expo tokens are skipped.
     """
     deliverable = [t for t in tokens if is_expo_token(t.token)]
     native = [t for t in tokens if not is_expo_token(t.token)]
     skipped = 0
+    if silent:
+        skipped, deliverable = len(deliverable), []
 
     accepted = 0
     failed = 0
@@ -82,7 +88,12 @@ async def send_to_tokens(
 
     if native:
         results = await fcm.send(
-            [t.token for t in native], title=title, body=body, data=data, transport=transport
+            [t.token for t in native],
+            title=title,
+            body=body,
+            data=data,
+            transport=transport,
+            silent=silent,
         )
         for row, result in zip(native, results):
             if result.ok:

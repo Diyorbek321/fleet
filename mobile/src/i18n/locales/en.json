@@ -230,7 +230,7 @@
   },
   "tracking": {
     "title": "Live tracking",
-    "on": "Tracking on",
+    "on": "Your location is being shared with the dispatcher",
     "off": "Tracking off",
     "start": "Start tracking",
     "stop": "Stop tracking",
@@ -242,9 +242,16 @@
     "stoppedBody": "Fleet Watch stopped sharing your location — please reopen the app and sign in again.",
     "foregroundBody": "Sharing your location with your dispatcher",
     "disclosureTitle": "Location use",
-    "disclosureBody": "Fleet Watch collects your location and sends it to your company's dispatcher while \"Live tracking\" is on during your shift — even when the app is closed or not in use. This lets the dispatcher see where the truck is, give customers arrival times and learn about unexpected stops. You can turn tracking off at any time.",
+    "disclosureBody": "Fleet Watch collects your location and sends it to your company's dispatcher — even when the app is closed or not in use. This lets the dispatcher see where the truck is, give customers arrival times and learn about unexpected stops. Sharing runs the whole time you are signed in and stops when you sign out.",
     "disclosureDecline": "Decline",
-    "disclosureAccept": "Agree"
+    "disclosureAccept": "Agree",
+    "mustEnableTitle": "Location sharing is not on",
+    "mustEnableBody": "The dispatcher cannot see your truck on the map. Switch location sharing on once — after that it keeps running by itself.",
+    "needsAlways": "Your location is only shared while the app is open. In Settings, set location access to \"Allow all the time\".",
+    "enable": "Turn on location sharing",
+    "openSettings": "Open Settings",
+    "signedOut": "Your session has expired, so your location is not being shared. Sign out and sign in again.",
+    "signInAgain": "Sign in again"
   },
   "fuel": {
     "title": "Fuel logs",
@@ -385,5 +392,63 @@
     "rule": "Rule: at most 90 days in any 180",
     "outside": "In Russia in the last 180 days: {{n}} days",
     "available": "On your next entry: {{n}} days"
+  },
+  "tripDetails": {
+    "title": "Trip details",
+    "open": "Trip details",
+    "close": "Close",
+    "call": "Call",
+    "emptyRun": "Empty run",
+    "yes": "Yes",
+    "section": {
+      "route": "Route",
+      "loading": "Loading",
+      "unloading": "Unloading",
+      "cargo": "Cargo",
+      "notes": "Note"
+    },
+    "field": {
+      "route": "Route",
+      "direction": "Direction",
+      "borderCrossing": "Border crossing",
+      "customer": "Customer",
+      "shipper": "Shipper",
+      "loadingAddress": "Loading address",
+      "loadingContact": "Contact at loading",
+      "loadingDate": "Loading date",
+      "loadedAt": "Loaded",
+      "consignee": "Consignee",
+      "unloadingAddress": "Unloading address",
+      "customsPoint": "Customs",
+      "declarantContact": "Declarant contact",
+      "unloadingDate": "Unloading date",
+      "etaCustoms": "Expected at customs",
+      "cargo": "Cargo",
+      "cargoWeight": "Weight",
+      "load": "Load",
+      "reefer": "Reefer",
+      "notes": "Note"
+    },
+    "directionValue": {
+      "uz_ru": "Export (Uzbekistan → Russia)",
+      "ru_uz": "Import (Russia → Uzbekistan)"
+    },
+    "navigate": "Open in navigator"
+  },
+  "phoneSetup": {
+    "title": "Set up your phone (once)",
+    "body": "So your location is still sent with the app closed, turn on two phone settings. Otherwise the phone shuts the app down in the background.",
+    "batteryStep": "1. Battery: set Fleet Watch to \"Unrestricted\" / \"Allow\".",
+    "batteryButton": "Open battery settings",
+    "autostartStep": "2. Autostart: find Fleet Watch in the list and switch it on.",
+    "autostartButton": "Open autostart settings",
+    "done": "Done"
+  },
+  "update": {
+    "title": "Update the app",
+    "body": "This version of Fleet Watch is out of date and no longer works. Install the new one — your data stays.",
+    "versions": "Yours: {{current}} · Required: {{required}}",
+    "download": "Download the new version",
+    "askDispatcher": "Ask your dispatcher for the new version."
   }
 }

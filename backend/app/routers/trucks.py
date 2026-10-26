@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import uuid
 
@@ -10,16 +10,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from sqlalchemy.orm import selectinload
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.deps.auth import get_org_id, require_role
 from app.models.enums import TruckStatus, UserRole
 from app.models.trucks import Truck, TruckLocation, TruckLocationHistory
 from app.schemas.trucks import (
     TruckCreate, TruckUpdate, TruckOut, TruckDetailsOut, TruckOrderIn,
-    TruckLocationOut, LocationHistoryItem
+    TruckLocationOut, LocationHistoryItem, TruckSignalOut
 )
 from app.models.drivers import DriverAssignment, Driver
 from app.services import audit
+from app.services.truck_signal import fleet_signal
 
 router = APIRouter(prefix="/api/trucks", tags=["Trucks"])
 
@@ -48,6 +50,20 @@ async def list_latest_locations(
         select(TruckLocation).join(Truck, Truck.id == TruckLocation.truck_id).where(Truck.org_id == org)
     )
     return [TruckLocationOut.model_validate(loc) for loc in res.scalars().all()]
+
+
+@router.get("/signal", response_model=list[TruckSignalOut])
+async def list_truck_signal(
+    db: AsyncSession = Depends(get_db),
+    org: uuid.UUID = Depends(get_org_id),
+):
+    """Every enabled truck with why it is or is not reporting its position.
+
+    The map draws only trucks with a position; this is how it shows the ones
+    it cannot draw, and the ones whose position has gone stale.
+    """
+    stale_after = timedelta(minutes=settings.gps_stale_after_minutes)
+    return [TruckSignalOut.model_validate(s) for s in await fleet_signal(db, org, stale_after)]
 
 
 @router.get("", response_model=list[TruckOut])

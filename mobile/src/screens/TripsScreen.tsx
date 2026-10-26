@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as Location from 'expo-location';
 
@@ -19,6 +19,7 @@ import { StagePicker } from '../components/StagePicker';
 import { documentsLocked } from '../lib/tripDocuments';
 import { TripDocuments } from '../components/TripDocuments';
 import { TripReportForm } from '../components/TripReportForm';
+import { TripDetailsSheet } from '../components/TripDetailsSheet';
 
 // Every status the server can send, plus a fallback below: a status added to
 // the backend and not yet known here used to index this map to `undefined` and
@@ -45,6 +46,7 @@ export function TripsScreen() {
   const [docsTripId, setDocsTripId] = useState<string | null>(null);
   const [stageTripId, setStageTripId] = useState<string | null>(null);
   const [reportTripId, setReportTripId] = useState<string | null>(null);
+  const [detailsTrip, setDetailsTrip] = useState<Trip | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -149,19 +151,32 @@ export function TripsScreen() {
             : t('trips.noStageYet');
           return (
             <Card key={trip.id}>
-              <View style={styles.row}>
-                <Text style={styles.reference}>{trip.reference}</Text>
-                <Pill label={t(`trips.status.${trip.status}`)} color={sc.color} bg={sc.bg} />
-              </View>
-              <Text style={styles.route}>
-                {(trip.origin_name ?? '—')} → {(trip.destination_name ?? '—')}
-              </Text>
-              {trip.cargo_description ? (
-                <Text style={styles.cargo}>{trip.cargo_description}</Text>
-              ) : null}
+              {/* Tapping the trip opens everything the dispatcher entered for it. */}
+              <Pressable
+                onPress={() => setDetailsTrip(trip)}
+                accessibilityRole="button"
+                accessibilityHint={t('tripDetails.open')}
+              >
+                <View style={styles.row}>
+                  <Text style={styles.reference}>{trip.reference}</Text>
+                  <Pill label={t(`trips.status.${trip.status}`)} color={sc.color} bg={sc.bg} />
+                </View>
+                <Text style={styles.route}>
+                  {(trip.origin_name ?? '—')} → {(trip.destination_name ?? '—')}
+                </Text>
+                {trip.cargo_description ? (
+                  <Text style={styles.cargo}>{trip.cargo_description}</Text>
+                ) : null}
+              </Pressable>
               <Text style={styles.stage}>
                 {t('trips.currentStage')}: {stageLabel}
               </Text>
+              <Button
+                label={t('tripDetails.open')}
+                onPress={() => setDetailsTrip(trip)}
+                variant="ghost"
+                icon="information-circle-outline"
+              />
               <Button
                 label={t('trips.markStage')}
                 onPress={() =>
@@ -198,6 +213,9 @@ export function TripsScreen() {
           );
         })
       )}
+      {detailsTrip ? (
+        <TripDetailsSheet trip={detailsTrip} onClose={() => setDetailsTrip(null)} />
+      ) : null}
     </Screen>
   );
 }

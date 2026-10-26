@@ -9,7 +9,7 @@
  *
  * The task callback runs in a separate JS context that does NOT share the
  * app's in-memory state, so it reads the auth token from storage on every
- * batch before pinging `POST /api/me/location`.
+ * batch before pinging `POST /api/me/locations`.
  */
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
@@ -19,8 +19,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import i18n, { LANGUAGE_STORAGE_KEY } from '../i18n';
 
 import { ApiError } from './api';
-import { meApi, type LocationPing } from './me';
-import { sendIfDue } from './ping-throttle';
+import { meApi } from './me';
+import { deliverFix, fixFrom } from './ping-queue';
+import { phoneState } from './phone-state';
+import { markSessionDead } from './tracking-session';
 
 /** Unique identifier for the registered background location task. */
 export const LOCATION_TASK_NAME = 'fleet-watch-background-location';
@@ -148,16 +150,13 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
 
   // Only the freshest sample matters to the dispatcher; avoid flooding the
   // backend with the whole batch.
-  const latest = locations[locations.length - 1];
-  const ping: LocationPing = {
-    latitude: latest.coords.latitude,
-    longitude: latest.coords.longitude,
-    speed: latest.coords.speed ?? 0,
-    heading: latest.coords.heading ?? null,
-  };
+  const fix = fixFrom(locations[locations.length - 1]);
 
   try {
-    await sendIfDue(ping, () => meApi.pingLocation(ping));
+    // Sends any fixes kept from a dead zone along with this one, or keeps
+    // this one too when there is still no network (see ping-queue.ts).
+    const state = await phoneState('background');
+    await deliverFix(fix, (points) => meApi.pingLocations(points, state));
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
       // Refresh in `apiFetch` already failed — session is truly dead. Stop
@@ -167,6 +166,9 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
       console.warn(
         '[location-task] 401 from location ping after refresh — stopping background tracking (session left intact).',
       );
+      // Before stopping: the screen restarts stopped tracking on every open,
+      // and must not restart it into the same 401.
+      await markSessionDead();
       try {
         await stopBackgroundTracking();
       } catch {

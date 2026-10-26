@@ -1,5 +1,6 @@
 """Who I am, what I drive, when I'm on the clock, and where I am."""
 from __future__ import annotations
+import uuid
 
 from datetime import datetime, timezone
 from typing import Optional
@@ -13,20 +14,24 @@ from app.core.ws import ws_manager
 from app.deps.auth import get_current_driver, get_current_user
 from app.models.driver_app import PushToken, Shift
 from app.models.drivers import Driver, SafetyScore
+from app.models.trucks import Truck, TruckLocationHistory
 from app.models.enums import ShiftStatus
 from app.models.users import User
 from app.routers.me._common import PREFIX, TAGS, assigned_truck, require_assigned_truck
 from app.schemas.drivers import DriverOut, SafetyScoreOut
 from app.schemas.me import (
     AssignedTruckOut,
+    LocationBatchIn,
     LocationPingIn,
+    LocationPointIn,
+    PhoneStateIn,
     PushTokenIn,
     ShiftEndIn,
     ShiftOut,
     ShiftStartIn,
 )
 from app.services.geofences import evaluate_track
-from app.services.gps import upsert_latest_location
+from app.services.gps import Position, record_positions
 
 router = APIRouter(prefix=PREFIX, tags=TAGS)
 
@@ -135,13 +140,57 @@ async def end_shift(
 
 # ── Live location (phone-as-tracker) ──────────────────────────────────
 
-@router.post("/location")
-async def ping_location(
-    data: LocationPingIn = Body(...),
-    driver: Driver = Depends(get_current_driver),
-    db: AsyncSession = Depends(get_db),
-):
-    """Driver's phone streams its GPS position to their assigned truck.
+def _aware(moment: datetime | None) -> datetime | None:
+    """A timestamp sent without a zone is UTC, so it can sort against "now"."""
+    if moment is not None and moment.tzinfo is None:
+        return moment.replace(tzinfo=timezone.utc)
+    return moment
+
+
+async def _not_yet_recorded(
+    db: AsyncSession, truck_id: uuid.UUID, points: list[LocationPointIn]
+) -> list[LocationPointIn]:
+    """Drop fixes already in the history.
+
+    A phone whose request reached the server but whose answer was lost sends
+    the same buffer again; without this every such retry doubled a stretch of
+    the track.
+    """
+    stamps = [_aware(p.recorded_at) for p in points if p.recorded_at is not None]
+    if not stamps:
+        return points
+    seen = set(
+        (
+            await db.execute(
+                select(TruckLocationHistory.recorded_at).where(
+                    TruckLocationHistory.truck_id == truck_id,
+                    TruckLocationHistory.recorded_at.in_(stamps),
+                )
+            )
+        ).scalars()
+    )
+    return [p for p in points if p.recorded_at is None or _aware(p.recorded_at) not in seen]
+
+
+def _record_phone_state(truck: Truck, state: PhoneStateIn) -> None:
+    """Keep what the phone said about itself. Fields it did not send keep their
+    last value: an older APK sends none, and must not erase a newer one's."""
+    sent = state.model_dump(include={"battery", "tracking", "app_version"}, exclude_none=True)
+    if not sent:
+        return
+    if "battery" in sent:
+        truck.phone_battery = sent["battery"]
+    if "tracking" in sent:
+        truck.phone_tracking = sent["tracking"]
+    if "app_version" in sent:
+        truck.phone_app_version = sent["app_version"]
+    truck.phone_reported_at = datetime.now(timezone.utc)
+
+
+async def _ingest(
+    db: AsyncSession, driver: Driver, points: list[LocationPointIn], state: PhoneStateIn
+) -> dict:
+    """The one path for a phone's fixes, whether one live ping or a buffer.
 
     This is the same pipeline as ``POST /api/gps/ingest``; only the credential
     differs. It evaluates geofences too — a truck is inside the depot or it is
@@ -150,36 +199,54 @@ async def ping_location(
     phones instead of trackers had geofences that silently never fired.
     """
     truck = await require_assigned_truck(db, driver.id)
-    speed_kmh = _phone_speed_kmh(data.speed)
-    await upsert_latest_location(
-        db=db,
-        truck_id=truck.id,
-        latitude=data.latitude,
-        longitude=data.longitude,
-        speed=speed_kmh,
-        heading=data.heading,
-        recorded_at=data.recorded_at,
-        truck=truck,
-    )
-    events = await evaluate_track(
-        db=db,
-        truck_id=truck.id,
-        points=[(data.latitude, data.longitude, data.recorded_at)],
-        org_id=truck.org_id,
-    )
+    now = datetime.now(timezone.utc)
+    # Oldest first, as record_positions expects; a buffer can arrive shuffled.
+    ordered = sorted(points, key=lambda p: _aware(p.recorded_at) or now)
+    if len(ordered) > 1:
+        ordered = await _not_yet_recorded(db, truck.id, ordered)
+        if not ordered:
+            return {"message": "ok", "truck_id": str(truck.id), "accepted": 0}
+    positions = [
+        Position(
+            latitude=p.latitude,
+            longitude=p.longitude,
+            speed=_phone_speed_kmh(p.speed),
+            heading=p.heading,
+            recorded_at=p.recorded_at,
+        )
+        for p in ordered
+    ]
+    moved = (await record_positions(db, truck.id, positions, truck=truck)).moved
+    _record_phone_state(truck, state)
+    # Fences replay from their last recorded event, so only a batch that ends
+    # at the truck's newest position can be replayed onto them. A buffer older
+    # than that would be judged against where the truck is now and announce an
+    # exit or entry that never happened; it fills in the history only.
+    events = []
+    if moved:
+        events = await evaluate_track(
+            db=db,
+            truck_id=truck.id,
+            points=[(p.latitude, p.longitude, p.recorded_at) for p in ordered],
+            org_id=truck.org_id,
+        )
     await db.commit()
 
-    # Live map fan-out is scoped to the truck's organization.
+    # Live map fan-out is scoped to the truck's organization — and only when the
+    # truck actually moved on the map: a buffer older than the last live fix
+    # fills in the history and leaves the marker where it is.
     org_id = str(truck.org_id)
-    await ws_manager.broadcast_to_org(org_id, {
-        "type": "truck_location_update",
-        "truck_id": str(truck.id),
-        "lat": data.latitude,
-        "lng": data.longitude,
-        "speed": speed_kmh,
-        "heading": data.heading,
-        "recorded_at": (data.recorded_at or datetime.now(timezone.utc)).isoformat(),
-    })
+    latest = positions[-1]
+    if moved:
+        await ws_manager.broadcast_to_org(org_id, {
+            "type": "truck_location_update",
+            "truck_id": str(truck.id),
+            "lat": latest.latitude,
+            "lng": latest.longitude,
+            "speed": latest.speed,
+            "heading": latest.heading,
+            "recorded_at": (latest.recorded_at or now).isoformat(),
+        })
     for ev in events:
         await ws_manager.broadcast_to_org(org_id, {
             "type": "geofence_event",
@@ -190,7 +257,31 @@ async def ping_location(
             "lng": float(ev.longitude),
             "recorded_at": ev.recorded_at.isoformat(),
         })
-    return {"message": "ok", "truck_id": str(truck.id)}
+    return {"message": "ok", "truck_id": str(truck.id), "accepted": len(positions)}
+
+
+@router.post("/location")
+async def ping_location(
+    data: LocationPingIn = Body(...),
+    driver: Driver = Depends(get_current_driver),
+    db: AsyncSession = Depends(get_db),
+):
+    """Driver's phone streams its GPS position to their assigned truck."""
+    return await _ingest(db, driver, [data], data)
+
+
+@router.post("/locations")
+async def ping_locations(
+    data: LocationBatchIn = Body(...),
+    driver: Driver = Depends(get_current_driver),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fixes the phone kept while it had no signal, sent in one request.
+
+    Without this the Kazakh steppe was a straight line on the map: the phone
+    had positions for every hour of it and nowhere to put them.
+    """
+    return await _ingest(db, driver, data.points, data)
 
 
 # ── Push notification token registration ──────────────────────────────

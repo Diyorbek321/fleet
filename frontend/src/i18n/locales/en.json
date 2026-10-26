@@ -505,6 +505,7 @@
       "originName": "From",
       "destinationName": "To",
       "borderCrossing": "Border crossing",
+      "customer": "Customer",
       "shipper": "Shipper",
       "loadingAddress": "Loading address",
       "loadingContact": "Contact at loading",
@@ -1124,7 +1125,21 @@
   },
   "map": {
     "jumpToTruck": "Jump to truck",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "signal": {
+      "title": "No signal: {{count}}",
+      "allOk": "All trucks reporting",
+      "state": {
+        "no_driver": "No driver assigned",
+        "gps_off": "GPS switched off",
+        "never": "Never connected",
+        "silent": "Signal lost"
+      },
+      "battery": "Battery {{pct}}%",
+      "foregroundOnly": "Only while open"
+    },
+    "live": "Live",
+    "reconnecting": "Connection lost — reconnecting"
   },
   "track": {
     "reference": "Trip",
@@ -1285,7 +1300,11 @@
       "sendNow": "Send now",
       "sent": "Board sent to the group",
       "failed": "Something went wrong"
-    }
+    },
+    "customer": "Customer",
+    "emptyAt": "Empty — {{place}}",
+    "emptyNowhere": "Empty",
+    "filterEmpty": "Standing empty"
   },
   "russiaStay": {
     "title": "Stay in Russia (90/180)",

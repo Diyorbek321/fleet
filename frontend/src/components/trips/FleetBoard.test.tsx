@@ -39,8 +39,10 @@ const exporting: BoardRow = {
     unloading_date: null,
     is_loaded: true,
     status: 'en_route',
+    customer: 'Artel Logistics',
   },
   import_trip: null,
+  empty: null,
 };
 
 const importing: BoardRow = {
@@ -58,7 +60,9 @@ const importing: BoardRow = {
     unloading_date: '2026-10-21',
     is_loaded: true,
     status: 'planned',
+    customer: null,
   },
+  empty: null,
 };
 
 const idle: BoardRow = {
@@ -69,9 +73,22 @@ const idle: BoardRow = {
   location_at: null,
   export_trip: null,
   import_trip: null,
+  empty: null,
 };
 
-const board: Board = { day: '2026-10-14', rows: [exporting, importing, idle] };
+// Unloaded its export in Moscow two days ago; nothing booked back.
+const emptyInRussia: BoardRow = {
+  position: 4,
+  truck_id: 't4',
+  plate: '10 677 RCA/10 1111 BA',
+  location: 'Москва',
+  location_at: null,
+  export_trip: null,
+  import_trip: null,
+  empty: { kind: 'import', place: 'Москва', since: '2026-10-12T09:00:00Z' },
+};
+
+const board: Board = { day: '2026-10-14', rows: [exporting, importing, idle, emptyInRussia] };
 const noGroup: DispatchGroup = {
   status: 'none',
   chat_title: null,
@@ -105,13 +122,15 @@ describe('FleetBoard', () => {
     const exportCells = within(rowOf(exporting.plate)).getAllByRole('cell');
     const importCells = within(rowOf(importing.plate)).getAllByRole('cell');
 
-    // №, truck, place | export route, loading, unloading | import route, loading, unloading
-    expect(exportCells[3]).toHaveTextContent('Ташкент - Мелеуз');
-    expect(exportCells[4]).toHaveTextContent('06.10.2026');
-    expect(exportCells[6]).toHaveTextContent('');
-    expect(importCells[3]).toHaveTextContent('');
-    expect(importCells[6]).toHaveTextContent('Чел - Ташкент');
-    expect(importCells[8]).toHaveTextContent('21.10.2026');
+    // №, truck, place | export customer, route, loading, unloading
+    //                 | import customer, route, loading, unloading
+    expect(exportCells[3]).toHaveTextContent('Artel Logistics');
+    expect(exportCells[4]).toHaveTextContent('Ташкент - Мелеуз');
+    expect(exportCells[5]).toHaveTextContent('06.10.2026');
+    expect(exportCells[8]).toHaveTextContent('');
+    expect(importCells[4]).toHaveTextContent('');
+    expect(importCells[8]).toHaveTextContent('Чел - Ташкент');
+    expect(importCells[10]).toHaveTextContent('21.10.2026');
   });
 
   it('never prints a placeholder date for a missing trip', async () => {
@@ -150,5 +169,34 @@ describe('FleetBoard', () => {
 
     expect(screen.getByText(importing.plate)).toBeInTheDocument();
     expect(screen.queryByText(exporting.plate)).not.toBeInTheDocument();
+  });
+
+  it('shows a truck standing empty in Russia under import, with the city', async () => {
+    renderBoard();
+    await screen.findByText(emptyInRussia.plate);
+
+    const cells = within(rowOf(emptyInRussia.plate)).getAllByRole('cell');
+    expect(cells[4]).toHaveTextContent('');
+    expect(cells[8]).toHaveTextContent('Empty — Москва');
+  });
+
+  it('narrows to the trucks standing empty', async () => {
+    renderBoard();
+    await screen.findByText(exporting.plate);
+
+    fireEvent.click(screen.getByRole('radio', { name: /Standing empty/ }));
+
+    expect(screen.getByText(emptyInRussia.plate)).toBeInTheDocument();
+    expect(screen.queryByText(idle.plate)).not.toBeInTheDocument();
+  });
+
+  it('finds a truck by its customer', async () => {
+    renderBoard();
+    await screen.findByText(exporting.plate);
+
+    fireEvent.change(screen.getByPlaceholderText(/Search/), { target: { value: 'artel' } });
+
+    expect(screen.getByText(exporting.plate)).toBeInTheDocument();
+    expect(screen.queryByText(importing.plate)).not.toBeInTheDocument();
   });
 });

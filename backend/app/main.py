@@ -42,6 +42,7 @@ from app.routers.queue import router as queue_router
 from app.routers.files import router as files_router
 from app.routers.telegram import webhook_router as telegram_webhook_router, api_router as telegram_api_router
 from app.routers.track import router as track_router
+from app.routers.app_version import router as app_version_router
 from app.routers.owner_alerts import router as owner_alerts_router
 
 
@@ -207,6 +208,7 @@ app.include_router(reminders_router)
 app.include_router(queue_router)
 app.include_router(files_router)
 app.include_router(track_router)
+app.include_router(app_version_router)
 app.include_router(telegram_webhook_router)
 app.include_router(telegram_api_router)
 app.include_router(owner_alerts_router)

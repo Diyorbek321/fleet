@@ -18,6 +18,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.models.dispatch_groups import DispatchTelegramGroup
+from app.models.enums import TripStage, TripStatus
 from app.models.trips import Trip
 from app.models.trucks import TruckLocation
 from app.routers import telegram as telegram_router
@@ -346,3 +347,100 @@ def test_typed_text_cannot_become_a_spreadsheet_formula():
     cells = {c.value: c.data_type for r in ws.iter_rows() for c in r if c.value is not None}
     assert cells["=1+1"] == "s"
     assert cells['=HYPERLINK("http://x","y") - Уфа'] == "s"
+
+
+# ── The customer, and where a truck stands empty ─────────────────────────
+
+
+async def test_each_trip_shows_its_customer(client: AsyncClient, admin_headers):
+    truck_id = await _truck(client, admin_headers, "01A123BC")
+    await _trip(client, admin_headers, truck_id, direction="uz_ru", origin_name="A",
+                destination_name="B", customer="Artel Logistics")
+
+    row = (await _board(client, admin_headers))[0]
+
+    assert row["export_trip"]["customer"] == "Artel Logistics"
+
+
+async def test_unloaded_in_russia_is_empty_for_import_in_that_city(
+    client: AsyncClient, admin_headers
+):
+    """Unloaded the export in Russia: the truck now waits for an import load there."""
+    truck_id = await _truck(client, admin_headers, "01A123BC")
+    trip = await _trip(client, admin_headers, truck_id, direction="uz_ru",
+                       origin_name="Ташкент", destination_name="Россия, Москва")
+    await _advance(client, admin_headers, trip, "delivered")
+
+    row = (await _board(client, admin_headers))[0]
+
+    assert row["empty"]["kind"] == "import"
+    assert row["empty"]["place"] == "Москва"
+    assert row["empty"]["since"] is not None
+
+
+async def test_unloaded_in_uzbekistan_is_empty_for_export(client: AsyncClient, admin_headers):
+    truck_id = await _truck(client, admin_headers, "01A123BC")
+    trip = await _trip(client, admin_headers, truck_id, direction="ru_uz",
+                       origin_name="Тобольск", destination_name="Янгиюль")
+    await _advance(client, admin_headers, trip, "delivered")
+
+    row = (await _board(client, admin_headers))[0]
+
+    assert row["empty"]["kind"] == "export"
+    assert row["empty"]["place"] == "Янгиюль"
+
+
+async def test_empty_from_the_moment_the_driver_reports_unloaded(
+    client: AsyncClient, admin_headers, db
+):
+    """The trip stays open for papers after unloading, but the truck is free."""
+    truck_id = await _truck(client, admin_headers, "01A123BC")
+    trip_id = await _trip(client, admin_headers, truck_id, direction="uz_ru",
+                          origin_name="Ташкент", destination_name="Уфа")
+    trip = await db.get(Trip, trip_id)
+    trip.current_stage = TripStage.unloaded
+    trip.status = TripStatus.en_route
+    await db.commit()
+
+    row = (await _board(client, admin_headers))[0]
+
+    assert row["export_trip"] is not None
+    assert row["empty"] == {**row["empty"], "kind": "import", "place": "Уфа"}
+
+
+async def test_a_booked_return_load_means_not_empty(client: AsyncClient, admin_headers):
+    truck_id = await _truck(client, admin_headers, "01A123BC")
+    done = await _trip(client, admin_headers, truck_id, direction="uz_ru",
+                       origin_name="Ташкент", destination_name="Москва")
+    await _advance(client, admin_headers, done, "delivered")
+    await _trip(client, admin_headers, truck_id, direction="ru_uz",
+                origin_name="Москва", destination_name="Ташкент")
+
+    row = (await _board(client, admin_headers))[0]
+
+    assert row["empty"] is None
+
+
+async def test_a_truck_with_no_trips_is_not_called_empty(client: AsyncClient, admin_headers):
+    await _truck(client, admin_headers, "01A123BC")
+    assert (await _board(client, admin_headers))[0]["empty"] is None
+
+
+async def test_the_spreadsheet_names_the_customer_and_the_empty_city(
+    client: AsyncClient, admin_headers
+):
+    truck_id = await _truck(client, admin_headers, "01A123BC")
+    await _trip(client, admin_headers, truck_id, direction="uz_ru", origin_name="Ташкент",
+                destination_name="Уфа", customer="Artel")
+    other = await _truck(client, admin_headers, "01B456CD")
+    trip = await _trip(client, admin_headers, other, direction="uz_ru",
+                       origin_name="Ташкент", destination_name="Москва")
+    await _advance(client, admin_headers, trip, "delivered")
+
+    res = await client.get("/api/fleet-board.xlsx", headers=admin_headers)
+    ws = load_workbook(BytesIO(res.content)).active
+    cells = [str(c.value) for row in ws.iter_rows() for c in row if c.value is not None]
+
+    assert "Заказчик" in cells
+    assert "Artel" in cells
+    assert any(c.startswith("Порожний — Москва") for c in cells)

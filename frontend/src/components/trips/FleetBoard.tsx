@@ -18,24 +18,25 @@ import {
 } from '@/components/ui/table';
 import { ApiError } from '@/lib/api';
 import { formatDistanceToNow } from '@/lib/datetime';
-import { fleetBoardApi, type BoardRow, type BoardTrip } from '@/lib/fleetBoard';
+import { fleetBoardApi, type BoardEmpty, type BoardRow, type BoardTrip } from '@/lib/fleetBoard';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { DispatchGroupButton } from './DispatchGroupButton';
 
-type BoardFilter = 'all' | 'export' | 'import' | 'free';
+type BoardFilter = 'all' | 'export' | 'import' | 'empty' | 'free';
 
 const MATCHES: Record<BoardFilter, (row: BoardRow) => boolean> = {
   all: () => true,
   export: (row) => row.export_trip !== null,
   import: (row) => row.import_trip !== null,
+  empty: (row) => row.empty !== null,
   free: (row) => row.export_trip === null && row.import_trip === null,
 };
 
 // The hand sheet's colours: the export block green, the import block salmon.
 const EXPORT_CELL = 'bg-emerald-500/10';
 const IMPORT_CELL = 'bg-orange-500/10';
-const COLUMN_COUNT = 9;
+const COLUMN_COUNT = 11;
 
 /** `2026-10-06` → `06.10.2026`. Split rather than parsed: these are Tashkent
  *  calendar days, and a Date would move them across midnight west of UTC. */
@@ -44,7 +45,15 @@ function dmy(day: string | null): string {
 }
 
 function searchText(row: BoardRow): string {
-  return [row.plate, row.location, row.export_trip?.route, row.import_trip?.route]
+  return [
+    row.plate,
+    row.location,
+    row.export_trip?.route,
+    row.export_trip?.customer,
+    row.import_trip?.route,
+    row.import_trip?.customer,
+    row.empty?.place,
+  ]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
@@ -68,18 +77,38 @@ async function download(onError: (err: unknown) => void) {
 
 interface TripCellsProps {
   trip: BoardTrip | null;
+  /** Set when the truck stands empty waiting for a load this way. */
+  empty: BoardEmpty | null;
   className: string;
 }
 
-function TripCells({ trip, className }: TripCellsProps) {
+function EmptyNote({ empty }: { empty: BoardEmpty }) {
+  const { t } = useTranslation();
+  return (
+    <span className="inline-flex flex-col">
+      <span className="font-medium text-status-stopped">
+        {empty.place ? t('fleetBoard.emptyAt', { place: empty.place }) : t('fleetBoard.emptyNowhere')}
+      </span>
+      {empty.since && (
+        <span className="text-[11px] leading-tight text-muted-foreground">
+          {formatDistanceToNow(empty.since, { addSuffix: true })}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function TripCells({ trip, empty, className }: TripCellsProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const open = trip ? () => navigate(`/trips/${trip.trip_id}`) : undefined;
   const clickable = trip ? 'cursor-pointer hover:underline' : '';
   return (
     <>
+      <TableCell className={cn('whitespace-nowrap text-sm', className)}>{trip?.customer}</TableCell>
       <TableCell className={cn('whitespace-nowrap text-sm', className, clickable)} onClick={open}>
         {trip?.route}
+        {!trip && empty && <EmptyNote empty={empty} />}
         {trip && !trip.is_loaded && (
           <Badge variant="outline" className="ml-2 border-status-stopped/40 text-status-stopped">
             {t('fleetBoard.empty')}
@@ -153,6 +182,7 @@ export function FleetBoard() {
             <ToggleGroupItem value="all">{t('fleetBoard.filterAll')}</ToggleGroupItem>
             <ToggleGroupItem value="export">{t('fleetBoard.filterExport')}</ToggleGroupItem>
             <ToggleGroupItem value="import">{t('fleetBoard.filterImport')}</ToggleGroupItem>
+            <ToggleGroupItem value="empty">{t('fleetBoard.filterEmpty')}</ToggleGroupItem>
             <ToggleGroupItem value="free">{t('fleetBoard.filterFree')}</ToggleGroupItem>
           </ToggleGroup>
         </div>
@@ -171,10 +201,10 @@ export function FleetBoard() {
           <TableHeader>
             <TableRow>
               <TableHead colSpan={3} className="text-center font-semibold">{t('fleetBoard.truck')}</TableHead>
-              <TableHead colSpan={3} className={cn('text-center font-semibold', EXPORT_CELL)}>
+              <TableHead colSpan={4} className={cn('text-center font-semibold', EXPORT_CELL)}>
                 {t('fleetBoard.export').toUpperCase()}
               </TableHead>
-              <TableHead colSpan={3} className={cn('text-center font-semibold', IMPORT_CELL)}>
+              <TableHead colSpan={4} className={cn('text-center font-semibold', IMPORT_CELL)}>
                 {t('fleetBoard.import').toUpperCase()}
               </TableHead>
             </TableRow>
@@ -182,9 +212,11 @@ export function FleetBoard() {
               <TableHead className="w-10">№</TableHead>
               <TableHead>{t('fleetBoard.truckData')}</TableHead>
               <TableHead>{t('fleetBoard.location')}</TableHead>
+              <TableHead className={EXPORT_CELL}>{t('fleetBoard.customer')}</TableHead>
               <TableHead className={EXPORT_CELL}>{t('fleetBoard.route')}</TableHead>
               <TableHead className={EXPORT_CELL}>{t('fleetBoard.loadingDate')}</TableHead>
               <TableHead className={EXPORT_CELL}>{t('fleetBoard.unloadingDate')}</TableHead>
+              <TableHead className={IMPORT_CELL}>{t('fleetBoard.customer')}</TableHead>
               <TableHead className={IMPORT_CELL}>{t('fleetBoard.route')}</TableHead>
               <TableHead className={IMPORT_CELL}>{t('fleetBoard.loadingDate')}</TableHead>
               <TableHead className={IMPORT_CELL}>{t('fleetBoard.unloadingDate')}</TableHead>
@@ -219,8 +251,16 @@ export function FleetBoard() {
                     </div>
                   )}
                 </TableCell>
-                <TripCells trip={row.export_trip} className={EXPORT_CELL} />
-                <TripCells trip={row.import_trip} className={IMPORT_CELL} />
+                <TripCells
+                  trip={row.export_trip}
+                  empty={row.empty?.kind === 'export' ? row.empty : null}
+                  className={EXPORT_CELL}
+                />
+                <TripCells
+                  trip={row.import_trip}
+                  empty={row.empty?.kind === 'import' ? row.empty : null}
+                  className={IMPORT_CELL}
+                />
               </TableRow>
             ))}
           </TableBody>

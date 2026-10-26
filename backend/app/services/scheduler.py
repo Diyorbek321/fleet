@@ -37,6 +37,8 @@ from app.services.owner_alerts import gps as owner_gps
 from app.services import driver_notices
 from app.services import fleet_board_digest
 from app.services import russia_stay_reminders
+from app.services import phone_wake
+from app.services import signal_reminders
 from app.services.owner_alerts import cash as owner_cash
 from app.services.owner_alerts import expiry as owner_expiry
 from app.services.owner_alerts import leakage as owner_leakage
@@ -346,6 +348,12 @@ _OWNER_ALERT_WATCHES: tuple[tuple[str, Any, int], ...] = (
     ("owner_alert_leakage", owner_leakage.run, 0),
     # Also pushes the driver. Once per silence, so the plain tick is fine.
     ("owner_alert_gps", owner_gps.run, 0),
+    # Every not-reporting truck: the driver every GPS_REMINDER_HOURS until it
+    # reports, the dispatcher once a day. Both self-space, so the plain tick.
+    ("signal_reminders", signal_reminders.run, 0),
+    # A data-only push to phones that went quiet recently, which restarts
+    # their tracking. Invisible to the driver, so the plain tick is fine.
+    ("phone_wake", phone_wake.run, 0),
     # Loading, CMR, service and document reminders on the driver's phone.
     # Each is sent once (keyed on the fact), so the plain tick is fine.
     ("driver_reminders", driver_notices.run, 0),

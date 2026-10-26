@@ -505,6 +505,7 @@
       "originName": "Откуда",
       "destinationName": "Куда",
       "borderCrossing": "Погран. переход",
+      "customer": "Заказчик",
       "shipper": "Отправитель",
       "loadingAddress": "Адрес погрузки",
       "loadingContact": "Контакты на погрузке",
@@ -1124,7 +1125,21 @@
   },
   "map": {
     "jumpToTruck": "Перейти к машине",
-    "refresh": "Обновить"
+    "refresh": "Обновить",
+    "signal": {
+      "title": "Нет сигнала: {{count}}",
+      "allOk": "Все машины на связи",
+      "state": {
+        "no_driver": "Водитель не назначен",
+        "gps_off": "GPS выключен",
+        "never": "Ни разу не подключался",
+        "silent": "Сигнал пропал"
+      },
+      "battery": "Батарея {{pct}}%",
+      "foregroundOnly": "Только при открытом"
+    },
+    "live": "Онлайн",
+    "reconnecting": "Связь потеряна — переподключение"
   },
   "track": {
     "reference": "Рейс",
@@ -1285,7 +1300,11 @@
       "sendNow": "Отправить сейчас",
       "sent": "Таблица отправлена в группу",
       "failed": "Не удалось выполнить"
-    }
+    },
+    "customer": "Заказчик",
+    "emptyAt": "Порожний — {{place}}",
+    "emptyNowhere": "Порожний",
+    "filterEmpty": "Порожние"
   },
   "russiaStay": {
     "title": "Пребывание в РФ (90/180)",

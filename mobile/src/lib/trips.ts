@@ -21,8 +21,18 @@ export interface Trip {
   direction: string | null;
   loaded_at: string | null;
   eta_customs: string | null;
+  /** Who booked the truck ("заказчик"). */
+  customer?: string | null;
   shipper: string | null;
   consignee: string | null;
+  border_crossing?: string | null;
+  loading_address?: string | null;
+  loading_contact?: string | null;
+  customs_point?: string | null;
+  unloading_address?: string | null;
+  declarant_contact?: string | null;
+  /** False on an empty run (порожний). */
+  is_loaded?: boolean;
   origin_name: string | null;
   destination_name: string | null;
   cargo_description: string | null;

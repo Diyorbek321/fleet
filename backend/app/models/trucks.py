@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, timezone
-from sqlalchemy import String, Integer, Boolean, Date, DateTime, Numeric, Enum, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import String, Integer, Boolean, Date, DateTime, Float, Numeric, Enum, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
@@ -91,6 +91,13 @@ class Truck(Base):
     # by the next fix, or by the phone reporting them back on. NULL is the
     # normal state, including for trucks tracked by a hardware device.
     gps_disabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # What the driver's phone last said about itself: battery 0..1, whether it
+    # tracks in the "background" or only in the "foreground", and the app
+    # version. NULL for hardware trackers and for APKs that predate it.
+    phone_battery: Mapped[float | None] = mapped_column(Float, nullable=True)
+    phone_tracking: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    phone_app_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    phone_reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     fuel_level: Mapped[float] = mapped_column(Numeric(5, 2), default=0, nullable=False)   # 0-100
     mileage: Mapped[float] = mapped_column(Numeric(12, 2), default=0, nullable=False)     # km
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

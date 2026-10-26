@@ -54,7 +54,9 @@ class Trip(Base):
         Enum(StagePlace, name="stage_place"), nullable=True
     )
 
-    # Parties
+    # Parties. The customer is whoever booked the truck — often a forwarder
+    # that is neither the shipper nor the consignee.
+    customer: Mapped[str | None] = mapped_column(String(200), nullable=True)
     shipper: Mapped[str | None] = mapped_column(String(200), nullable=True)
     consignee: Mapped[str | None] = mapped_column(String(200), nullable=True)
 

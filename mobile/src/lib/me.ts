@@ -1,5 +1,7 @@
 import { apiFetch } from './api';
 import type { StaySummary } from './russiaStay';
+import type { PhoneState } from './phone-state';
+import type { Fix } from './ping-queue';
 
 export interface DriverProfile {
   id: string;
@@ -200,6 +202,10 @@ export const meApi = {
 
   pingLocation: (data: LocationPing) =>
     apiFetch('/api/me/location', { method: 'POST', body: JSON.stringify(data) }),
+
+  /** Fixes kept while offline, plus the newest, in one request. */
+  pingLocations: (points: Fix[], state: PhoneState) =>
+    apiFetch('/api/me/locations', { method: 'POST', body: JSON.stringify({ points, ...state }) }),
 
   /** Tell the dispatcher whether this phone's location services are on. */
   reportGpsStatus: (enabled: boolean) =>

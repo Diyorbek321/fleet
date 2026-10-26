@@ -18,6 +18,17 @@ export interface BoardTrip {
   unloading_date: string | null;
   is_loaded: boolean;
   status: TripStatus;
+  /** Who booked the truck ("заказчик"). */
+  customer: string | null;
+}
+
+/** The truck stands empty: unloaded, and nothing booked yet. */
+export interface BoardEmpty {
+  /** The load it waits for — unloaded an export in Russia, it needs an import. */
+  kind: 'export' | 'import';
+  /** Where it was unloaded. */
+  place: string | null;
+  since: string | null;
 }
 
 export interface BoardRow {
@@ -29,6 +40,7 @@ export interface BoardRow {
   location_at: string | null;
   export_trip: BoardTrip | null;
   import_trip: BoardTrip | null;
+  empty: BoardEmpty | null;
 }
 
 export interface FleetBoard {

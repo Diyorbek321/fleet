@@ -1,6 +1,6 @@
 from __future__ import annotations
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Literal, Optional, List
 from datetime import datetime, date
 import uuid
 from app.models.enums import TrailerVolume, TruckStatus
@@ -82,6 +82,25 @@ class TruckOut(BaseModel):
 class TruckOrderIn(BaseModel):
     """The whole list, top to bottom, as the dispatcher arranged it."""
     truck_ids: List[uuid.UUID] = Field(min_length=1, max_length=2000)
+
+class TruckSignalOut(BaseModel):
+    """One truck's reporting state — see ``app.services.truck_signal``."""
+    truck_id: uuid.UUID
+    plate_number: str
+    name: str
+    state: Literal["ok", "silent", "never", "gps_off", "no_driver"]
+    last_fix_at: Optional[datetime]
+    gps_disabled_at: Optional[datetime]
+    driver_id: Optional[uuid.UUID]
+    driver_name: Optional[str]
+    driver_phone: Optional[str]
+    # What the phone last said about itself; null for trackers and old APKs.
+    phone_battery: Optional[float] = None
+    phone_tracking: Optional[Literal["background", "foreground"]] = None
+    phone_app_version: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 class TruckLocationOut(BaseModel):
     truck_id: uuid.UUID

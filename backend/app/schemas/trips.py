@@ -24,6 +24,7 @@ class TripCreate(BaseModel):
     reference: Optional[str] = Field(default=None, max_length=40)
     truck_id: Optional[uuid.UUID] = None
     driver_id: Optional[uuid.UUID] = None
+    customer: Optional[str] = Field(default=None, max_length=200)
     shipper: Optional[str] = Field(default=None, max_length=200)
     consignee: Optional[str] = Field(default=None, max_length=200)
     origin_name: Optional[str] = Field(default=None, max_length=200)
@@ -54,6 +55,7 @@ class TripCreate(BaseModel):
 class TripUpdate(BaseModel):
     truck_id: Optional[uuid.UUID] = None
     driver_id: Optional[uuid.UUID] = None
+    customer: Optional[str] = Field(default=None, max_length=200)
     shipper: Optional[str] = Field(default=None, max_length=200)
     consignee: Optional[str] = Field(default=None, max_length=200)
     origin_name: Optional[str] = Field(default=None, max_length=200)
@@ -138,6 +140,7 @@ class TripOut(BaseModel):
     truck_id: Optional[uuid.UUID]
     driver_id: Optional[uuid.UUID]
     status: TripStatus
+    customer: Optional[str] = None
     shipper: Optional[str]
     consignee: Optional[str]
     origin_name: Optional[str]

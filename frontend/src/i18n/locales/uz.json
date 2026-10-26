@@ -505,6 +505,7 @@
       "originName": "Qayerdan",
       "destinationName": "Qayerga",
       "borderCrossing": "Chegara o‘tish punkti",
+      "customer": "Zakazchik",
       "shipper": "Jo‘natuvchi",
       "loadingAddress": "Yuklash manzili",
       "loadingContact": "Yuklashdagi kontakt",
@@ -1124,7 +1125,21 @@
   },
   "map": {
     "jumpToTruck": "Mashinaga o‘tish",
-    "refresh": "Yangilash"
+    "refresh": "Yangilash",
+    "signal": {
+      "title": "Signal yo‘q: {{count}}",
+      "allOk": "Barcha mashinalar signal bermoqda",
+      "state": {
+        "no_driver": "Haydovchi biriktirilmagan",
+        "gps_off": "GPS o‘chirilgan",
+        "never": "Hech qachon ulanmagan",
+        "silent": "Signal uzildi"
+      },
+      "battery": "Batareya {{pct}}%",
+      "foregroundOnly": "Faqat ochiq paytda"
+    },
+    "live": "Jonli",
+    "reconnecting": "Ulanish uzildi — qayta ulanmoqda"
   },
   "track": {
     "reference": "Reys",
@@ -1285,7 +1300,11 @@
       "sendNow": "Hozir yuborish",
       "sent": "Jadval guruhga yuborildi",
       "failed": "Amal bajarilmadi"
-    }
+    },
+    "customer": "Zakazchik",
+    "emptyAt": "Pustoy — {{place}}",
+    "emptyNowhere": "Pustoy",
+    "filterEmpty": "Pustoy turganlar"
   },
   "russiaStay": {
     "title": "Rossiyada bo‘lish (90/180)",

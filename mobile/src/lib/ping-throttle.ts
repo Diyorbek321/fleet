@@ -44,7 +44,7 @@ export function shouldSend(last: SentSample | null, next: SentSample): boolean {
   return distanceMeters(last, next) >= MIN_MOVE_METERS;
 }
 
-async function readLast(): Promise<SentSample | null> {
+export async function readLastSent(): Promise<SentSample | null> {
   try {
     const raw = await AsyncStorage.getItem(LAST_SENT_KEY);
     return raw ? (JSON.parse(raw) as SentSample) : null;
@@ -65,14 +65,19 @@ export async function sendIfDue(
   now: number = Date.now(),
 ): Promise<boolean> {
   const next = { ...sample, at: now };
-  if (!shouldSend(await readLast(), next)) return false;
+  if (!shouldSend(await readLastSent(), next)) return false;
   await send();
+  await rememberSent(next);
+  return true;
+}
+
+/** Record ``sample`` as the last one sent (or kept for sending). */
+export async function rememberSent(sample: SentSample): Promise<void> {
   try {
-    await AsyncStorage.setItem(LAST_SENT_KEY, JSON.stringify(next));
+    await AsyncStorage.setItem(LAST_SENT_KEY, JSON.stringify(sample));
   } catch {
     // Storage full or unavailable: the worst case is one extra ping.
   }
-  return true;
 }
 
 /** Forget the last sample, so the first fix after sign-in always goes out. */
