@@ -2,7 +2,7 @@
 from __future__ import annotations
 import uuid
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
@@ -147,6 +147,39 @@ def _aware(moment: datetime | None) -> datetime | None:
     return moment
 
 
+# Drift below this is network latency and a phone a little off; above it the
+# phone's clock is wrong (set by hand, or a SIM that never synced it).
+CLOCK_TOLERANCE = timedelta(minutes=2)
+
+
+def _on_server_clock(
+    points: list[LocationPointIn], sent_at: datetime | None, now: datetime
+) -> list[LocationPointIn]:
+    """Fix timestamps the way the server's clock would have written them.
+
+    The phone stamps each fix with its own clock. Hours ahead, its fixes sat in
+    the future and the current position — which only moves forward — froze on
+    them; hours behind, a live truck read as silent. ``sent_at`` is that same
+    clock at send time, so the gap to the server's clock is the error in every
+    stamp. Whatever remains in the future afterwards is capped at now, which
+    also covers clients that do not send ``sent_at``.
+    """
+    skew = timedelta(0)
+    sent = _aware(sent_at)
+    if sent is not None and abs(sent - now) > CLOCK_TOLERANCE:
+        # Whole minutes: a retry measures it a few seconds differently, and
+        # the same fix must land on the same time or the dedupe misses it.
+        skew = timedelta(minutes=round((sent - now).total_seconds() / 60))
+
+    def fixed(p: LocationPointIn) -> LocationPointIn:
+        at = _aware(p.recorded_at)
+        if at is None:
+            return p
+        return p.model_copy(update={"recorded_at": min(at - skew, now)})
+
+    return [fixed(p) for p in points]
+
+
 async def _not_yet_recorded(
     db: AsyncSession, truck_id: uuid.UUID, points: list[LocationPointIn]
 ) -> list[LocationPointIn]:
@@ -200,12 +233,12 @@ async def _ingest(
     """
     truck = await require_assigned_truck(db, driver.id)
     now = datetime.now(timezone.utc)
+    points = _on_server_clock(points, state.sent_at, now)
     # Oldest first, as record_positions expects; a buffer can arrive shuffled.
     ordered = sorted(points, key=lambda p: _aware(p.recorded_at) or now)
-    if len(ordered) > 1:
-        ordered = await _not_yet_recorded(db, truck.id, ordered)
-        if not ordered:
-            return {"message": "ok", "truck_id": str(truck.id), "accepted": 0}
+    ordered = await _not_yet_recorded(db, truck.id, ordered)
+    if not ordered:
+        return {"message": "ok", "truck_id": str(truck.id), "accepted": 0}
     positions = [
         Position(
             latitude=p.latitude,

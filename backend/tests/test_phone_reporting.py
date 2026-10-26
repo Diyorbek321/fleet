@@ -247,3 +247,84 @@ async def test_an_old_buffer_raises_no_geofence_events(
     )
     after = len((await db.execute(select(GeofenceEvent))).scalars().all())
     assert after == before
+
+
+# ── A phone whose clock is wrong ─────────────────────────────────────────
+
+
+async def _latest(db, truck_id: str) -> TruckLocation:
+    loc = (await db.execute(select(TruckLocation).where(TruckLocation.truck_id == uuid.UUID(truck_id)))).scalar_one()
+    await db.refresh(loc)
+    return loc
+
+
+async def test_a_phone_clock_hours_ahead_is_corrected(client: AsyncClient, admin_headers, driver_login, db):
+    """Left uncorrected, its fixes sit in the future and freeze the marker."""
+    truck_id = await _assigned(client, admin_headers, driver_login)
+    ahead = timedelta(hours=3)
+    phone_now = datetime.now(timezone.utc) + ahead
+    await client.post(
+        "/api/me/locations", headers=driver_login["headers"],
+        json={"sent_at": phone_now.isoformat(),
+              "points": [{"latitude": 41.0, "longitude": 69.0, "recorded_at": (phone_now - timedelta(minutes=10)).isoformat()}]},
+    )
+    loc = await _latest(db, truck_id)
+    expected = datetime.now(timezone.utc) - timedelta(minutes=10)
+    assert abs((loc.recorded_at - expected).total_seconds()) < 60
+
+
+async def test_a_phone_clock_behind_is_corrected(client: AsyncClient, admin_headers, driver_login):
+    """Left uncorrected, a live truck reads as silent for hours."""
+    truck_id = await _assigned(client, admin_headers, driver_login)
+    phone_now = datetime.now(timezone.utc) - timedelta(hours=2)
+    await client.post(
+        "/api/me/locations", headers=driver_login["headers"],
+        json={"sent_at": phone_now.isoformat(),
+              "points": [{"latitude": 41.0, "longitude": 69.0, "recorded_at": phone_now.isoformat()}]},
+    )
+    rows = {r["truck_id"]: r for r in (await client.get("/api/trucks/signal", headers=admin_headers)).json()}
+    assert rows[truck_id]["state"] == "ok"
+
+
+async def test_a_small_drift_is_left_alone(client: AsyncClient, admin_headers, driver_login, db):
+    truck_id = await _assigned(client, admin_headers, driver_login)
+    fix_at = datetime.now(timezone.utc) - timedelta(minutes=20)
+    await client.post(
+        "/api/me/locations", headers=driver_login["headers"],
+        json={"sent_at": (datetime.now(timezone.utc) + timedelta(seconds=40)).isoformat(),
+              "points": [{"latitude": 41.0, "longitude": 69.0, "recorded_at": fix_at.isoformat()}]},
+    )
+    loc = await _latest(db, truck_id)
+    assert abs((loc.recorded_at - fix_at).total_seconds()) < 1
+
+
+async def test_a_future_fix_without_the_phone_clock_is_capped_at_now(
+    client: AsyncClient, admin_headers, driver_login, db
+):
+    """An older client sends no sent_at; a fix from the future still must not freeze the map."""
+    truck_id = await _assigned(client, admin_headers, driver_login)
+    await client.post(
+        "/api/me/location", headers=driver_login["headers"],
+        json={"latitude": 41.0, "longitude": 69.0, "recorded_at": _at(-300)},
+    )
+    loc = await _latest(db, truck_id)
+    assert loc.recorded_at <= datetime.now(timezone.utc) + timedelta(seconds=5)
+
+
+async def test_a_resent_buffer_from_a_wrong_clock_is_still_recorded_once(
+    client: AsyncClient, admin_headers, driver_login, db
+):
+    """Each retry measures the skew a few seconds differently; the fixes must
+    still land on the same corrected times, or the dedupe misses them."""
+    truck_id = await _assigned(client, admin_headers, driver_login)
+    stamp = (datetime.now(timezone.utc) + timedelta(hours=3) - timedelta(minutes=30)).isoformat()
+    for jitter in (0, 7):
+        sent = datetime.now(timezone.utc) + timedelta(hours=3, seconds=jitter)
+        await client.post(
+            "/api/me/locations", headers=driver_login["headers"],
+            json={"sent_at": sent.isoformat(), "points": [{"latitude": 41.0, "longitude": 69.0, "recorded_at": stamp}]},
+        )
+    history = (
+        await db.execute(select(TruckLocationHistory).where(TruckLocationHistory.truck_id == uuid.UUID(truck_id)))
+    ).scalars().all()
+    assert len(history) == 1

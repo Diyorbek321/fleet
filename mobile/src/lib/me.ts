@@ -203,9 +203,16 @@ export const meApi = {
   pingLocation: (data: LocationPing) =>
     apiFetch('/api/me/location', { method: 'POST', body: JSON.stringify(data) }),
 
-  /** Fixes kept while offline, plus the newest, in one request. */
+  /**
+   * Fixes kept while offline, plus the newest, in one request. `sent_at` is
+   * this phone's clock right now: the server measures how far it is off and
+   * corrects every fix's time by as much (a wrong clock froze the map).
+   */
   pingLocations: (points: Fix[], state: PhoneState) =>
-    apiFetch('/api/me/locations', { method: 'POST', body: JSON.stringify({ points, ...state }) }),
+    apiFetch('/api/me/locations', {
+      method: 'POST',
+      body: JSON.stringify({ points, ...state, sent_at: new Date().toISOString() }),
+    }),
 
   /** Tell the dispatcher whether this phone's location services are on. */
   reportGpsStatus: (enabled: boolean) =>

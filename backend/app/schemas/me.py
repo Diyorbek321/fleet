@@ -103,6 +103,9 @@ class PhoneStateIn(BaseModel):
     battery: Optional[float] = Field(default=None, ge=0, le=1)
     tracking: Optional[Literal["background", "foreground"]] = None
     app_version: Optional[str] = Field(default=None, max_length=20)
+    # The phone's own clock when it sent the request; the server measures how
+    # far that clock is off and corrects every fix's recorded_at by as much.
+    sent_at: Optional[datetime] = None
 
 
 class LocationPointIn(BaseModel):
